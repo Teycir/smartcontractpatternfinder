@@ -8,3 +8,6 @@ pub use scanner::Scanner;
 pub use template::TemplateLoader;
 pub use fetcher::ContractFetcher;
 pub use cache::Cache;
+
+#[cfg(test)]
+mod tests;

@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use std::fs;
+use tokio::fs;
 use std::path::PathBuf;
 
 pub struct Cache {
@@ -7,19 +7,19 @@ pub struct Cache {
 }
 
 impl Cache {
-    pub fn new(cache_dir: PathBuf) -> Result<Self> {
-        fs::create_dir_all(&cache_dir).context("Failed to create cache directory")?;
+    pub async fn new(cache_dir: PathBuf) -> Result<Self> {
+        fs::create_dir_all(&cache_dir).await.context("Failed to create cache directory")?;
         Ok(Self { cache_dir })
     }
 
-    pub fn get(&self, key: &str) -> Option<String> {
+    pub async fn get(&self, key: &str) -> Option<String> {
         let path = self.cache_path(key);
-        fs::read_to_string(path).ok()
+        fs::read_to_string(path).await.ok()
     }
 
-    pub fn set(&self, key: &str, value: &str) -> Result<()> {
+    pub async fn set(&self, key: &str, value: &str) -> Result<()> {
         let path = self.cache_path(key);
-        fs::write(path, value).context("Failed to write to cache")?;
+        fs::write(path, value).await.context("Failed to write to cache")?;
         Ok(())
     }
 

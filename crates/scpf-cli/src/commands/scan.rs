@@ -16,7 +16,7 @@ pub async fn run(args: ScanArgs) -> Result<()> {
     let scanner = Arc::new(Scanner::new(templates)?);
     let api_key = std::env::var("ETHERSCAN_API_KEY").ok();
     let fetcher = Arc::new(ContractFetcher::new(api_key)?);
-    let cache = Arc::new(Cache::new(PathBuf::from(".cache"))?);
+    let cache = Arc::new(Cache::new(PathBuf::from(".cache")).await?);
     let chain = Arc::new(args.chain.clone());
 
     let results = stream::iter(args.addresses.iter())
@@ -31,11 +31,11 @@ pub async fn run(args: ScanArgs) -> Result<()> {
                 println!("Scanning {}...", address);
                 
                 let cache_key = format!("{}:{}", chain, address);
-                let source = if let Some(cached) = cache.get(&cache_key) {
+                let source = if let Some(cached) = cache.get(&cache_key).await {
                     cached
                 } else {
                     let src = fetcher.fetch_source(&address, &chain).await?;
-                    cache.set(&cache_key, &src)?;
+                    cache.set(&cache_key, &src).await?;
                     src
                 };
                 
