@@ -1,7 +1,7 @@
 use anyhow::Result;
 use futures::stream::{self, StreamExt};
 use scpf_core::{Cache, ContractFetcher, Scanner, TemplateLoader};
-use scpf_types::ScanResult;
+use scpf_types::{ApiKeyConfig, ScanResult};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
@@ -16,21 +16,20 @@ pub async fn run(args: ScanArgs) -> Result<()> {
     }
     
     let scanner = Arc::new(Scanner::new(templates)?);
-    let api_key = std::env::var("ETHERSCAN_API_KEY").ok();
-    let fetcher = Arc::new(ContractFetcher::new(api_key)?);
+    let api_keys = ApiKeyConfig::from_env();
+    let fetcher = Arc::new(ContractFetcher::new(api_keys)?);
     
     let cache_dir = dirs::cache_dir()
         .map(|d| d.join("scpf"))
         .unwrap_or_else(|| PathBuf::from(".cache"));
     let cache = Arc::new(Cache::new(cache_dir).await?);
-    let chain = Arc::new(args.chain.clone());
+    let chain = args.chain;
 
     let results = stream::iter(args.addresses.iter())
         .map(|address| {
             let scanner = Arc::clone(&scanner);
             let fetcher = Arc::clone(&fetcher);
             let cache = Arc::clone(&cache);
-            let chain = Arc::clone(&chain);
             let address = address.clone();
             
             async move {
@@ -41,7 +40,7 @@ pub async fn run(args: ScanArgs) -> Result<()> {
                 let source = if let Some(cached) = cache.get(&cache_key).await {
                     cached
                 } else {
-                    let src = fetcher.fetch_source(&address, &chain).await?;
+                    let src = fetcher.fetch_source(&address, chain).await?;
                     cache.set(&cache_key, &src).await?;
                     src
                 };
@@ -71,10 +70,10 @@ pub async fn run(args: ScanArgs) -> Result<()> {
         })
         .collect();
 
-    match args.output.as_str() {
-        "json" => print_json(&scan_results)?,
-        "sarif" => print_sarif(&scan_results)?,
-        _ => print_console(&scan_results),
+    match args.output {
+        crate::cli::OutputFormat::Json => print_json(&scan_results)?,
+        crate::cli::OutputFormat::Sarif => print_sarif(&scan_results)?,
+        crate::cli::OutputFormat::Console => print_console(&scan_results),
     }
 
     Ok(())

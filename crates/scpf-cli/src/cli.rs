@@ -1,5 +1,7 @@
-use clap::{Parser, Subcommand, Args};
+use clap::{Parser, Subcommand, Args, ValueEnum};
 use std::path::PathBuf;
+use scpf_types::Chain;
+use std::str::FromStr;
 
 #[derive(Parser)]
 #[command(name = "scpf")]
@@ -18,21 +20,32 @@ pub enum Commands {
     Init(InitArgs),
 }
 
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub enum OutputFormat {
+    Console,
+    Json,
+    Sarif,
+}
+
 #[derive(Args)]
 pub struct ScanArgs {
     pub addresses: Vec<String>,
 
-    #[arg(short = 'n', long, default_value = "ethereum")]
-    pub chain: String,
+    #[arg(short = 'n', long, default_value = "ethereum", value_parser = parse_chain)]
+    pub chain: Chain,
 
     #[arg(short, long)]
     pub templates: Option<PathBuf>,
 
     #[arg(short, long, default_value = "console")]
-    pub output: String,
+    pub output: OutputFormat,
 
     #[arg(long, default_value = "10")]
     pub concurrency: usize,
+}
+
+fn parse_chain(s: &str) -> Result<Chain, String> {
+    Chain::from_str(s)
 }
 
 #[derive(Args)]

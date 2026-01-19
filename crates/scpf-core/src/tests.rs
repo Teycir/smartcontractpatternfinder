@@ -1,7 +1,7 @@
 use super::*;
 use std::path::PathBuf;
 use tempfile::tempdir;
-use scpf_types::{Pattern, Template, Severity};
+use scpf_types::{ApiKeyConfig, Chain, Pattern, Template, Severity};
 use anyhow::Result;
 
 #[tokio::test]
@@ -79,6 +79,32 @@ fn test_scanner_multiline() -> Result<()> {
     let matches = scanner.scan(source, PathBuf::from("test.sol"))?;
     
     assert_eq!(matches.len(), 1);
+    assert_eq!(matches[0].line_number, 1);
+    Ok(())
+}
+
+#[test]
+fn test_scanner_line_numbers() -> Result<()> {
+    let templates = vec![Template {
+        id: "test".to_string(),
+        name: "Test".to_string(),
+        description: "Test".to_string(),
+        tags: vec![],
+        patterns: vec![Pattern {
+            id: "pattern".to_string(),
+            pattern: "test".to_string(),
+            message: "Found test".to_string(),
+        }],
+        severity: Severity::Low,
+    }];
+    
+    let scanner = Scanner::new(templates)?;
+    let source = "line1\nline2 test\nline3 test";
+    let matches = scanner.scan(source, PathBuf::from("test.sol"))?;
+    
+    assert_eq!(matches.len(), 2);
+    assert_eq!(matches[0].line_number, 2);
+    assert_eq!(matches[1].line_number, 3);
     Ok(())
 }
 
@@ -153,21 +179,82 @@ patterns:
 
 #[test]
 fn test_fetcher_invalid_address() {
-    let fetcher = ContractFetcher::new(None).unwrap();
+    let fetcher = ContractFetcher::new(ApiKeyConfig::new()).unwrap();
     let rt = tokio::runtime::Runtime::new().unwrap();
     
-    let result = rt.block_on(fetcher.fetch_source("invalid", "ethereum"));
+    let result = rt.block_on(fetcher.fetch_source("invalid", Chain::Ethereum));
     assert!(result.is_err());
     
-    let result = rt.block_on(fetcher.fetch_source("0x123", "ethereum"));
+    let result = rt.block_on(fetcher.fetch_source("0x123", Chain::Ethereum));
     assert!(result.is_err());
 }
 
 #[test]
 fn test_fetcher_unsupported_chain() {
-    let fetcher = ContractFetcher::new(None).unwrap();
+    let fetcher = ContractFetcher::new(ApiKeyConfig::new()).unwrap();
     let rt = tokio::runtime::Runtime::new().unwrap();
     
-    let result = rt.block_on(fetcher.fetch_source("0x1234567890123456789012345678901234567890", "unsupported"));
+    let result = rt.block_on(fetcher.fetch_source("0x1234567890123456789012345678901234567890", Chain::Ethereum));
     assert!(result.is_err());
+}
+
+#[test]
+fn test_scanner_deduplication() -> Result<()> {
+    let templates = vec![Template {
+        id: "template1".to_string(),
+        name: "Template 1".to_string(),
+        description: "Test".to_string(),
+        tags: vec![],
+        patterns: vec![
+            Pattern {
+                id: "pattern1".to_string(),
+                pattern: "test".to_string(),
+                message: "Found test".to_string(),
+            },
+            Pattern {
+                id: "pattern2".to_string(),
+                pattern: "test".to_string(),
+                message: "Found test again".to_string(),
+            },
+        ],
+        severity: Severity::Low,
+    }];
+    
+    let scanner = Scanner::new(templates)?;
+    let source = "test";
+    let matches = scanner.scan(source, PathBuf::from("test.sol"))?;
+    
+    assert_eq!(matches.len(), 2, "Different patterns should both match");
+    
+    let source_multi = "test test";
+    let matches_multi = scanner.scan(source_multi, PathBuf::from("test.sol"))?;
+    assert_eq!(matches_multi.len(), 4, "Each pattern should match each occurrence");
+    Ok(())
+}
+
+#[test]
+fn test_scanner_large_match_context() -> Result<()> {
+    let templates = vec![Template {
+        id: "test".to_string(),
+        name: "Test".to_string(),
+        description: "Test".to_string(),
+        tags: vec![],
+        patterns: vec![Pattern {
+            id: "pattern".to_string(),
+            pattern: "A+".to_string(),
+            message: "Long match".to_string(),
+        }],
+        severity: Severity::Low,
+    }];
+    
+    let scanner = Scanner::new(templates)?;
+    let long_match = "A".repeat(250);
+    let source = format!("prefix {}suffix", long_match);
+    let matches = scanner.scan(&source, PathBuf::from("test.sol"))?;
+    
+    assert_eq!(matches.len(), 1);
+    assert!(matches[0].context.len() <= 300, "Context should be limited for large matches");
+    assert!(matches[0].context.contains("prefix"), "Should include prefix padding");
+    assert!(matches[0].context.contains("suffix"), "Should include suffix padding");
+    Ok(())
 }

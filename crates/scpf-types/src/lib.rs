@@ -1,6 +1,12 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+mod chain;
+mod api_key_config;
+
+pub use chain::Chain;
+pub use api_key_config::ApiKeyConfig;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Template {
     pub id: String,

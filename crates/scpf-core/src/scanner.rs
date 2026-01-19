@@ -3,10 +3,12 @@ use regex::RegexBuilder;
 use scpf_types::{Match, Pattern, Template};
 use std::path::PathBuf;
 use tracing::warn;
+use crate::regex_validator::RegexValidator;
 
 struct CompiledPattern {
     regex: regex::Regex,
     pattern: Pattern,
+    index: u32,
 }
 
 struct CompiledTemplate {
@@ -20,12 +22,26 @@ pub struct Scanner {
 
 impl Scanner {
     pub fn new(templates: Vec<Template>) -> Result<Self> {
-        let mut compiled_templates = Vec::new();
+        let mut compiled_templates = Vec::with_capacity(templates.len());
+        let mut pattern_index = 0u32;
         
         for template in templates {
-            let mut compiled_patterns = Vec::new();
+            let pattern_count = template.patterns.len();
+            let mut compiled_patterns = Vec::with_capacity(pattern_count);
             
             for pattern in &template.patterns {
+                // Validate pattern for DoS vulnerabilities
+                if let Err(e) = RegexValidator::validate_pattern(&pattern.pattern) {
+                    warn!(
+                        "Unsafe regex pattern in template '{}', pattern '{}': {}",
+                        template.id, pattern.id, e
+                    );
+                    anyhow::bail!(
+                        "Unsafe regex pattern in template '{}', pattern '{}': {}",
+                        template.id, pattern.id, e
+                    );
+                }
+
                 match RegexBuilder::new(&pattern.pattern)
                     .multi_line(true)
                     .dot_matches_new_line(true)
@@ -35,7 +51,9 @@ impl Scanner {
                         compiled_patterns.push(CompiledPattern {
                             regex,
                             pattern: pattern.clone(),
+                            index: pattern_index,
                         });
+                        pattern_index += 1;
                     }
                     Err(e) => {
                         warn!(
@@ -62,15 +80,45 @@ impl Scanner {
     }
 
     pub fn scan(&self, source: &str, file_path: PathBuf) -> Result<Vec<Match>> {
+        let newlines: Vec<usize> = source.match_indices('\n').map(|(i, _)| i).collect();
+        
         let mut matches = Vec::new();
+        let mut seen = std::collections::HashSet::new();
 
         for compiled_template in &self.templates {
             for compiled_pattern in &compiled_template.patterns {
                 for mat in compiled_pattern.regex.find_iter(source) {
-                    let line_number = source[..mat.start()].lines().count();
-                    let line_start = source[..mat.start()].rfind('\n').map(|i| i + 1).unwrap_or(0);
-                    let line_end = source[mat.end()..].find('\n').map(|i| mat.end() + i).unwrap_or(source.len());
-                    let context = source[line_start..line_end].to_string();
+                    let key = (mat.start(), mat.end(), compiled_pattern.index);
+                    if !seen.insert(key) {
+                        continue;
+                    }
+
+                    let line_number = newlines.partition_point(|&pos| pos < mat.start()) + 1;
+                    let line_start = if line_number > 1 {
+                        newlines[line_number - 2] + 1
+                    } else {
+                        0
+                    };
+                    
+                    const MAX_CONTEXT_CHARS: usize = 200;
+                    const CONTEXT_PADDING: usize = 50;
+                    
+                    let match_len = mat.end() - mat.start();
+                    let context = if match_len > MAX_CONTEXT_CHARS {
+                        let start = mat.start().saturating_sub(CONTEXT_PADDING);
+                        let end = (mat.end() + CONTEXT_PADDING).min(source.len());
+                        source[start..end].to_string()
+                    } else {
+                        let context_start = if line_number > 1 {
+                            newlines[line_number - 2] + 1
+                        } else {
+                            0
+                        };
+                        let context_end = newlines.get(line_number - 1)
+                            .copied()
+                            .unwrap_or(source.len());
+                        source[context_start..context_end].to_string()
+                    };
                     
                     matches.push(Match {
                         template_id: compiled_template.template.id.clone(),
