@@ -1,0 +1,14 @@
+id: reentrancy-basic
+name: Basic Reentrancy Pattern
+description: Detects potential reentrancy vulnerabilities
+severity: high
+tags:
+  - security
+  - reentrancy
+patterns:
+  - id: external-call-before-state
+    pattern: '\.call\{value:'
+    message: External call with value transfer detected
+  - id: delegatecall-usage
+    pattern: '\.delegatecall\('
+    message: Delegatecall usage detected

@@ -1,0 +1,30 @@
+[package]
+name = "scpf-core"
+description = "Core functionality for Smart Contract Pattern Finder"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+scpf-types = { workspace = true }
+
+tokio = { workspace = true }
+futures = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+regex = { workspace = true }
+reqwest = { workspace = true }
+chrono = { workspace = true }
+sha2 = { workspace = true }
+xxhash-rust = { workspace = true }
+backoff = { workspace = true }
+hex = { workspace = true }
+md5 = "0.7"
+
+[dev-dependencies]
+tempfile = "3.9"

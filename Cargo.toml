@@ -1,0 +1,71 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/scpf-types",
+    "crates/scpf-core",
+    "crates/scpf-cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["SCPF Contributors"]
+license = "MIT"
+
+[workspace.dependencies]
+# Internal crates
+scpf-types = { path = "crates/scpf-types" }
+scpf-core = { path = "crates/scpf-core" }
+
+# Async runtime
+tokio = { version = "1.35", features = ["full"] }
+futures = "0.3"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# CLI
+clap = { version = "4.4", features = ["derive"] }
+
+# Regex & Pattern matching
+regex = "1.10"
+tree-sitter = "0.20"
+
+# HTTP client
+reqwest = { version = "0.11", features = ["json"] }
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Console output
+colored = "2.1"
+console = "0.15"
+indicatif = "0.17"
+dialoguer = "0.11"
+tabled = "0.15"
+
+# File watching
+notify = "6.1"
+
+# Dirs
+dirs = "5.0"
+
+# Hashing
+sha2 = "0.10"
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
+
+# Backoff
+backoff = { version = "0.4", features = ["tokio"] }
+
+# Hex encoding
+hex = "0.4"

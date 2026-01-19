@@ -1,0 +1,21 @@
+[package]
+name = "scpf-cli"
+description = "CLI for Smart Contract Pattern Finder"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "scpf"
+path = "src/main.rs"
+
+[dependencies]
+scpf-core = { workspace = true }
+scpf-types = { workspace = true }
+
+tokio = { workspace = true }
+clap = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
