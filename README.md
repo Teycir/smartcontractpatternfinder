@@ -2,6 +2,8 @@
 
 🔍 High-performance tool for detecting security vulnerabilities and patterns in smart contracts across multiple blockchains.
 
+**How it works:** Define patterns in YAML templates → SCPF scans smart contracts → Finds matching patterns → Reports vulnerabilities
+
 [![Rust](https://img.shields.io/badge/rust-%23000000.svg?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
@@ -73,6 +75,14 @@
 
 ## 🚀 Quick Start
 
+### How It Works
+
+1. **Create Templates** - Define vulnerability patterns in YAML files
+2. **Load Templates** - SCPF reads your pattern definitions
+3. **Fetch Contracts** - Retrieves smart contract source code from blockchain explorers
+4. **Scan & Match** - Applies regex patterns to find vulnerabilities
+5. **Report Results** - Displays findings with severity levels and context
+
 ### Installation
 
 ```bash
@@ -107,6 +117,8 @@ scpf scan 0x1234567890abcdef -vv
 
 ## 📋 Template Example
 
+Templates define patterns to search for in smart contracts. SCPF loads these templates and matches them against contract source code.
+
 ```yaml
 id: reentrancy-basic
 name: Basic Reentrancy Pattern
@@ -123,6 +135,12 @@ patterns:
     pattern: '\.delegatecall\('
     message: Delegatecall usage detected
 ```
+
+**What happens:**
+1. SCPF loads this template from `templates/reentrancy.yaml`
+2. Fetches contract source code from blockchain explorer
+3. Searches for `.call{value:` and `.delegatecall(` patterns
+4. Reports any matches with line numbers and context
 
 ---
 
@@ -269,7 +287,17 @@ cargo build --release
 
 ## 📝 Creating Templates
 
-Templates are YAML files defining patterns to detect:
+Templates are the core of SCPF - they define what patterns to find in smart contracts.
+
+### How Templates Work
+
+1. **Define Patterns** - Write regex patterns that match vulnerable code
+2. **Set Severity** - Classify findings (info, low, medium, high, critical)
+3. **Add Context** - Provide descriptions and messages for findings
+4. **Save as YAML** - Store in `templates/` directory
+5. **SCPF Loads & Scans** - Tool automatically uses your templates
+
+### Creating a Template
 
 1. Create a `.yaml` file in `templates/`
 2. Define patterns with regex
