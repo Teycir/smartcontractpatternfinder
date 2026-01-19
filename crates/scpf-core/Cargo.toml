@@ -22,7 +22,7 @@ reqwest = { workspace = true }
 chrono = { workspace = true }
 sha2 = { workspace = true }
 xxhash-rust = { workspace = true }
-backoff = { workspace = true }
+backon = { workspace = true }
 hex = { workspace = true }
 md5 = "0.7"
 

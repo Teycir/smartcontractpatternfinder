@@ -1,11 +1,15 @@
 use anyhow::{Context, Result};
 use reqwest::Client;
 use serde_json::Value;
+use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::Semaphore;
+use tokio::time::sleep;
 
 pub struct ContractFetcher {
     client: Client,
     api_key: Option<String>,
+    rate_limiter: Arc<Semaphore>,
 }
 
 impl ContractFetcher {
@@ -15,10 +19,23 @@ impl ContractFetcher {
             .build()
             .context("Failed to create HTTP client")?;
 
-        Ok(Self { client, api_key })
+        Ok(Self {
+            client,
+            api_key,
+            rate_limiter: Arc::new(Semaphore::new(5)),
+        })
     }
 
     pub async fn fetch_source(&self, address: &str, chain: &str) -> Result<String> {
+        if !address.starts_with("0x") || address.len() != 42 {
+            anyhow::bail!("Invalid address format: {}", address);
+        }
+
+        let _permit = self.rate_limiter.acquire().await
+            .context("Failed to acquire rate limit permit")?;
+        
+        sleep(Duration::from_millis(200)).await;
+        
         let url = self.build_url(address, chain)?;
         
         let response = self

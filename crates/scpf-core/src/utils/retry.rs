@@ -1,4 +1,4 @@
-use backoff::ExponentialBackoff;
+use backon::ExponentialBuilder;
 use std::time::Duration;
 
 pub struct RetryPolicy {
@@ -10,12 +10,10 @@ impl RetryPolicy {
         Self { initial_interval }
     }
 
-    pub fn backoff(&self) -> ExponentialBackoff {
-        ExponentialBackoff {
-            initial_interval: self.initial_interval,
-            max_elapsed_time: Some(Duration::from_secs(60)),
-            ..Default::default()
-        }
+    pub fn backoff(&self) -> ExponentialBuilder {
+        ExponentialBuilder::default()
+            .with_min_delay(self.initial_interval)
+            .with_max_times(10)
     }
 }
 

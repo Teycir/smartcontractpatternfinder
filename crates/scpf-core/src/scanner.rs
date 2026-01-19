@@ -1,64 +1,89 @@
 use anyhow::Result;
-use regex::Regex;
-use scpf_types::{Match, Template};
+use regex::RegexBuilder;
+use scpf_types::{Match, Pattern, Template};
 use std::path::PathBuf;
+use tracing::warn;
+
+struct CompiledPattern {
+    regex: regex::Regex,
+    pattern: Pattern,
+}
+
+struct CompiledTemplate {
+    template: Template,
+    patterns: Vec<CompiledPattern>,
+}
 
 pub struct Scanner {
-    templates: Vec<(Template, Vec<Regex>)>,
+    templates: Vec<CompiledTemplate>,
 }
 
 impl Scanner {
-    pub fn new(templates: Vec<Template>) -> Self {
-        let compiled = templates
-            .into_iter()
-            .map(|t| {
-                let regexes = t.patterns.iter()
-                    .filter_map(|p| Regex::new(&p.pattern).ok())
-                    .collect();
-                (t, regexes)
-            })
-            .collect();
-        Self { templates: compiled }
+    pub fn new(templates: Vec<Template>) -> Result<Self> {
+        let mut compiled_templates = Vec::new();
+        
+        for template in templates {
+            let mut compiled_patterns = Vec::new();
+            
+            for pattern in &template.patterns {
+                match RegexBuilder::new(&pattern.pattern)
+                    .multi_line(true)
+                    .dot_matches_new_line(true)
+                    .build()
+                {
+                    Ok(regex) => {
+                        compiled_patterns.push(CompiledPattern {
+                            regex,
+                            pattern: pattern.clone(),
+                        });
+                    }
+                    Err(e) => {
+                        warn!(
+                            "Invalid regex in template '{}', pattern '{}': {}",
+                            template.id, pattern.id, e
+                        );
+                        anyhow::bail!(
+                            "Invalid regex in template '{}', pattern '{}': {}",
+                            template.id, pattern.id, e
+                        );
+                    }
+                }
+            }
+            
+            if !compiled_patterns.is_empty() {
+                compiled_templates.push(CompiledTemplate {
+                    template,
+                    patterns: compiled_patterns,
+                });
+            }
+        }
+        
+        Ok(Self { templates: compiled_templates })
     }
 
     pub fn scan(&self, source: &str, file_path: PathBuf) -> Result<Vec<Match>> {
         let mut matches = Vec::new();
 
-        for (template, regexes) in &self.templates {
-            let mut pattern_idx = 0;
-            for (regex_idx, regex) in regexes.iter().enumerate() {
-                while pattern_idx < template.patterns.len() {
-                    if Regex::new(&template.patterns[pattern_idx].pattern).is_ok() {
-                        if pattern_idx == regex_idx {
-                            break;
-                        }
-                        pattern_idx += 1;
-                    } else {
-                        pattern_idx += 1;
-                    }
+        for compiled_template in &self.templates {
+            for compiled_pattern in &compiled_template.patterns {
+                for mat in compiled_pattern.regex.find_iter(source) {
+                    let line_number = source[..mat.start()].lines().count();
+                    let line_start = source[..mat.start()].rfind('\n').map(|i| i + 1).unwrap_or(0);
+                    let line_end = source[mat.end()..].find('\n').map(|i| mat.end() + i).unwrap_or(source.len());
+                    let context = source[line_start..line_end].to_string();
+                    
+                    matches.push(Match {
+                        template_id: compiled_template.template.id.clone(),
+                        pattern_id: compiled_pattern.pattern.id.clone(),
+                        file_path: file_path.clone(),
+                        line_number,
+                        column: mat.start() - line_start,
+                        matched_text: mat.as_str().to_string(),
+                        context,
+                        severity: compiled_template.template.severity,
+                        message: compiled_pattern.pattern.message.clone(),
+                    });
                 }
-                
-                if pattern_idx >= template.patterns.len() {
-                    break;
-                }
-                
-                let pattern = &template.patterns[pattern_idx];
-                for (line_num, line) in source.lines().enumerate() {
-                    if let Some(mat) = regex.find(line) {
-                        matches.push(Match {
-                            template_id: template.id.clone(),
-                            pattern_id: pattern.id.clone(),
-                            file_path: file_path.clone(),
-                            line_number: line_num + 1,
-                            column: mat.start(),
-                            matched_text: mat.as_str().to_string(),
-                            context: line.to_string(),
-                            severity: template.severity,
-                            message: pattern.message.clone(),
-                        });
-                    }
-                }
-                pattern_idx += 1;
             }
         }
 

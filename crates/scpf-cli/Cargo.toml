@@ -15,6 +15,7 @@ scpf-core = { workspace = true }
 scpf-types = { workspace = true }
 
 tokio = { workspace = true }
+futures = { workspace = true }
 clap = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }
