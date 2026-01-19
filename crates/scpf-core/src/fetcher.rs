@@ -33,7 +33,16 @@ impl ContractFetcher {
             .await
             .context("Failed to parse response")?;
 
-        let source = json["result"][0]["SourceCode"]
+        if json["status"].as_str() != Some("1") {
+            anyhow::bail!("API error: {}", json["message"].as_str().unwrap_or("Unknown error"));
+        }
+
+        let result = json["result"]
+            .as_array()
+            .and_then(|arr| arr.first())
+            .context("No result in API response")?;
+
+        let source = result["SourceCode"]
             .as_str()
             .context("Source code not found")?
             .to_string();
