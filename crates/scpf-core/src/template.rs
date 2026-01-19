@@ -1,22 +1,23 @@
 use anyhow::{Context, Result};
 use scpf_types::Template;
-use std::fs;
+use tokio::fs;
 use std::path::Path;
 
 pub struct TemplateLoader;
 
 impl TemplateLoader {
-    pub fn load_from_dir(dir: &Path) -> Result<Vec<Template>> {
+    pub async fn load_from_dir(dir: &Path) -> Result<Vec<Template>> {
         let mut templates = Vec::new();
+        let mut entries = fs::read_dir(dir).await
+            .context("Failed to read templates directory")?;
 
-        for entry in fs::read_dir(dir).context("Failed to read templates directory")? {
-            let entry = entry?;
+        while let Some(entry) = entries.next_entry().await? {
             let path = entry.path();
 
             if path.extension().and_then(|s| s.to_str()) == Some("yaml")
                 || path.extension().and_then(|s| s.to_str()) == Some("yml")
             {
-                let content = fs::read_to_string(&path)
+                let content = fs::read_to_string(&path).await
                     .context(format!("Failed to read template: {:?}", path))?;
                 let template: Template = serde_yaml::from_str(&content)
                     .context(format!("Failed to parse template: {:?}", path))?;

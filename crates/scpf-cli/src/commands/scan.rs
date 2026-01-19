@@ -1,13 +1,15 @@
 use anyhow::Result;
 use futures::stream::{self, StreamExt};
 use scpf_core::{Cache, ContractFetcher, Scanner, TemplateLoader};
+use scpf_types::ScanResult;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Instant;
 use crate::cli::ScanArgs;
 
 pub async fn run(args: ScanArgs) -> Result<()> {
     let templates_dir = args.templates.unwrap_or_else(|| PathBuf::from("templates"));
-    let templates = TemplateLoader::load_from_dir(&templates_dir)?;
+    let templates = TemplateLoader::load_from_dir(&templates_dir).await?;
     
     if templates.is_empty() {
         anyhow::bail!("No templates found in {:?}", templates_dir);
@@ -16,7 +18,11 @@ pub async fn run(args: ScanArgs) -> Result<()> {
     let scanner = Arc::new(Scanner::new(templates)?);
     let api_key = std::env::var("ETHERSCAN_API_KEY").ok();
     let fetcher = Arc::new(ContractFetcher::new(api_key)?);
-    let cache = Arc::new(Cache::new(PathBuf::from(".cache")).await?);
+    
+    let cache_dir = dirs::cache_dir()
+        .map(|d| d.join("scpf"))
+        .unwrap_or_else(|| PathBuf::from(".cache"));
+    let cache = Arc::new(Cache::new(cache_dir).await?);
     let chain = Arc::new(args.chain.clone());
 
     let results = stream::iter(args.addresses.iter())
@@ -28,6 +34,7 @@ pub async fn run(args: ScanArgs) -> Result<()> {
             let address = address.clone();
             
             async move {
+                let start = Instant::now();
                 println!("Scanning {}...", address);
                 
                 let cache_key = format!("{}:{}", chain, address);
@@ -40,27 +47,102 @@ pub async fn run(args: ScanArgs) -> Result<()> {
                 };
                 
                 let matches = scanner.scan(&source, PathBuf::from(&address))?;
+                let scan_time_ms = start.elapsed().as_millis() as u64;
                 
-                Ok::<_, anyhow::Error>((address, matches))
+                Ok::<_, anyhow::Error>(ScanResult {
+                    address,
+                    chain: chain.to_string(),
+                    matches,
+                    scan_time_ms,
+                })
             }
         })
         .buffer_unordered(args.concurrency)
         .collect::<Vec<_>>()
         .await;
 
-    for result in results {
-        match result {
-            Ok((address, matches)) => {
-                println!("\n{}: Found {} matches", address, matches.len());
-                for m in matches {
-                    println!("  [{}:{}] {}", m.line_number, m.column, m.message);
-                }
-            }
+    let scan_results: Vec<ScanResult> = results.into_iter()
+        .filter_map(|r| match r {
+            Ok(result) => Some(result),
             Err(e) => {
                 eprintln!("Error: {}", e);
+                None
             }
-        }
+        })
+        .collect();
+
+    match args.output.as_str() {
+        "json" => print_json(&scan_results)?,
+        "sarif" => print_sarif(&scan_results)?,
+        _ => print_console(&scan_results),
     }
 
+    Ok(())
+}
+
+fn print_console(results: &[ScanResult]) {
+    for result in results {
+        println!("\n{}: Found {} matches ({}ms)", result.address, result.matches.len(), result.scan_time_ms);
+        for m in &result.matches {
+            println!("  [{}:{}] {}", m.line_number, m.column, m.message);
+        }
+    }
+}
+
+fn print_json(results: &[ScanResult]) -> Result<()> {
+    let json = serde_json::to_string_pretty(results)?;
+    println!("{}", json);
+    Ok(())
+}
+
+fn print_sarif(results: &[ScanResult]) -> Result<()> {
+    let mut runs = Vec::new();
+    
+    for result in results {
+        let mut sarif_results = Vec::new();
+        
+        for m in &result.matches {
+            sarif_results.push(serde_json::json!({
+                "ruleId": m.template_id,
+                "level": match m.severity {
+                    scpf_types::Severity::Critical | scpf_types::Severity::High => "error",
+                    scpf_types::Severity::Medium => "warning",
+                    _ => "note",
+                },
+                "message": {
+                    "text": m.message
+                },
+                "locations": [{
+                    "physicalLocation": {
+                        "artifactLocation": {
+                            "uri": result.address
+                        },
+                        "region": {
+                            "startLine": m.line_number,
+                            "startColumn": m.column
+                        }
+                    }
+                }]
+            }));
+        }
+        
+        runs.push(serde_json::json!({
+            "tool": {
+                "driver": {
+                    "name": "SCPF",
+                    "version": "0.1.0"
+                }
+            },
+            "results": sarif_results
+        }));
+    }
+    
+    let sarif = serde_json::json!({
+        "version": "2.1.0",
+        "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+        "runs": runs
+    });
+    
+    println!("{}", serde_json::to_string_pretty(&sarif)?);
     Ok(())
 }

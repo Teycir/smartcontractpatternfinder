@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use tokio::fs;
 use std::path::PathBuf;
+use xxhash_rust::xxh3::xxh3_64;
 
 pub struct Cache {
     cache_dir: PathBuf,
@@ -19,12 +20,19 @@ impl Cache {
 
     pub async fn set(&self, key: &str, value: &str) -> Result<()> {
         let path = self.cache_path(key);
-        fs::write(path, value).await.context("Failed to write to cache")?;
+        let temp_path = path.with_extension("tmp");
+        
+        fs::write(&temp_path, value).await
+            .context("Failed to write to temporary cache file")?;
+        
+        fs::rename(&temp_path, &path).await
+            .context("Failed to atomically move cache file")?;
+        
         Ok(())
     }
 
     fn cache_path(&self, key: &str) -> PathBuf {
-        let hash = format!("{:x}", md5::compute(key));
-        self.cache_dir.join(hash)
+        let hash = xxh3_64(key.as_bytes());
+        self.cache_dir.join(format!("{:x}", hash))
     }
 }

@@ -28,7 +28,7 @@ pub enum Severity {
     Critical,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Match {
     pub template_id: String,
     pub pattern_id: String,
@@ -41,7 +41,7 @@ pub struct Match {
     pub message: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ScanResult {
     pub address: String,
     pub chain: String,
@@ -67,3 +67,6 @@ impl Default for Config {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;
