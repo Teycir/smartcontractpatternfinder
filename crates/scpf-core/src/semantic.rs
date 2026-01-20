@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use scpf_types::{Match, Pattern, Severity};
 use std::path::PathBuf;
-use tree_sitter::{Parser, Query, QueryCursor, StreamingIterator};
+use tree_sitter::{Parser, Query, QueryCursor, StreamingIterator, Tree};
 
 pub struct SemanticScanner {
     parser: Parser,
@@ -15,6 +15,12 @@ impl SemanticScanner {
             .context("Failed to set Solidity language")?;
 
         Ok(Self { parser })
+    }
+
+    pub fn parse(&mut self, source: &str) -> Result<Tree> {
+        self.parser
+            .parse(source, None)
+            .context("Failed to parse source code")
     }
 
     pub fn scan(

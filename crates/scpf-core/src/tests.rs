@@ -338,7 +338,9 @@ fn debug_dump_ast() {
     }
     "#;
     let mut parser = tree_sitter::Parser::new();
-    parser.set_language(&tree_sitter_solidity::LANGUAGE.into()).unwrap();
+    parser
+        .set_language(&tree_sitter_solidity::LANGUAGE.into())
+        .unwrap();
     let tree = parser.parse(code, None).unwrap();
     println!("AST: {}", tree.root_node().to_sexp());
 }

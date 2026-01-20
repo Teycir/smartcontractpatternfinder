@@ -1,5 +1,6 @@
 use crate::regex_validator::RegexValidator;
 use crate::semantic::SemanticScanner;
+use crate::dataflow::DataFlowAnalysis;
 use anyhow::Result;
 use regex::RegexBuilder;
 use scpf_types::{Match, Pattern, PatternKind, Template};
@@ -99,7 +100,7 @@ impl Scanner {
                 Ok(scanner) => {
                     warn!("Semantic scanning enabled but may have compatibility issues with current tree-sitter-solidity grammar.");
                     Some(scanner)
-                },
+                }
                 Err(e) => {
                     warn!("Failed to initialize semantic scanner: {}. Only regex patterns will be used.", e);
                     None
@@ -121,6 +122,47 @@ impl Scanner {
         let mut matches = Vec::new();
         let mut seen = std::collections::HashSet::new();
 
+        // Run data flow analysis for enhanced reentrancy detection
+        if let Some(ref mut semantic_scanner) = self.semantic_scanner {
+            if let Ok(tree) = semantic_scanner.parse(source) {
+                let analysis = DataFlowAnalysis::analyze(&tree, source);
+                
+                // Add reentrancy risks as matches
+                for risk in &analysis.reentrancy_risks {
+                    let severity = match risk.severity {
+                        crate::dataflow::RiskSeverity::Critical => scpf_types::Severity::Critical,
+                        crate::dataflow::RiskSeverity::High => scpf_types::Severity::High,
+                        crate::dataflow::RiskSeverity::Medium => scpf_types::Severity::Medium,
+                    };
+                    
+                    let line_start = if risk.call_line > 1 {
+                        newlines.get(risk.call_line - 2).copied().unwrap_or(0) + 1
+                    } else {
+                        0
+                    };
+                    let line_end = newlines.get(risk.call_line - 1).copied().unwrap_or(source.len());
+                    let context = source[line_start..line_end].to_string();
+                    
+                    matches.push(Match {
+                        template_id: "dataflow-reentrancy".to_string(),
+                        pattern_id: "state-mutation-after-call".to_string(),
+                        file_path: file_path.clone(),
+                        line_number: risk.call_line,
+                        column: 0,
+                        matched_text: risk.call_method.clone(),
+                        context,
+                        severity,
+                        message: format!(
+                            "Data flow analysis: {} call on line {} followed by state mutation of '{}' on line {}. Potential reentrancy vulnerability.",
+                            risk.call_method, risk.call_line, risk.state_var, risk.state_change_line
+                        ),
+                        start_byte: None,
+                        end_byte: None,
+                    });
+                }
+            }
+        }
+
         for compiled_template in &self.templates {
             for compiled_pattern in &compiled_template.patterns {
                 // Dispatch based on pattern kind
@@ -135,8 +177,10 @@ impl Scanner {
                         ) {
                             Ok(semantic_matches) => matches.extend(semantic_matches),
                             Err(e) => {
-                                warn!("Skipping semantic pattern '{}' in template '{}': {}", 
-                                    compiled_pattern.pattern.id, compiled_template.template.id, e);
+                                warn!(
+                                    "Skipping semantic pattern '{}' in template '{}': {}",
+                                    compiled_pattern.pattern.id, compiled_template.template.id, e
+                                );
                             }
                         }
                     }
