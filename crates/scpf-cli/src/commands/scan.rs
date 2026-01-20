@@ -14,6 +14,27 @@ use walkdir::WalkDir;
 static TEMPLATE_CACHE: Mutex<Option<Vec<scpf_types::Template>>> = Mutex::new(None);
 
 pub async fn run(args: ScanArgs) -> Result<()> {
+    // If no addresses provided and not local scan, fetch recent contracts
+    if args.addresses.is_empty() && args.diff.is_none() {
+        let should_scan_local = std::path::Path::new(".").join("contracts").exists() 
+            || std::path::Path::new(".").join("src").exists()
+            || std::fs::read_dir(".")
+                .ok()
+                .and_then(|entries| {
+                    entries
+                        .filter_map(|e| e.ok())
+                        .find(|e| e.path().extension().and_then(|s| s.to_str()) == Some("sol"))
+                })
+                .is_some();
+
+        if should_scan_local {
+            return scan_local_project(args).await;
+        } else {
+            // Fetch recent contracts from blockchain
+            return scan_recent_contracts(args).await;
+        }
+    }
+
     if args.addresses.is_empty() {
         return scan_local_project(args).await;
     }
@@ -426,4 +447,67 @@ fn discover_diff_files(diff_spec: &str) -> Result<Vec<PathBuf>> {
         .collect();
 
     Ok(sol_files)
+}
+
+
+async fn scan_recent_contracts(args: ScanArgs) -> Result<()> {
+    println!("{}  Scanning recent contracts from last {} days...", "🔍".cyan(), args.days);
+    
+    let api_keys = ApiKeyConfig::from_env();
+    let fetcher = Arc::new(ContractFetcher::new(api_keys)?);
+    
+    let chains = if args.all_chains {
+        vec![
+            scpf_types::Chain::Ethereum,
+            scpf_types::Chain::Bsc,
+            scpf_types::Chain::Polygon,
+            scpf_types::Chain::Arbitrum,
+            scpf_types::Chain::Optimism,
+            scpf_types::Chain::Base,
+        ]
+    } else {
+        vec![args.chain]
+    };
+
+    let mut all_addresses = Vec::new();
+    for chain in &chains {
+        println!("{}  Fetching contracts from {}...", "📡".cyan(), chain.as_str());
+        match fetcher.fetch_recent_contracts(*chain, args.days).await {
+            Ok(addresses) => {
+                println!("   ✓ Found {} contracts", addresses.len());
+                all_addresses.extend(addresses.into_iter().take(10));
+            }
+            Err(e) => {
+                println!("   ✗ Failed: {}", e);
+            }
+        }
+    }
+
+    if all_addresses.is_empty() {
+        println!("{}  No recent contracts found", "⚠️".yellow());
+        return Ok(());
+    }
+
+    println!();
+    println!("{}  Scanning {} contracts...", "🔎".cyan(), all_addresses.len());
+    println!();
+    
+    // Directly scan without recursion
+    let templates = load_templates(&args.templates).await?;
+    let scanner = Arc::new(tokio::sync::Mutex::new(Scanner::new(templates)?));
+
+    for address in all_addresses {
+        let source = match fetcher.fetch_source(&address, args.chain).await {
+            Ok(s) => s,
+            Err(e) => {
+                println!("{}  {} - Failed: {}", "✗".red(), &address[..10], e);
+                continue;
+            }
+        };
+        
+        let matches = scanner.lock().await.scan(&source, PathBuf::from(&address))?;
+        println!("{}  {} - {} issues", "✓".green(), &address[..10], matches.len());
+    }
+    
+    Ok(())
 }

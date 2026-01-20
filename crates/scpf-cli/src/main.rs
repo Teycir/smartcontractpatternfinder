@@ -28,6 +28,14 @@ async fn main() -> Result<()> {
         .init();
 
     let result = match cli.command {
+        Commands::Audit(args) => {
+            if args.addresses.is_empty() {
+                eprintln!("Error: Audit command requires contract addresses");
+                eprintln!("Usage: scpf audit 0x... 0x... --chain ethereum");
+                std::process::exit(1);
+            }
+            commands::audit::run_full_audit(args.addresses.clone(), args).await
+        }
         Commands::Scan(args) => commands::scan::run(args).await,
         Commands::Init(args) => commands::init::run(args).await,
         Commands::Templates(args) => match args.command {

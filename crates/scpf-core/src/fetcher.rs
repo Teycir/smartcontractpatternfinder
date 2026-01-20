@@ -42,6 +42,8 @@ impl ContractFetcher {
         }
 
         let mut last_error = None;
+        let mut invalid_key_found = false;
+        let mut rate_limited_found = false;
 
         for (idx, key) in keys.iter().enumerate() {
             let fetch_fn = || async {
@@ -105,8 +107,10 @@ impl ContractFetcher {
                 Err(e) => {
                     let err_msg = e.to_string();
                     if err_msg.contains("INVALID_KEY") {
+                        invalid_key_found = true;
                         tracing::error!("API key {} is invalid or expired for {}", idx + 1, chain.as_str());
                     } else if err_msg.contains("RATE_LIMITED") {
+                        rate_limited_found = true;
                         tracing::warn!("API key {} is rate limited for {}", idx + 1, chain.as_str());
                     } else if idx < keys.len() - 1 {
                         tracing::warn!("API key {} failed, trying next key", idx + 1);
@@ -116,20 +120,19 @@ impl ContractFetcher {
             }
         }
 
-        // Analyze all errors to provide helpful message
-        if let Some(ref err) = last_error {
-            let err_str = err.to_string();
-            if err_str.contains("INVALID_KEY") {
-                return Err(anyhow::anyhow!(
-                    "All API keys for {} are invalid or expired. Please update your API keys.",
-                    chain.as_str()
-                ));
-            } else if err_str.contains("RATE_LIMITED") {
-                return Err(anyhow::anyhow!(
-                    "All API keys for {} have reached their rate limit. Please wait or add more keys.",
-                    chain.as_str()
-                ));
-            }
+        // Analyze error categories across all attempts to provide helpful message
+        if invalid_key_found {
+            return Err(anyhow::anyhow!(
+                "All API keys for {} are invalid or expired. Please update your API keys.",
+                chain.as_str()
+            ));
+        }
+        
+        if rate_limited_found {
+            return Err(anyhow::anyhow!(
+                "All API keys for {} have reached their rate limit. Please wait or add more keys.",
+                chain.as_str()
+            ));
         }
 
         Err(last_error.unwrap_or_else(|| anyhow::anyhow!("All API keys failed for {}", chain.as_str())))
@@ -199,5 +202,47 @@ impl ContractFetcher {
                 key
             ))
         }
+    }
+
+    /// Fetch recently deployed contracts from last N days
+    pub async fn fetch_recent_contracts(&self, chain: Chain, _days: u64) -> Result<Vec<String>> {
+        let keys = self.api_keys.get(chain).unwrap_or(&[]);
+        if keys.is_empty() {
+            anyhow::bail!("No API keys configured for {}", chain.as_str());
+        }
+
+        let key = &keys[0];
+        let url = if matches!(chain, Chain::ZkSync | Chain::Zora) {
+            format!(
+                "{}?module=contract&action=listcontracts&page=1&offset=100&apikey={}",
+                chain.api_base_url(),
+                key
+            )
+        } else {
+            format!(
+                "{}?chainid={}&module=contract&action=listcontracts&page=1&offset=100&apikey={}",
+                chain.api_base_url(),
+                chain.chain_id(),
+                key
+            )
+        };
+
+        let response = self.client.get(&url).send().await?;
+        let json: Value = response.json().await?;
+
+        if json["status"].as_str() != Some("1") {
+            anyhow::bail!("Failed to fetch recent contracts for {}", chain.as_str());
+        }
+
+        let contracts = json["result"]
+            .as_array()
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|c| c["ContractAddress"].as_str().map(String::from))
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        Ok(contracts)
     }
 }

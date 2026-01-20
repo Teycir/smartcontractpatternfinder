@@ -23,6 +23,8 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
+    #[command(about = "Full security audit: update templates + fetch + scan + report")]
+    Audit(ScanArgs),
     #[command(about = "Scan smart contracts for vulnerabilities")]
     #[command(after_help = "More: https://github.com/Teycir/smartcontractpatternfinder#scanning")]
     Scan(ScanArgs),
@@ -74,6 +76,33 @@ pub struct ScanArgs {
 
     #[arg(long, help = "Only scan files changed in git diff (e.g., main..HEAD)")]
     pub diff: Option<String>,
+
+    // Filtering options
+    #[arg(long, default_value = "30", help = "Scan contracts from last N days (default: 30)")]
+    pub days: u64,
+
+    #[arg(long, help = "Scan all available chains (ethereum, bsc, polygon, arbitrum, optimism, base)")]
+    pub all_chains: bool,
+    #[arg(long, help = "Filter by contract type (erc20, erc721, erc1155, proxy, defi)")]
+    pub contract_type: Option<String>,
+
+    #[arg(long, help = "Only scan contracts updated after this date (YYYY-MM-DD)")]
+    pub updated_after: Option<String>,
+
+    #[arg(long, help = "Only scan contracts updated before this date (YYYY-MM-DD)")]
+    pub updated_before: Option<String>,
+
+    #[arg(long, default_value = "high", help = "Minimum severity to report (info, low, medium, high, critical)")]
+    pub min_severity: String,
+
+    #[arg(long, help = "Filter by specific vulnerability tags (comma-separated: reentrancy,access-control)")]
+    pub tags: Option<String>,
+
+    #[arg(long, help = "Exclude specific templates by ID (comma-separated)")]
+    pub exclude_templates: Option<String>,
+
+    #[arg(long, help = "Only use specific templates by ID (comma-separated)")]
+    pub only_templates: Option<String>,
 }
 
 fn parse_chain(s: &str) -> Result<Chain, String> {
