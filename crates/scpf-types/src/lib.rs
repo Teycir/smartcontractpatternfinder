@@ -46,6 +46,75 @@ pub enum Severity {
     Critical,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum Exploitability {
+    Trivial,
+    Easy,
+    Medium,
+    Hard,
+    Impossible,
+}
+
+impl Exploitability {
+    pub fn multiplier(&self) -> f32 {
+        match self {
+            Exploitability::Trivial => 3.0,
+            Exploitability::Easy => 2.0,
+            Exploitability::Medium => 1.5,
+            Exploitability::Hard => 1.0,
+            Exploitability::Impossible => 0.5,
+        }
+    }
+
+    pub fn from_pattern(pattern_id: &str) -> Self {
+        match pattern_id {
+            // TRIVIAL - 100% PoC success
+            "unprotected-selfdestruct" | "unprotected-selfdestruct-fixed" => Self::Trivial,
+            "missing-access-control" | "missing-access-control-fixed" => Self::Trivial,
+            "reentrancy-pattern" | "reentrancy-pattern-fixed" | "state-after-call" => Self::Trivial,
+            
+            // EASY - 85-90% PoC success
+            "tx-origin-auth" | "tx-origin-auth-fixed" | "tx-origin-regex" => Self::Easy,
+            "delegatecall-user-input" => Self::Easy,
+            "unchecked-call" | "unchecked-call-fixed" | "unchecked-call-return" => Self::Easy,
+            
+            // MEDIUM - 50-70% PoC success
+            "timestamp-dependence" | "timestamp-dependence-fixed" => Self::Medium,
+            "integer-overflow" | "overflow-mul-div" => Self::Medium,
+            "frontrun-vulnerable" => Self::Medium,
+            
+            // HARD - 30-40% PoC success
+            "single-source-price" => Self::Hard,
+            "flash-loan-vulnerable" => Self::Hard,
+            "oracle-manipulation" => Self::Hard,
+            
+            // IMPOSSIBLE - Cannot generate reliable PoC
+            _ => Self::Impossible,
+        }
+    }
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            Exploitability::Trivial => "TRIVIAL",
+            Exploitability::Easy => "EASY",
+            Exploitability::Medium => "MEDIUM",
+            Exploitability::Hard => "HARD",
+            Exploitability::Impossible => "IMPOSSIBLE",
+        }
+    }
+
+    pub fn success_rate(&self) -> &'static str {
+        match self {
+            Exploitability::Trivial => "95-100%",
+            Exploitability::Easy => "85-90%",
+            Exploitability::Medium => "50-70%",
+            Exploitability::Hard => "30-40%",
+            Exploitability::Impossible => "0-10%",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct Match {
     pub template_id: String,
@@ -90,6 +159,19 @@ impl Match {
             Severity::Low => 1,
             Severity::Info => 0,
         }
+    }
+
+    /// Calculate exploitability score for PoC generation priority
+    /// Formula: Base Severity × PoC Difficulty Multiplier
+    pub fn exploitability_score(&self) -> f32 {
+        let base = self.risk_score() as f32;
+        let exploitability = Exploitability::from_pattern(&self.pattern_id);
+        base * exploitability.multiplier()
+    }
+
+    /// Get exploitability level for this vulnerability
+    pub fn exploitability(&self) -> Exploitability {
+        Exploitability::from_pattern(&self.pattern_id)
     }
 }
 

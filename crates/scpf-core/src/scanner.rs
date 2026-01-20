@@ -305,7 +305,7 @@ fn get_match_context(
 
 fn extract_code_snippet(
     source: &str,
-    newlines: &[usize],
+    _newlines: &[usize],
     line_number: usize,
 ) -> Option<scpf_types::CodeSnippet> {
     let lines: Vec<&str> = source.lines().collect();

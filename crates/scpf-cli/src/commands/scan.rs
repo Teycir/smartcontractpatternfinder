@@ -149,13 +149,13 @@ pub async fn run(args: ScanArgs) -> Result<()> {
     match args.output {
         crate::cli::OutputFormat::Json => println!("{}", output::format_json(&scan_results)?),
         crate::cli::OutputFormat::Sarif => println!("{}", output::format_sarif(&scan_results)?),
-        crate::cli::OutputFormat::Console => print_console(&scan_results, failed),
+        crate::cli::OutputFormat::Console => print_console(&scan_results, failed, args.sort_by_exploitability),
     }
 
     Ok(())
 }
 
-fn print_console(results: &[ScanResult], failed: usize) {
+fn print_console(results: &[ScanResult], failed: usize, sort_by_exploitability: bool) {
     if results.is_empty() && failed == 0 {
         return;
     }
@@ -192,11 +192,26 @@ fn print_console(results: &[ScanResult], failed: usize) {
 
     // Show vulnerability groups first
     if !pattern_groups.is_empty() {
-        println!("{}  Vulnerability Groups:", "🎯".cyan());
+        if sort_by_exploitability {
+            println!("{}  Vulnerability Groups (Sorted by PoC Success Probability):", "🎯".cyan());
+        } else {
+            println!("{}  Vulnerability Groups (Sorted by Count):", "🎯".cyan());
+        }
         println!();
 
         let mut sorted_groups: Vec<_> = pattern_groups.iter().collect();
-        sorted_groups.sort_by(|a, b| b.1.len().cmp(&a.1.len()));
+        
+        if sort_by_exploitability {
+            // Sort by exploitability score (highest first)
+            sorted_groups.sort_by(|a, b| {
+                let score_a = a.1[0].exploitability_score();
+                let score_b = b.1[0].exploitability_score();
+                score_b.partial_cmp(&score_a).unwrap()
+            });
+        } else {
+            // Sort by count (most instances first)
+            sorted_groups.sort_by(|a, b| b.1.len().cmp(&a.1.len()));
+        }
 
         for (i, (pattern_id, matches)) in sorted_groups.iter().take(10).enumerate() {
             let severity = matches[0].severity;
@@ -213,14 +228,40 @@ fn print_console(results: &[ScanResult], failed: usize) {
                 files.insert(m.file_path.display().to_string());
             }
 
-            println!(
-                "{}. [{}] {} ({} instances in {} files)",
-                i + 1,
-                severity_str,
-                pattern_id.replace("-", " "),
-                matches.len(),
-                files.len()
-            );
+            if sort_by_exploitability {
+                let exp = matches[0].exploitability();
+                let exp_str = match exp {
+                    scpf_types::Exploitability::Trivial => "🎯 TRIVIAL".green().bold(),
+                    scpf_types::Exploitability::Easy => "✅ EASY".green(),
+                    scpf_types::Exploitability::Medium => "⚠️ MEDIUM".yellow(),
+                    scpf_types::Exploitability::Hard => "🔴 HARD".red(),
+                    scpf_types::Exploitability::Impossible => "❌ SKIP".dimmed(),
+                };
+
+                println!(
+                    "{}. [{}] {} - {} PoC ({} instances in {} files)",
+                    i + 1,
+                    severity_str,
+                    pattern_id.replace("-", " "),
+                    exp_str,
+                    matches.len(),
+                    files.len()
+                );
+                println!(
+                    "   Exploitability Score: {:.1} | Success Rate: {}",
+                    matches[0].exploitability_score(),
+                    exp.success_rate()
+                );
+            } else {
+                println!(
+                    "{}. [{}] {} ({} instances in {} files)",
+                    i + 1,
+                    severity_str,
+                    pattern_id.replace("-", " "),
+                    matches.len(),
+                    files.len()
+                );
+            }
 
             // Show first match with code snippet
             if let Some(first_match) = matches.first() {
@@ -460,7 +501,7 @@ async fn scan_local_project(args: ScanArgs) -> Result<()> {
     match args.output {
         crate::cli::OutputFormat::Json => println!("{}", output::format_json(&scan_results)?),
         crate::cli::OutputFormat::Sarif => println!("{}", output::format_sarif(&scan_results)?),
-        crate::cli::OutputFormat::Console => print_console(&scan_results, 0),
+        crate::cli::OutputFormat::Console => print_console(&scan_results, 0, args.sort_by_exploitability),
     }
 
     // Exit with error code if high/critical issues found
@@ -674,7 +715,7 @@ async fn scan_recent_contracts(args: ScanArgs) -> Result<()> {
     match args.output {
         crate::cli::OutputFormat::Json => println!("{}", output::format_json(&scan_results)?),
         crate::cli::OutputFormat::Sarif => println!("{}", output::format_sarif(&scan_results)?),
-        crate::cli::OutputFormat::Console => print_console(&scan_results, 0),
+        crate::cli::OutputFormat::Console => print_console(&scan_results, 0, args.sort_by_exploitability),
     }
     
     Ok(())

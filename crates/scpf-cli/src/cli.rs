@@ -129,6 +129,12 @@ pub struct ScanArgs {
 
     #[arg(long, help = "Only use specific templates by ID (comma-separated)")]
     pub only_templates: Option<String>,
+
+    #[arg(
+        long,
+        help = "Sort vulnerabilities by exploitability score (PoC success probability)"
+    )]
+    pub sort_by_exploitability: bool,
 }
 
 fn parse_chain(s: &str) -> Result<Chain, String> {
