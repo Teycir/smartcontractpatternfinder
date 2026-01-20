@@ -60,6 +60,7 @@ fn test_match_creation() {
         message: "Test message".to_string(),
         start_byte: None,
         end_byte: None,
+        code_snippet: None,
     };
 
     assert_eq!(m.line_number, 42);

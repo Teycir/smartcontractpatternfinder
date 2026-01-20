@@ -246,6 +246,7 @@ mod tests {
             message: "test".to_string(),
             start_byte: None,
             end_byte: None,
+            code_snippet: None,
         }
     }
 

@@ -1,5 +1,6 @@
 use crate::dependency_analyzer::DependencyAnalyzer;
 use crate::exploit_gen::{ExploitGenerator, ExploitTemplate, VulnerabilityInfo};
+use crate::invariant_gen::{GeneratedInvariant, InvariantGenerator};
 use crate::risk_scorer::{RiskScore, RiskScorer};
 use crate::state_analysis::{StateAnalyzer, StateViolation};
 use crate::taint::{TaintAnalyzer, TaintFlow};
@@ -14,6 +15,7 @@ pub struct AdvancedReport {
     pub taint_summary: TaintSummary,
     pub value_flow_summary: ValueFlowSummary,
     pub state_violations: Vec<StateViolation>,
+    pub invariants: Vec<GeneratedInvariant>,
 }
 
 #[derive(Debug, Clone)]
@@ -61,10 +63,19 @@ impl AdvancedScanner {
         }
     }
 
-    pub fn deep_analysis(&mut self, findings: &[Match]) -> AdvancedReport {
+    pub fn deep_analysis(
+        &mut self,
+        findings: &[Match],
+        source_code: &str,
+        contract_name: &str,
+    ) -> AdvancedReport {
         let taint_flows = self.taint_analyzer.analyze();
         let value_paths = self.value_flow_analyzer.analyze();
         let state_violations = self.state_analyzer.get_violations().to_vec();
+
+        let invariant_gen =
+            InvariantGenerator::new(source_code.to_string(), contract_name.to_string());
+        let invariants = invariant_gen.generate();
 
         let vulnerabilities = self.combine_findings(findings, &taint_flows, &value_paths);
 
@@ -90,6 +101,7 @@ impl AdvancedScanner {
             taint_summary: self.summarize_taint(&taint_flows),
             value_flow_summary: self.summarize_value_flow(&value_paths),
             state_violations,
+            invariants,
         }
     }
 
@@ -254,6 +266,19 @@ impl AdvancedScanner {
             ));
         }
 
+        output.push_str(&format!(
+            "\n## Invariants Generated: {}\n",
+            report.invariants.len()
+        ));
+        for inv in &report.invariants {
+            output.push_str(&format!(
+                "- {} (Confidence: {:.0}%, Category: {:?})\n",
+                inv.name,
+                inv.confidence * 100.0,
+                inv.category
+            ));
+        }
+
         output.push_str("\n## Recommendations\n");
         for rec in &report.risk_score.recommendations {
             output.push_str(&format!("- {}\n", rec));
@@ -294,7 +319,7 @@ mod tests {
             end_byte: None,
         }];
 
-        let report = scanner.deep_analysis(&findings);
+        let report = scanner.deep_analysis(&findings, "contract Test {}", "Test");
         assert!(!report.vulnerabilities.is_empty());
     }
 }
