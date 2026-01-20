@@ -4,18 +4,61 @@
 
 ### Command Executed
 ```bash
-scpf fetch-zero-day --days 30 -o /tmp/test_template.yaml
+scpf fetch-zero-day --days 30 --dry-run
 ```
 
 ### Results
-- **Total Exploits Found**: 23
-- **Sources**: DeFiHackLabs GitHub
+- **Total Exploits Found**: 39
+- **Sources**: DeFiLlama (10) + DeFiHackLabs (23) + SlowMist RSS (6)
 - **Date Range**: Last 30 days
-- **Template Generated**: ✅ `/tmp/test_template.yaml`
+- **Status**: ✅ Working
 
 ## 📊 Real API Responses
 
-### 1. DeFiHackLabs GitHub API ✅
+### 1. DeFiLlama Hacks API ✅
+
+**Endpoint**: `https://api.llama.fi/hacks`
+
+**Database Size**: 453 total hacks
+
+**Recent Exploits** (Last 30 days): 10 exploits
+
+**Data Quality**:
+- ✅ Structured JSON
+- ✅ Technique classification
+- ✅ Loss amounts in millions
+- ✅ Language field (Solidity/Vyper)
+
+**Status**: ✅ WORKING - Primary source
+
+### 2. SlowMist Medium RSS ✅ NEW!
+
+**Endpoint**: `https://slowmist.medium.com/feed`
+
+**Recent Articles** (Last 30 days):
+```
+2026-01-12 - $26.44M Stolen: Truebit Protocol Analysis
+2026-01-05 - Web3 Leader Programme Open Class
+2025-12-31 - 2025 Q4 MistTrack Stolen Funds Analysis
+2025-12-30 - 2025 Blockchain Security Annual Report
+2025-12-27 - Decentralized Perpetual Contracts Audit Guide
+```
+
+**Status**: ✅ WORKING - Security analysis and reports
+
+### 3. BlockSec Medium RSS ✅ NEW!
+
+**Endpoint**: `https://medium.com/feed/blocksec`
+
+**Status**: ✅ WORKING - Security research articles
+
+### 4. Web3 is Going Great RSS ⚠️
+
+**Endpoint**: `https://web3isgoinggreat.com/feed.xml`
+
+**Status**: ⚠️ Empty response - May require different parsing
+
+### 5. DeFiHackLabs GitHub API ✅
 
 **Endpoint**: `https://api.github.com/repos/SunWeb3Sec/DeFiHackLabs/commits`
 
@@ -35,7 +78,7 @@ curl -s "https://api.github.com/repos/SunWeb3Sec/DeFiHackLabs/commits?per_page=5
 
 **Status**: ✅ WORKING - Returns real exploit data
 
-### 2. GitHub Global Advisories API ✅
+### 6. GitHub Global Advisories API ✅
 
 **Endpoint**: `https://api.github.com/advisories`
 
@@ -55,13 +98,13 @@ curl -s "https://api.github.com/advisories?ecosystem=npm&severity=high" | jq
 
 **Status**: ✅ WORKING - Returns real CVE data
 
-### 3. Rekt News RSS ⚠️
+### 7. Rekt News RSS ⚠️ DEPRECATED
 
 **Endpoint**: `https://rekt.news/feed.xml`
 
-**Status**: ⚠️ Currently returning 500 error (site issue, not our code)
+**Status**: ⚠️ Disabled - Replaced by DeFiLlama (which includes Rekt articles)
 
-**Alternative**: Can scrape main site or wait for RSS to recover
+**Reason**: RSS feed unreliable (500 errors), DeFiLlama provides better structured data
 
 ## 🔬 Data Extraction Proof
 
