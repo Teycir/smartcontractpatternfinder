@@ -1,0 +1,151 @@
+id: governance-dao-security
+name: Governance and DAO Security
+description: |
+  Vulnerabilities in governance systems:
+  - Flash loan voting attacks
+  - Proposal manipulation
+  - Timelock bypasses
+  - Quorum manipulation
+  - Vote buying/bribing vectors
+severity: high
+tags:
+  - governance
+  - DAO
+  - voting
+  - timelock
+  - proposals
+
+patterns:
+  # Flash loan voting
+  - id: flash-loan-voting
+    kind: semantic
+    pattern: |
+      (function_definition
+        name: (identifier) @name
+        (function_body))
+      (#match? @name "^(vote|castVote|delegate)$")
+    message: "Vote weight from current balance - vulnerable to flash loan attacks, use checkpoints"
+
+  # Missing vote checkpoint
+  - id: missing-vote-checkpoint
+    kind: semantic
+    pattern: |
+      (function_definition
+        name: (identifier) @name)
+      (#match? @name "^(getVotes|getPriorVotes|getVotingPower)$")
+    message: "Vote power function - verify uses historical snapshots, not current balance"
+
+  # Proposal without timelock
+  - id: proposal-no-timelock
+    kind: semantic
+    pattern: |
+      (function_definition
+        name: (identifier) @name
+        (function_body))
+      (#eq? @name "execute")
+    message: "Proposal execution with direct call - ensure timelock delay is enforced"
+
+  # Timelock bypassed by admin
+  - id: timelock-admin-bypass
+    kind: semantic
+    pattern: |
+      (function_definition
+        name: (identifier) @name
+        (modifier_invocation
+          (identifier) @mod))
+      (#match? @name "^(execute|executeTransaction|executeOperation)$")
+      (#match? @mod "^(onlyOwner|onlyAdmin|onlyGuardian)$")
+    message: "Timelock execution with admin modifier - admin may bypass delay"
+
+  # Quorum not at proposal time
+  - id: quorum-at-vote-time
+    kind: semantic
+    pattern: |
+      (function_definition
+        name: (identifier) @name
+        (function_body))
+      (#eq? @name "state")
+    message: "Quorum check at vote time - should use quorum at proposal creation"
+
+  # Voting delay too short
+  - id: voting-delay-short
+    kind: semantic
+    pattern: |
+      (function_definition
+        name: (identifier) @name
+        (function_body))
+      (#eq? @name "votingDelay")
+    message: "Voting delay - verify sufficient time for users to delegate/prepare"
+
+  # Proposal spam
+  - id: proposal-spam-prevention
+    kind: semantic
+    pattern: |
+      (function_definition
+        name: (identifier) @name)
+      (#eq? @name "propose")
+    message: "Public propose function - verify proposal threshold prevents spam"
+
+  # Self-voting on own proposal
+  - id: self-vote-proposal
+    kind: semantic
+    pattern: |
+      (function_definition
+        name: (identifier) @name
+        (function_body))
+      (#eq? @name "propose")
+    message: "Proposal creation - verify proposer cannot immediately vote with delegated tokens"
+
+  # Guardian/veto without limits
+  - id: guardian-unlimited-power
+    kind: semantic
+    pattern: |
+      (function_definition
+        name: (identifier) @name
+        (modifier_invocation
+          (identifier) @mod))
+      (#match? @name "^(veto|cancel|pause)$")
+      (#match? @mod "^(onlyGuardian|onlyVetoer)$")
+    message: "Unlimited guardian power - consider time-limited or community-overridable veto"
+
+  # Delegation to zero address
+  - id: delegate-zero-address
+    kind: semantic
+    pattern: |
+      (function_definition
+        name: (identifier) @name
+        (parameter))
+      (#eq? @name "delegate")
+    message: "Delegate function - verify delegating to address(0) revokes delegation properly"
+
+  # Vote replay across proposals
+  - id: vote-replay-proposals
+    kind: semantic
+    pattern: |
+      (function_definition
+        name: (identifier) @name
+        (parameter))
+      (#match? @name "^(castVoteBySig|voteWithSig)$")
+    message: "Signature voting - ensure proposalId included in signature to prevent replay"
+
+  # Late voting weight manipulation
+  - id: late-vote-manipulation
+    kind: semantic
+    pattern: |
+      (function_definition
+        name: (identifier) @name
+        (function_body))
+      (#eq? @name "castVote")
+    message: "Vote casting - verify voting power snapshot before voting period, not during"
+
+  # Emergency functions without delay
+  - id: emergency-no-delay
+    kind: semantic
+    pattern: |
+      (function_definition
+        name: (identifier) @name
+        (modifier_invocation
+          (identifier) @mod))
+      (#match? @name "^(emergencyWithdraw|emergencyStop|emergencyPause)$")
+      (#match? @mod "^(onlyOwner|onlyAdmin)$")
+    message: "Emergency function without timelock - consider multi-sig or guardian council"

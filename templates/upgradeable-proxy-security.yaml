@@ -1,0 +1,109 @@
+id: upgradeable-proxy-security
+name: Upgradeable Contract & Proxy Security
+description: |
+  Detects vulnerabilities in upgradeable contracts and proxy patterns:
+  - Storage collision between proxy and implementation
+  - Uninitialized implementation contracts
+  - Selfdestruct in implementation
+  - Function selector clashing
+  - Missing upgrade authorization
+severity: critical
+tags:
+  - proxy
+  - upgradeable
+  - storage
+  - UUPS
+  - transparent-proxy
+
+patterns:
+  # Uninitialized implementation - can be taken over
+  - id: uninitialized-implementation
+    kind: semantic
+    pattern: |
+      (contract_declaration
+        (identifier) @name
+        (inheritance_specifier
+          (user_defined_type
+            (identifier) @parent)))
+      (#match? @parent "^(Initializable|UUPSUpgradeable|TransparentUpgradeableProxy)$")
+    message: "Upgradeable contract - ensure initialize() is called and protected with initializer modifier"
+
+  # Missing initializer modifier
+  - id: missing-initializer-modifier
+    kind: semantic
+    pattern: |
+      (function_definition
+        name: (identifier) @name
+        (parameter)
+        (function_body))
+      (#match? @name "^(initialize|init|setup)$")
+    message: "Initialization function without initializer modifier - can be called multiple times"
+
+  # Constructor in upgradeable contract
+  - id: constructor-in-upgradeable
+    kind: regex
+    pattern: 'constructor\s*\([^)]*\)'
+    message: "Constructor in upgradeable contract - state set here won't exist in proxy context"
+
+  # Selfdestruct in implementation
+  - id: selfdestruct-in-implementation
+    kind: regex
+    pattern: 'selfdestruct\s*\('
+    message: "CRITICAL: selfdestruct in implementation - can destroy proxy's delegatecall target"
+
+  # Storage gap missing
+  - id: missing-storage-gap
+    kind: regex
+    pattern: 'contract\s+\w+\s+is\s+[^{]*Upgradeable[^{]*\{(?![^}]*__gap)'
+    message: "Upgradeable contract without __gap - future storage variables may collide"
+
+  # Immutable in upgradeable
+  - id: immutable-in-upgradeable
+    kind: regex
+    pattern: 'immutable\s+\w+'
+    message: "Immutable variable in upgradeable contract - value set in constructor won't be available"
+
+  # UUPS missing _authorizeUpgrade
+  - id: uups-missing-authorize
+    kind: regex
+    pattern: 'is\s+UUPSUpgradeable[^{]*\{(?![^}]*_authorizeUpgrade)'
+    message: "UUPS contract without _authorizeUpgrade - upgrade authorization missing"
+
+  # Delegatecall to user input
+  - id: proxy-delegatecall-injection
+    kind: semantic
+    pattern: |
+      (member_expression
+        property: (identifier) @method)
+      (#eq? @method "delegatecall")
+    message: "Delegatecall detected - verify target cannot be controlled by attacker"
+
+  # Function selector collision
+  - id: function-selector-collision
+    kind: regex
+    pattern: '(fallback|receive)\s*\([^)]*\)\s*(external|public)[^{]*\{[^}]*delegatecall'
+    message: "Proxy fallback with delegatecall - check for function selector collisions with proxy admin functions"
+
+  # Transparent proxy admin functions
+  - id: transparent-proxy-admin
+    kind: semantic
+    pattern: |
+      (function_definition
+        name: (identifier) @name
+        (modifier_invocation
+          (identifier) @mod))
+      (#match? @name "^(upgradeTo|upgradeToAndCall|changeAdmin)$")
+      (#match? @mod "^(ifAdmin|onlyProxyAdmin)$")
+    message: "Proxy admin function - ensure admin cannot be set to zero address"
+
+  # EIP-1967 slot usage
+  - id: eip1967-storage-slot
+    kind: regex
+    pattern: 'bytes32\s+(private\s+)?constant\s+\w+\s*=\s*(0x360894|0xb53127|0x7050c9)'
+    message: "EIP-1967 storage slot detected - verify correct slot for implementation/admin/beacon"
+
+  # Initializer reentrancy
+  - id: initializer-reentrancy
+    kind: regex
+    pattern: 'function\s+(initialize|init)\s*\([^)]*\)[^{]*\{[^}]*(call|delegatecall)\s*\('
+    message: "External call in initializer - potential reentrancy during initialization"
