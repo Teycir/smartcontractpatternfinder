@@ -79,17 +79,26 @@ impl ApiKeyConfig {
         if !ftm_keys.is_empty() {
             config.keys.insert(Chain::Fantom, ftm_keys);
         }
-        if let Ok(key) = std::env::var("ZKSYNC_API_KEY") {
-            config.keys.insert(Chain::ZkSync, vec![key]);
+        
+        // ZkSync doesn't require API keys (public API)
+        config.keys.insert(Chain::ZkSync, vec![String::new()]);
+        
+        // Linea with fallback keys (uses same keys as Etherscan)
+        let linea_keys = load_keys("LINEASCAN", 6);
+        if !linea_keys.is_empty() {
+            config.keys.insert(Chain::Linea, linea_keys);
         }
-        if let Ok(key) = std::env::var("LINEASCAN_API_KEY") {
-            config.keys.insert(Chain::Linea, vec![key]);
+        
+        // Scroll with fallback keys (uses same keys as Etherscan)
+        let scroll_keys = load_keys("SCROLLSCAN", 6);
+        if !scroll_keys.is_empty() {
+            config.keys.insert(Chain::Scroll, scroll_keys);
         }
-        if let Ok(key) = std::env::var("SCROLLSCAN_API_KEY") {
-            config.keys.insert(Chain::Scroll, vec![key]);
-        }
-        if let Ok(key) = std::env::var("ZORASCAN_API_KEY") {
-            config.keys.insert(Chain::Zora, vec![key]);
+        
+        // Zora with fallback keys (3 keys)
+        let zora_keys = load_keys("ZORASCAN", 3);
+        if !zora_keys.is_empty() {
+            config.keys.insert(Chain::Zora, zora_keys);
         }
         config
     }

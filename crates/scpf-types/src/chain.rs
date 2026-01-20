@@ -28,7 +28,7 @@ impl Chain {
             Chain::Base => "https://api.basescan.org/api",
             Chain::Avalanche => "https://api.snowtrace.io/api",
             Chain::Fantom => "https://api.ftmscan.com/api",
-            Chain::ZkSync => "https://api-era.zksync.network/api",
+            Chain::ZkSync => "https://block-explorer-api.mainnet.zksync.io/api",
             Chain::Linea => "https://api.lineascan.build/api",
             Chain::Scroll => "https://api.scrollscan.com/api",
             Chain::Zora => "https://explorer.zora.energy/api",
