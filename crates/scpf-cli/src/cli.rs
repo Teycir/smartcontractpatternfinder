@@ -77,25 +77,51 @@ pub struct ScanArgs {
     #[arg(long, help = "Only scan files changed in git diff (e.g., main..HEAD)")]
     pub diff: Option<String>,
 
+    #[arg(long, help = "Update templates with 0-day exploits from last N days (0 = no update)")]
+    pub update_templates: Option<i64>,
+
     // Filtering options
-    #[arg(long, default_value = "30", help = "Scan contracts from last N days (default: 30)")]
+    #[arg(
+        long,
+        default_value = "30",
+        help = "Scan contracts from last N days (default: 30)"
+    )]
     pub days: u64,
 
-    #[arg(long, help = "Scan all available chains (ethereum, bsc, polygon, arbitrum, optimism, base)")]
+    #[arg(
+        long,
+        help = "Scan all available chains (ethereum, bsc, polygon, arbitrum, optimism, base)"
+    )]
     pub all_chains: bool,
-    #[arg(long, help = "Filter by contract type (erc20, erc721, erc1155, proxy, defi)")]
+    #[arg(
+        long,
+        help = "Filter by contract type (erc20, erc721, erc1155, proxy, defi)"
+    )]
     pub contract_type: Option<String>,
 
-    #[arg(long, help = "Only scan contracts updated after this date (YYYY-MM-DD)")]
+    #[arg(
+        long,
+        help = "Only scan contracts updated after this date (YYYY-MM-DD)"
+    )]
     pub updated_after: Option<String>,
 
-    #[arg(long, help = "Only scan contracts updated before this date (YYYY-MM-DD)")]
+    #[arg(
+        long,
+        help = "Only scan contracts updated before this date (YYYY-MM-DD)"
+    )]
     pub updated_before: Option<String>,
 
-    #[arg(long, default_value = "high", help = "Minimum severity to report (info, low, medium, high, critical)")]
+    #[arg(
+        long,
+        default_value = "high",
+        help = "Minimum severity to report (info, low, medium, high, critical)"
+    )]
     pub min_severity: String,
 
-    #[arg(long, help = "Filter by specific vulnerability tags (comma-separated: reentrancy,access-control)")]
+    #[arg(
+        long,
+        help = "Filter by specific vulnerability tags (comma-separated: reentrancy,access-control)"
+    )]
     pub tags: Option<String>,
 
     #[arg(long, help = "Exclude specific templates by ID (comma-separated)")]

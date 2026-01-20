@@ -7,18 +7,28 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 pub async fn run_full_audit(_addresses: Vec<String>, args: ScanArgs) -> Result<()> {
-    println!("{}", "🔍 SCPF Full Security Audit - 5 Layer Deep Scan".cyan().bold());
+    println!(
+        "{}",
+        "🔍 SCPF Full Security Audit - 5 Layer Deep Scan"
+            .cyan()
+            .bold()
+    );
     println!("{}", "═".repeat(60).cyan());
     println!();
 
     // Step 1: Update 0-day templates
-    println!("{} Layer 0: Updating 0-day vulnerability patterns...", "📡".cyan());
+    println!(
+        "{} Layer 0: Updating 0-day vulnerability patterns...",
+        "📡".cyan()
+    );
     let zeroday_fetcher = ZeroDayFetcher::new()?;
     let exploits = zeroday_fetcher.fetch_recent_exploits(7).await?;
 
     if !exploits.is_empty() {
         let zeroday_path = PathBuf::from("templates/zero_day_live.yaml");
-        zeroday_fetcher.generate_template(exploits.clone(), &zeroday_path).await?;
+        zeroday_fetcher
+            .generate_template(exploits.clone(), &zeroday_path)
+            .await?;
         println!("   ✓ Updated with {} recent exploits", exploits.len());
     } else {
         println!("   ℹ No new exploits in last 7 days");
@@ -26,25 +36,39 @@ pub async fn run_full_audit(_addresses: Vec<String>, args: ScanArgs) -> Result<(
     println!();
 
     // Step 2: Load templates (filter critical/high only)
-    println!("{} Layer 1: Loading critical/high severity templates...", "📚".cyan());
-    let templates_dir = args.templates.clone().unwrap_or_else(|| PathBuf::from("templates"));
+    println!(
+        "{} Layer 1: Loading critical/high severity templates...",
+        "📚".cyan()
+    );
+    let templates_dir = args
+        .templates
+        .clone()
+        .unwrap_or_else(|| PathBuf::from("templates"));
     let all_templates = TemplateLoader::load_from_dir(&templates_dir).await?;
-    let templates: Vec<_> = all_templates.into_iter()
+    let templates: Vec<_> = all_templates
+        .into_iter()
         .filter(|t| matches!(t.severity, Severity::Critical | Severity::High))
         .collect();
     println!("   ✓ Loaded {} critical/high templates", templates.len());
     println!();
 
     // Step 3: Fetch recent contracts from all chains
-    println!("{} Layer 2: Fetching contracts from last 30 days (all chains)...", "🌐".cyan());
+    println!(
+        "{} Layer 2: Fetching contracts from last 30 days (all chains)...",
+        "🌐".cyan()
+    );
     let api_keys = ApiKeyConfig::from_env();
     let fetcher = Arc::new(ContractFetcher::new(api_keys)?);
-    
+
     let chains = vec![
-        Chain::Ethereum, Chain::Bsc, Chain::Polygon,
-        Chain::Arbitrum, Chain::Optimism, Chain::Base,
+        Chain::Ethereum,
+        Chain::Bsc,
+        Chain::Polygon,
+        Chain::Arbitrum,
+        Chain::Optimism,
+        Chain::Base,
     ];
-    
+
     let mut all_addresses = Vec::new();
     for chain in &chains {
         print!("   Fetching from {}... ", chain.as_str());
@@ -70,7 +94,12 @@ pub async fn run_full_audit(_addresses: Vec<String>, args: ScanArgs) -> Result<(
 
     let mut results = Vec::new();
     for (idx, (address, chain)) in all_addresses.iter().enumerate() {
-        print!("   [{}/{}] {}... ", idx + 1, all_addresses.len(), &address[..10]);
+        print!(
+            "   [{}/{}] {}... ",
+            idx + 1,
+            all_addresses.len(),
+            &address[..10]
+        );
 
         let cache_key = format!("{}:{}", chain, address);
         let source = if let Some(cached) = cache.get(&cache_key).await {
@@ -90,14 +119,15 @@ pub async fn run_full_audit(_addresses: Vec<String>, args: ScanArgs) -> Result<(
 
         // Layer 3: Regex pattern matching
         let matches = scanner.lock().await.scan(&source, PathBuf::from(address))?;
-        
+
         // Layer 4: Semantic analysis (placeholder for future)
         // Layer 5: Composition analysis (placeholder for future)
-        
-        let critical_high = matches.iter()
+
+        let critical_high = matches
+            .iter()
             .filter(|m| matches!(m.severity, Severity::Critical | Severity::High))
             .count();
-        
+
         if critical_high > 0 {
             println!("{} {} critical/high", "⚠️".red(), critical_high);
         } else {
@@ -129,7 +159,7 @@ fn generate_report(results: &[ScanResult]) -> Result<()> {
             match m.severity {
                 Severity::Critical => total_critical += 1,
                 Severity::High => total_high += 1,
-                _ => {},
+                _ => {}
             }
         }
     }
@@ -152,14 +182,22 @@ fn generate_report(results: &[ScanResult]) -> Result<()> {
         println!("  🟠 HIGH:     {}", total_high.to_string().red());
     }
     if total_critical == 0 && total_high == 0 {
-        println!("  {} No critical or high severity issues found", "✓".green());
+        println!(
+            "  {} No critical or high severity issues found",
+            "✓".green()
+        );
     }
     println!();
     println!("Total Issues: {}", total_critical + total_high);
     println!();
 
     if total_critical > 0 || total_high > 0 {
-        println!("{}", "⚠️  CRITICAL/HIGH ISSUES REQUIRE IMMEDIATE ATTENTION".red().bold());
+        println!(
+            "{}",
+            "⚠️  CRITICAL/HIGH ISSUES REQUIRE IMMEDIATE ATTENTION"
+                .red()
+                .bold()
+        );
         println!();
         println!("Recommended Actions:");
         println!("  1. Review all critical findings immediately");

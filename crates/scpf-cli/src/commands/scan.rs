@@ -14,9 +14,25 @@ use walkdir::WalkDir;
 static TEMPLATE_CACHE: Mutex<Option<Vec<scpf_types::Template>>> = Mutex::new(None);
 
 pub async fn run(args: ScanArgs) -> Result<()> {
+    // Update templates if requested
+    if let Some(days) = args.update_templates {
+        if days > 0 {
+            println!("{}  Updating templates with 0-day exploits from last {} days...", "📡".cyan(), days);
+            let zeroday_fetcher = scpf_core::ZeroDayFetcher::new()?;
+            let exploits = zeroday_fetcher.fetch_recent_exploits(days).await?;
+            if !exploits.is_empty() {
+                let zeroday_path = PathBuf::from("templates/zero_day_live.yaml");
+                zeroday_fetcher.generate_template(exploits.clone(), &zeroday_path).await?;
+                println!("   ✓ Updated with {} recent exploits\n", exploits.len());
+            } else {
+                println!("   ℹ No new exploits found\n");
+            }
+        }
+    }
+
     // If no addresses provided and not local scan, fetch recent contracts
     if args.addresses.is_empty() && args.diff.is_none() {
-        let should_scan_local = std::path::Path::new(".").join("contracts").exists() 
+        let should_scan_local = std::path::Path::new(".").join("contracts").exists()
             || std::path::Path::new(".").join("src").exists()
             || std::fs::read_dir(".")
                 .ok()
@@ -449,9 +465,9 @@ fn discover_diff_files(diff_spec: &str) -> Result<Vec<PathBuf>> {
     Ok(sol_files)
 }
 
-
 async fn scan_recent_contracts(args: ScanArgs) -> Result<()> {
-    println!("{}  Scanning recent contracts from last {} days...", "🔍".cyan(), args.days);
+    println!("{}  Scanning contracts updated in last {} days...", "🔍".cyan(), args.days);
+    println!("   Severity filter: {} and above", args.min_severity.to_uppercase());
     
     let api_keys = ApiKeyConfig::from_env();
     let fetcher = Arc::new(ContractFetcher::new(api_keys)?);
@@ -469,13 +485,15 @@ async fn scan_recent_contracts(args: ScanArgs) -> Result<()> {
         vec![args.chain]
     };
 
-    let mut all_addresses = Vec::new();
+    let mut all_contracts = Vec::new();
     for chain in &chains {
-        println!("{}  Fetching contracts from {}...", "📡".cyan(), chain.as_str());
+        println!("{}  Fetching from {}...", "📡".cyan(), chain.as_str());
         match fetcher.fetch_recent_contracts(*chain, args.days).await {
             Ok(addresses) => {
                 println!("   ✓ Found {} contracts", addresses.len());
-                all_addresses.extend(addresses.into_iter().take(10));
+                for addr in addresses.into_iter().take(10) {
+                    all_contracts.push((addr, *chain));
+                }
             }
             Err(e) => {
                 println!("   ✗ Failed: {}", e);
@@ -483,31 +501,80 @@ async fn scan_recent_contracts(args: ScanArgs) -> Result<()> {
         }
     }
 
-    if all_addresses.is_empty() {
+    if all_contracts.is_empty() {
         println!("{}  No recent contracts found", "⚠️".yellow());
         return Ok(());
     }
 
     println!();
-    println!("{}  Scanning {} contracts...", "🔎".cyan(), all_addresses.len());
+    println!("{}  Scanning {} contracts...", "🔎".cyan(), all_contracts.len());
     println!();
     
-    // Directly scan without recursion
     let templates = load_templates(&args.templates).await?;
     let scanner = Arc::new(tokio::sync::Mutex::new(Scanner::new(templates)?));
+    let cache_dir = dirs::cache_dir()
+        .map(|d| d.join("scpf"))
+        .unwrap_or_else(|| PathBuf::from(".cache"));
+    let cache = Arc::new(Cache::new(cache_dir).await?);
 
-    for address in all_addresses {
-        let source = match fetcher.fetch_source(&address, args.chain).await {
-            Ok(s) => s,
-            Err(e) => {
-                println!("{}  {} - Failed: {}", "✗".red(), &address[..10], e);
-                continue;
+    let min_severity = parse_severity(&args.min_severity);
+    let mut scan_results = Vec::new();
+
+    for (address, chain) in all_contracts {
+        let cache_key = format!("{}:{}", chain, address);
+        let source = if let Some(cached) = cache.get(&cache_key).await {
+            cached
+        } else {
+            match fetcher.fetch_source(&address, chain).await {
+                Ok(src) => {
+                    cache.set(&cache_key, &src).await?;
+                    src
+                }
+                Err(e) => {
+                    println!("{}  {} - Failed: {}", "✗".red(), &address[..10], e);
+                    continue;
+                }
             }
         };
         
+        let start = Instant::now();
         let matches = scanner.lock().await.scan(&source, PathBuf::from(&address))?;
-        println!("{}  {} - {} issues", "✓".green(), &address[..10], matches.len());
+        let scan_time_ms = start.elapsed().as_millis() as u64;
+        
+        let filtered_matches: Vec<_> = matches
+            .into_iter()
+            .filter(|m| m.severity >= min_severity)
+            .collect();
+        
+        if !filtered_matches.is_empty() {
+            println!("{}  {} ({}) - {} issues", "⚠️".yellow(), &address[..10], chain.as_str(), filtered_matches.len());
+            scan_results.push(ScanResult {
+                address,
+                chain: chain.to_string(),
+                matches: filtered_matches,
+                scan_time_ms,
+            });
+        } else {
+            println!("{}  {} ({}) - Clean", "✓".green(), &address[..10], chain.as_str());
+        }
+    }
+    
+    println!();
+    match args.output {
+        crate::cli::OutputFormat::Json => println!("{}", output::format_json(&scan_results)?),
+        crate::cli::OutputFormat::Sarif => println!("{}", output::format_sarif(&scan_results)?),
+        crate::cli::OutputFormat::Console => print_console(&scan_results, 0),
     }
     
     Ok(())
+}
+
+fn parse_severity(s: &str) -> scpf_types::Severity {
+    match s.to_lowercase().as_str() {
+        "critical" => scpf_types::Severity::Critical,
+        "high" => scpf_types::Severity::High,
+        "medium" => scpf_types::Severity::Medium,
+        "low" => scpf_types::Severity::Low,
+        _ => scpf_types::Severity::Info,
+    }
 }

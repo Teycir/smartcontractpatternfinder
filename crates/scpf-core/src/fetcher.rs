@@ -205,13 +205,17 @@ impl ContractFetcher {
     }
 
     /// Fetch recently deployed contracts from last N days
-    pub async fn fetch_recent_contracts(&self, chain: Chain, _days: u64) -> Result<Vec<String>> {
+    pub async fn fetch_recent_contracts(&self, chain: Chain, days: u64) -> Result<Vec<String>> {
         let keys = self.api_keys.get(chain).unwrap_or(&[]);
         if keys.is_empty() {
             anyhow::bail!("No API keys configured for {}", chain.as_str());
         }
 
         let key = &keys[0];
+        let cutoff_timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_secs() - (days * 24 * 60 * 60);
+
         let url = if matches!(chain, Chain::ZkSync | Chain::Zora) {
             format!(
                 "{}?module=contract&action=listcontracts&page=1&offset=100&apikey={}",
@@ -231,18 +235,25 @@ impl ContractFetcher {
         let json: Value = response.json().await?;
 
         if json["status"].as_str() != Some("1") {
-            anyhow::bail!("Failed to fetch recent contracts for {}", chain.as_str());
+            anyhow::bail!("API error: {:?}", json["message"]);
         }
 
         let contracts = json["result"]
             .as_array()
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|c| c["ContractAddress"].as_str().map(String::from))
-                    .collect()
-            })
-            .unwrap_or_default();
+            .context("No contracts in response")?;
 
-        Ok(contracts)
+        let addresses: Vec<String> = contracts
+            .iter()
+            .filter_map(|c| {
+                let timestamp = c["timestamp"].as_str()?.parse::<u64>().ok()?;
+                if timestamp >= cutoff_timestamp {
+                    c["contractAddress"].as_str().map(String::from)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        Ok(addresses)
     }
 }
