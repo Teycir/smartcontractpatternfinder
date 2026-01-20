@@ -1,8 +1,11 @@
-# Rust
-target/
-Cargo.lock
+# Build artifacts
+/target/
 **/*.rs.bk
 *.pdb
+
+# Cache
+.cache/
+*.cache
 
 # IDE
 .vscode/
@@ -10,52 +13,18 @@ Cargo.lock
 *.swp
 *.swo
 *~
+.history/
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Testing
-coverage/
-.nyc_output
-test-results/
+# Generated templates
+templates/zero_day_live.yaml
 
-# Logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-
-# Environment Variables
-.env
-.env.local
-.env.test
-.env.production
-
-# Temporary files
-tmp/
-temp/
+# Test outputs
+/tmp/
 *.tmp
-.history/
 
-# Cache
-.cache/
-*.cache
-
-# Build artifacts
-dist/
-build/
-out/
-
-# Secrets & Credentials
-*.pem
-*.key
-secrets/
-credentials.json
-.credentials
-
-# Database
-*.db
-*.db-shm
-*.db-wal
-*.sqlite
-*.sqlite3
+# Cargo
+Cargo.lock

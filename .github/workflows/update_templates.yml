@@ -1,0 +1,66 @@
+name: Live 0-Day Pattern Updates
+
+on:
+  schedule:
+    # Run daily at 00:00, 08:00, 16:00 UTC (3x per day)
+    - cron: '0 0,8,16 * * *'
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  fetch-0day-patterns:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          
+      - name: Install dependencies
+        run: |
+          pip install requests pyyaml
+          
+      - name: Fetch latest 0-day patterns
+        run: |
+          python scripts/fetch_0day_patterns.py
+          
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          
+      - name: Run tests
+        run: |
+          cargo test --all
+          
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          commit-message: 'feat: add 0-day patterns from security feeds'
+          title: '🚨 Live 0-Day Patterns - {{ date }}'
+          body: |
+            **Auto-generated 0-day patterns from security feeds**
+            
+            This PR adds detection patterns for vulnerabilities disclosed in the last 7 days.
+            
+            **Sources:**
+            - Rekt News (last 7 days)
+            - BlockSec Alerts
+            - PeckShield Alerts
+            - Immunefi Disclosures
+            
+            **Action Required:**
+            1. Review new patterns for accuracy
+            2. Test against known vulnerable contracts
+            3. Merge to make available to users
+            
+            **Usage:**
+            ```bash
+            scpf scan <address> --templates templates/zero_day_live.yaml
+            ```
+          branch: 0day-patterns-{{ date }}
+          delete-branch: true
+          labels: security,0-day,auto-generated

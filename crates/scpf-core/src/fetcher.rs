@@ -1,11 +1,11 @@
 use anyhow::{Context, Result};
 use backon::{ExponentialBuilder, Retryable};
 use reqwest::Client;
+use scpf_types::{ApiKeyConfig, Chain};
 use serde_json::Value;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Semaphore;
-use scpf_types::{ApiKeyConfig, Chain};
 
 pub struct ContractFetcher {
     client: Client,
@@ -33,11 +33,14 @@ impl ContractFetcher {
         }
 
         let fetch_fn = || async {
-            let _permit = self.rate_limiter.acquire().await
+            let _permit = self
+                .rate_limiter
+                .acquire()
+                .await
                 .context("Failed to acquire rate limit permit")?;
-            
+
             let url = self.build_url(address, chain)?;
-            
+
             let response = self
                 .client
                 .get(&url)
@@ -45,13 +48,11 @@ impl ContractFetcher {
                 .await
                 .context("Failed to fetch contract source")?;
 
-            let json: Value = response
-                .json()
-                .await
-                .context("Failed to parse response")?;
+            let json: Value = response.json().await.context("Failed to parse response")?;
 
             if json["status"].as_str() != Some("1") {
-                let error_msg = json["message"].as_str()
+                let error_msg = json["message"]
+                    .as_str()
                     .map(|s| s.to_string())
                     .unwrap_or_else(|| format!("Unknown API error. Response: {:?}", json));
                 anyhow::bail!("API error: {}", error_msg);
@@ -70,10 +71,12 @@ impl ContractFetcher {
         };
 
         fetch_fn
-            .retry(ExponentialBuilder::default()
-                .with_max_times(3)
-                .with_min_delay(Duration::from_millis(500))
-                .with_max_delay(Duration::from_secs(5)))
+            .retry(
+                ExponentialBuilder::default()
+                    .with_max_times(3)
+                    .with_min_delay(Duration::from_millis(500))
+                    .with_max_delay(Duration::from_secs(5)),
+            )
             .await
     }
 
@@ -125,7 +128,8 @@ impl ContractFetcher {
     fn build_url(&self, address: &str, chain: Chain) -> Result<String> {
         let mut url = format!(
             "{}?module=contract&action=getsourcecode&address={}",
-            chain.api_base_url(), address
+            chain.api_base_url(),
+            address
         );
 
         if let Some(key) = self.api_keys.get(chain) {

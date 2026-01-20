@@ -27,6 +27,7 @@ async fn main() -> Result<()> {
             cli::TemplatesCommand::List { templates } => commands::templates::list(templates).await,
             cli::TemplatesCommand::Show { id, templates } => commands::templates::show(&id, templates).await,
         },
+        Commands::FetchZeroDay(args) => commands::fetch_zeroday::run(args).await,
     };
 
     if let Err(e) = &result {

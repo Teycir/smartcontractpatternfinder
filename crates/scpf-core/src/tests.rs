@@ -1,21 +1,21 @@
 use super::*;
+use anyhow::Result;
+use scpf_types::{ApiKeyConfig, Chain, Pattern, PatternKind, Severity, Template};
 use std::path::PathBuf;
 use tempfile::tempdir;
-use scpf_types::{ApiKeyConfig, Chain, Pattern, PatternKind, Template, Severity};
-use anyhow::Result;
 
 #[tokio::test]
 async fn test_cache_operations() -> Result<()> {
     let dir = tempdir()?;
     let cache = Cache::new(dir.path().to_path_buf()).await?;
-    
+
     cache.set("test-key", "test-value").await?;
     let value = cache.get("test-key").await;
     assert_eq!(value, Some("test-value".to_string()));
-    
+
     let missing = cache.get("non-existent").await;
     assert!(missing.is_none());
-    
+
     Ok(())
 }
 
@@ -23,13 +23,13 @@ async fn test_cache_operations() -> Result<()> {
 async fn test_cache_atomic_write() -> Result<()> {
     let dir = tempdir()?;
     let cache = Cache::new(dir.path().to_path_buf()).await?;
-    
+
     cache.set("key1", "value1").await?;
     cache.set("key1", "value2").await?;
-    
+
     let value = cache.get("key1").await;
     assert_eq!(value, Some("value2".to_string()));
-    
+
     Ok(())
 }
 
@@ -48,15 +48,15 @@ fn test_scanner_basic_match() -> Result<()> {
         }],
         severity: Severity::High,
     }];
-    
+
     let mut scanner = Scanner::new(templates)?;
     let source = "function test() { eval(input); }";
     let matches = scanner.scan(source, PathBuf::from("test.sol"))?;
-    
+
     assert_eq!(matches.len(), 1);
     assert_eq!(matches[0].pattern_id, "test-pattern");
     assert_eq!(matches[0].line_number, 1);
-    
+
     Ok(())
 }
 
@@ -75,11 +75,11 @@ fn test_scanner_multiline() -> Result<()> {
         }],
         severity: Severity::Medium,
     }];
-    
+
     let mut scanner = Scanner::new(templates)?;
     let source = "A\n\nB";
     let matches = scanner.scan(source, PathBuf::from("test.sol"))?;
-    
+
     assert_eq!(matches.len(), 1);
     assert_eq!(matches[0].line_number, 1);
     Ok(())
@@ -100,11 +100,11 @@ fn test_scanner_line_numbers() -> Result<()> {
         }],
         severity: Severity::Low,
     }];
-    
+
     let mut scanner = Scanner::new(templates)?;
     let source = "line1\nline2 test\nline3 test";
     let matches = scanner.scan(source, PathBuf::from("test.sol"))?;
-    
+
     assert_eq!(matches.len(), 2);
     assert_eq!(matches[0].line_number, 2);
     assert_eq!(matches[1].line_number, 3);
@@ -126,11 +126,11 @@ fn test_scanner_no_match() -> Result<()> {
         }],
         severity: Severity::Low,
     }];
-    
+
     let mut scanner = Scanner::new(templates)?;
     let source = "function test() { return 42; }";
     let matches = scanner.scan(source, PathBuf::from("test.sol"))?;
-    
+
     assert_eq!(matches.len(), 0);
     Ok(())
 }
@@ -150,7 +150,7 @@ fn test_scanner_invalid_regex() {
         }],
         severity: Severity::Low,
     }];
-    
+
     let result = Scanner::new(templates);
     assert!(result.is_err());
 }
@@ -159,7 +159,7 @@ fn test_scanner_invalid_regex() {
 async fn test_template_loader() -> Result<()> {
     let dir = tempdir()?;
     let template_path = dir.path().join("test.yaml");
-    
+
     let yaml = r#"
 id: test
 name: Test Template
@@ -172,13 +172,13 @@ patterns:
     pattern: "test"
     message: "Test pattern"
 "#;
-    
+
     tokio::fs::write(&template_path, yaml).await?;
-    
+
     let templates = TemplateLoader::load_from_dir(dir.path()).await?;
     assert_eq!(templates.len(), 1);
     assert_eq!(templates[0].id, "test");
-    
+
     Ok(())
 }
 
@@ -186,10 +186,10 @@ patterns:
 fn test_fetcher_invalid_address() {
     let fetcher = ContractFetcher::new(ApiKeyConfig::new()).unwrap();
     let rt = tokio::runtime::Runtime::new().unwrap();
-    
+
     let result = rt.block_on(fetcher.fetch_source("invalid", Chain::Ethereum));
     assert!(result.is_err());
-    
+
     let result = rt.block_on(fetcher.fetch_source("0x123", Chain::Ethereum));
     assert!(result.is_err());
 }
@@ -198,8 +198,11 @@ fn test_fetcher_invalid_address() {
 fn test_fetcher_unsupported_chain() {
     let fetcher = ContractFetcher::new(ApiKeyConfig::new()).unwrap();
     let rt = tokio::runtime::Runtime::new().unwrap();
-    
-    let result = rt.block_on(fetcher.fetch_source("0x1234567890123456789012345678901234567890", Chain::Ethereum));
+
+    let result = rt.block_on(fetcher.fetch_source(
+        "0x1234567890123456789012345678901234567890",
+        Chain::Ethereum,
+    ));
     assert!(result.is_err());
 }
 
@@ -260,16 +263,20 @@ fn test_scanner_deduplication() -> Result<()> {
         ],
         severity: Severity::Low,
     }];
-    
+
     let mut scanner = Scanner::new(templates)?;
     let source = "test";
     let matches = scanner.scan(source, PathBuf::from("test.sol"))?;
-    
+
     assert_eq!(matches.len(), 2, "Different patterns should both match");
-    
+
     let source_multi = "test test";
     let matches_multi = scanner.scan(source_multi, PathBuf::from("test.sol"))?;
-    assert_eq!(matches_multi.len(), 4, "Each pattern should match each occurrence");
+    assert_eq!(
+        matches_multi.len(),
+        4,
+        "Each pattern should match each occurrence"
+    );
     Ok(())
 }
 
@@ -288,15 +295,24 @@ fn test_scanner_large_match_context() -> Result<()> {
         }],
         severity: Severity::Low,
     }];
-    
+
     let mut scanner = Scanner::new(templates)?;
     let long_match = "A".repeat(250);
     let source = format!("prefix {}suffix", long_match);
     let matches = scanner.scan(&source, PathBuf::from("test.sol"))?;
-    
+
     assert_eq!(matches.len(), 1);
-    assert!(matches[0].context.len() <= 300, "Context should be limited for large matches");
-    assert!(matches[0].context.contains("prefix"), "Should include prefix padding");
-    assert!(matches[0].context.contains("suffix"), "Should include suffix padding");
+    assert!(
+        matches[0].context.len() <= 300,
+        "Context should be limited for large matches"
+    );
+    assert!(
+        matches[0].context.contains("prefix"),
+        "Should include prefix padding"
+    );
+    assert!(
+        matches[0].context.contains("suffix"),
+        "Should include suffix padding"
+    );
     Ok(())
 }

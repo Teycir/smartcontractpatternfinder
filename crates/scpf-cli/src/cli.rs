@@ -33,6 +33,9 @@ pub enum Commands {
     Init(InitArgs),
     #[command(about = "Manage vulnerability detection templates")]
     Templates(TemplatesArgs),
+    #[command(about = "Fetch latest 0-day patterns from security feeds")]
+    #[command(after_help = "Updates templates with vulnerabilities disclosed in last 7 days")]
+    FetchZeroDay(FetchZeroDayArgs),
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -44,7 +47,9 @@ pub enum OutputFormat {
 
 #[derive(Args)]
 pub struct ScanArgs {
-    #[arg(help = "Contract addresses to scan (0x...). If empty, auto-detects from current directory")]
+    #[arg(
+        help = "Contract addresses to scan (0x...). If empty, auto-detects from current directory"
+    )]
     pub addresses: Vec<String>,
 
     #[arg(short = 'n', long, default_value = "ethereum", value_parser = parse_chain, help = "Blockchain network (ethereum, bsc, polygon)")]
@@ -85,6 +90,23 @@ pub struct InitArgs {
 pub struct TemplatesArgs {
     #[command(subcommand)]
     pub command: TemplatesCommand,
+}
+
+#[derive(Args)]
+pub struct FetchZeroDayArgs {
+    #[arg(
+        short,
+        long,
+        default_value = "7",
+        help = "Fetch exploits from last N days"
+    )]
+    pub days: i64,
+
+    #[arg(short, long, help = "Output path for generated template")]
+    pub output: Option<PathBuf>,
+
+    #[arg(long, help = "Show exploits without generating template")]
+    pub dry_run: bool,
 }
 
 #[derive(Subcommand)]

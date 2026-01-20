@@ -13,7 +13,7 @@ impl SemanticScanner {
         parser
             .set_language(&tree_sitter_solidity::LANGUAGE.into())
             .context("Failed to set Solidity language")?;
-        
+
         Ok(Self { parser })
     }
 
@@ -45,7 +45,7 @@ impl SemanticScanner {
                 let node = capture.node;
                 let start_byte = node.start_byte();
                 let end_byte = node.end_byte();
-                
+
                 let line_number = newlines.partition_point(|&pos| pos < start_byte) + 1;
                 let line_start = if line_number > 1 {
                     newlines[line_number - 2] + 1
@@ -54,7 +54,10 @@ impl SemanticScanner {
                 };
 
                 let context_start = line_start;
-                let context_end = newlines.get(line_number - 1).copied().unwrap_or(source.len());
+                let context_end = newlines
+                    .get(line_number - 1)
+                    .copied()
+                    .unwrap_or(source.len());
                 let context = source[context_start..context_end].to_string();
 
                 let matched_text = &source[start_byte..end_byte];
@@ -138,7 +141,8 @@ mod tests {
     object: (identifier) @tx
     property: (identifier) @origin
     (#eq? @tx "tx")
-    (#eq? @origin "origin")) @usage"#.to_string(),
+    (#eq? @origin "origin")) @usage"#
+                .to_string(),
             message: "tx.origin usage detected".to_string(),
             kind: PatternKind::Semantic,
         };

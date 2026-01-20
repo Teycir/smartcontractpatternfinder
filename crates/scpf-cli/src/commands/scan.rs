@@ -12,8 +12,11 @@ use std::time::Instant;
 pub async fn run(args: ScanArgs) -> Result<()> {
     // Auto-detect if no addresses provided
     if args.addresses.is_empty() {
-        println!("{}  No addresses provided, checking for local contracts...", "🔍".cyan());
-        
+        println!(
+            "{}  No addresses provided, checking for local contracts...",
+            "🔍".cyan()
+        );
+
         for path in ["contracts", "src/contracts", "src"] {
             if std::path::Path::new(path).exists() {
                 println!("{}  Found contracts directory: {}", "✓".green(), path);
@@ -21,10 +24,10 @@ pub async fn run(args: ScanArgs) -> Result<()> {
                 anyhow::bail!("Auto-detect for local files not yet implemented. Please provide contract addresses.");
             }
         }
-        
+
         anyhow::bail!("No contract addresses provided and no local contracts found.\n\n{}\n   1. Provide addresses: scpf scan 0x...\n   2. Or create contracts/ directory with Solidity files", "Fix:".yellow().bold());
     }
-    
+
     let templates_dir = args.templates.unwrap_or_else(|| PathBuf::from("templates"));
     let templates = TemplateLoader::load_from_dir(&templates_dir).await?;
 
@@ -33,7 +36,7 @@ pub async fn run(args: ScanArgs) -> Result<()> {
     }
 
     println!("{}  Loaded {} templates", "✓".green(), templates.len());
-    
+
     if !args.no_cache {
         println!("{}  Cache enabled", "📦".cyan());
     }
@@ -90,7 +93,10 @@ pub async fn run(args: ScanArgs) -> Result<()> {
                     }
                 };
 
-                let matches = scanner.lock().await.scan(&source, PathBuf::from(&address))?;
+                let matches = scanner
+                    .lock()
+                    .await
+                    .scan(&source, PathBuf::from(&address))?;
                 let scan_time_ms = start.elapsed().as_millis() as u64;
                 pb.inc(1);
 

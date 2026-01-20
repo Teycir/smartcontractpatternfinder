@@ -14,9 +14,9 @@ impl RegexValidator {
     /// Detect nested quantifiers like (a+)+ or (a*)* that can cause exponential backtracking
     fn check_nested_quantifiers(pattern: &str) -> Result<()> {
         let dangerous_patterns = [
-            r"\([^)]*[*+]\)[*+]",           // (x*)* or (x+)+
-            r"\([^)]*[*+]\)\{",             // (x*){n,m}
-            r"\[[^\]]*[*+]\][*+]",          // [x*]* or [x+]+
+            r"\([^)]*[*+]\)[*+]",  // (x*)* or (x+)+
+            r"\([^)]*[*+]\)\{",    // (x*){n,m}
+            r"\[[^\]]*[*+]\][*+]", // [x*]* or [x+]+
         ];
 
         for dangerous in &dangerous_patterns {
@@ -96,7 +96,10 @@ mod tests {
 
     #[test]
     fn test_too_many_alternations() {
-        let pattern = (0..52).map(|i| format!("a{}", i)).collect::<Vec<_>>().join("|");
+        let pattern = (0..52)
+            .map(|i| format!("a{}", i))
+            .collect::<Vec<_>>()
+            .join("|");
         assert!(RegexValidator::validate_pattern(&pattern).is_err());
     }
 
