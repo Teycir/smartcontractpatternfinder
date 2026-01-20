@@ -1,6 +1,6 @@
 # Smart Contract Pattern Finder (SCPF)
 
-![Smart Contract Pattern Finder Banner](assets/scpf_banner.png)
+<img src="assets/scpf_banner.png" width="60%" alt="Smart Contract Pattern Finder Banner" />
 
 🔍 High-performance tool for detecting security vulnerabilities and patterns in smart contracts across multiple blockchains.
 
@@ -8,6 +8,9 @@
 
 [![Rust](https://img.shields.io/badge/rust-%23000000.svg?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
+[![Crates.io](https://img.shields.io/crates/v/scpf-cli.svg?style=for-the-badge)](https://crates.io/crates/scpf-cli)
+[![Docs.rs](https://img.shields.io/badge/docs.rs-scpf--core-blue?style=for-the-badge&logo=docs.rs)](https://docs.rs/scpf-core)
+[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/Teycir/smartcontractpatternfinder/rust.yml?style=for-the-badge&logo=github)](https://github.com/Teycir/smartcontractpatternfinder/actions)
 
 **Tags:** `rust` `smart-contracts` `security` `scanner` `ethereum` `blockchain` `vulnerability-detection` `pattern-matching` `defi` `web3` `solidity` `static-analysis`
 
