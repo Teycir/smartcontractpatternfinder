@@ -2,7 +2,7 @@
 
 <!-- markdownlint-disable MD033 -->
 <div align="center">
-  <img src="assets/scpf_banner.png" width="60%" alt="Smart Contract Pattern Finder Banner" style="border-radius: 10px; box-shadow: 0 0 20px rgba(0, 255, 255, 0.2);" />
+  <img src="assets/scpf_banner.gif" width="60%" alt="Smart Contract Pattern Finder Banner" style="border-radius: 10px; box-shadow: 0 0 20px rgba(0, 255, 255, 0.2);" />
 </div>
 <!-- markdownlint-enable MD033 -->
 
