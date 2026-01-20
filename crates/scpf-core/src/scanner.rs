@@ -65,6 +65,7 @@ impl Scanner {
 
         let mut matches = Vec::new();
         let mut seen = std::collections::HashSet::new();
+        let mut dedup_set = std::collections::HashSet::new();
 
         // Parse AST once for all semantic patterns and dataflow analysis
         let parsed_tree = if self.semantic_scanner.is_some() {
@@ -97,6 +98,11 @@ impl Scanner {
                     DataFlowSeverity::Medium => scpf_types::Severity::Medium,
                     DataFlowSeverity::Low => scpf_types::Severity::Low,
                 };
+
+                // Skip LOW and INFO severity
+                if matches!(severity, scpf_types::Severity::Low) {
+                    continue;
+                }
 
                 matches.push(Match {
                     template_id: finding.analyzer_id,
@@ -158,6 +164,14 @@ impl Scanner {
                     let context =
                         get_match_context(source, &newlines, mat.start(), mat.end(), line_number);
 
+                    // Skip LOW and INFO severity
+                    if matches!(
+                        compiled_template.template.severity,
+                        scpf_types::Severity::Low | scpf_types::Severity::Info
+                    ) {
+                        continue;
+                    }
+
                     matches.push(Match {
                         template_id: compiled_template.template.id.clone(),
                         pattern_id: compiled_pattern.pattern.id.clone(),
@@ -174,6 +188,12 @@ impl Scanner {
                 }
             }
         }
+
+        // Deduplicate matches by (file_path, line_number, pattern_id)
+        matches.retain(|m| {
+            let key = (m.file_path.clone(), m.line_number, m.pattern_id.clone());
+            dedup_set.insert(key)
+        });
 
         Ok(matches)
     }

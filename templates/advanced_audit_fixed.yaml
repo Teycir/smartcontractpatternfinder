@@ -23,6 +23,7 @@ patterns:
   # tx.origin authentication
   - id: tx-origin-auth-fixed
     kind: semantic
+    validate: true
     pattern: |
       (call_expression
         (expression
@@ -38,6 +39,18 @@ patterns:
       (#eq? @obj "tx")
       (#eq? @prop "origin")
     message: tx.origin used for authentication - vulnerable to phishing
+    required: false
+    fallback: regex
+    on_error: skip
+
+  # tx.origin regex fallback (more precise)
+  - id: tx-origin-regex
+    kind: regex
+    validate: true
+    pattern: '\btx\.origin\b'
+    message: tx.origin detected - use msg.sender for authentication
+    required: false
+    on_error: skip
 
   # Missing access control on critical functions
   - id: missing-access-control-fixed

@@ -200,8 +200,7 @@ fn print_console(results: &[ScanResult], failed: usize) {
                     scpf_types::Severity::Critical => "CRITICAL".red().bold(),
                     scpf_types::Severity::High => "HIGH".red(),
                     scpf_types::Severity::Medium => "MEDIUM".yellow(),
-                    scpf_types::Severity::Low => "LOW".blue(),
-                    scpf_types::Severity::Info => "INFO".cyan(),
+                    _ => continue, // Skip LOW and INFO
                 };
                 println!(
                     "   [{}] Line {}: {}",
@@ -223,12 +222,10 @@ fn print_console(results: &[ScanResult], failed: usize) {
     println!("{}", "─".repeat(60).cyan());
     println!("{}  Summary:", "📊".cyan());
 
-    // Count by severity
+    // Count by severity (CRITICAL, HIGH, MEDIUM only)
     let mut critical = 0;
     let mut high = 0;
     let mut medium = 0;
-    let mut low = 0;
-    let mut info = 0;
 
     for result in results {
         for m in &result.matches {
@@ -236,8 +233,7 @@ fn print_console(results: &[ScanResult], failed: usize) {
                 scpf_types::Severity::Critical => critical += 1,
                 scpf_types::Severity::High => high += 1,
                 scpf_types::Severity::Medium => medium += 1,
-                scpf_types::Severity::Low => low += 1,
-                scpf_types::Severity::Info => info += 1,
+                _ => {} // Skip LOW and INFO
             }
         }
     }
@@ -255,17 +251,11 @@ fn print_console(results: &[ScanResult], failed: usize) {
         if medium > 0 {
             parts.push(format!("{} {}", "MEDIUM:".yellow(), medium));
         }
-        if low > 0 {
-            parts.push(format!("{} {}", "LOW:".blue(), low));
-        }
-        if info > 0 {
-            parts.push(format!("{} {}", "INFO:".cyan(), info));
-        }
         println!("{}", parts.join(" | "));
     }
     println!("   Total issues: {}", total_matches);
 
-    // Display risk scores
+    // Display risk scores with breakdown
     if !results.is_empty() {
         let total_risk: u32 = results.iter().map(|r| r.total_risk_score()).sum();
         let avg_risk = total_risk / results.len() as u32;
@@ -274,10 +264,37 @@ fn print_console(results: &[ScanResult], failed: usize) {
             .map(|r| r.total_risk_score())
             .max()
             .unwrap_or(0);
+        
+        // Get risk level emoji
+        let risk_emoji = match total_risk {
+            0 => "✅",
+            1..=100 => "✅",
+            101..=500 => "⚠️",
+            501..=2000 => "🔴",
+            _ => "🚨",
+        };
+        
+        let risk_level = match total_risk {
+            0 => "None",
+            1..=100 => "Low",
+            101..=500 => "Medium",
+            501..=2000 => "High",
+            _ => "Critical",
+        };
+        
         println!(
-            "   Risk Score: {} (avg: {}, max: {})",
-            total_risk, avg_risk, max_risk
+            "   Risk Score: {} {} {} (avg: {}, max: {})",
+            total_risk, risk_emoji, risk_level, avg_risk, max_risk
         );
+        
+        // Show calculation formula (CRITICAL, HIGH, MEDIUM only)
+        println!("\n   Risk Calculation:");
+        println!("     {} CRITICAL × 100 = {}", critical, critical * 100);
+        println!("     {} HIGH × 10 = {}", high, high * 10);
+        println!("     {} MEDIUM × 3 = {}", medium, medium * 3);
+        println!("     Total = {}", total_risk);
+        println!("\n   Risk Thresholds:");
+        println!("     0-100: Low ✅ | 101-500: Medium ⚠️ | 501-2000: High 🔴 | 2000+: Critical 🚨");
     }
 
     if total_matches == 0 && failed == 0 {
@@ -287,16 +304,40 @@ fn print_console(results: &[ScanResult], failed: usize) {
             "No issues found! Your contracts look good.".green()
         );
     } else if total_matches > 0 {
-        println!("\n{} Next steps:", "→".cyan().bold());
-        if critical > 0 || high > 0 {
-            println!(
-                "  • {} Fix CRITICAL and HIGH severity issues first",
-                "⚠️".red()
-            );
+        println!("\n{} Priority Actions:", "→".cyan().bold());
+        
+        // Prioritize files by risk score
+        let mut file_risks: Vec<_> = results
+            .iter()
+            .map(|r| (r.address.clone(), r.total_risk_score()))
+            .collect();
+        file_risks.sort_by(|a, b| b.1.cmp(&a.1));
+        
+        if critical > 0 {
+            println!("  1. 🚨 CRITICAL: Fix {} critical issues immediately", critical);
         }
-        println!("  • Export to JSON: scpf scan ... --output json > results.json");
-        println!("  • Export to SARIF: scpf scan ... --output sarif");
-        println!("  • More info: https://github.com/Teycir/smartcontractpatternfinder");
+        if high > 0 {
+            println!("  2. 🔴 HIGH: Address {} high-severity issues", high);
+        }
+        if medium > 0 {
+            println!("  3. ⚠️  MEDIUM: Review {} medium-severity issues", medium);
+        }
+        
+        println!("\n{} Files by Priority:", "📋".cyan());
+        for (i, (file, risk)) in file_risks.iter().take(3).enumerate() {
+            let emoji = match *risk {
+                0..=100 => "✅",
+                101..=500 => "⚠️",
+                501..=2000 => "🔴",
+                _ => "🚨",
+            };
+            println!("  {}. {} {} (Risk: {})", i + 1, emoji, file, risk);
+        }
+        
+        println!("\n{} Export Options:", "💾".cyan());
+        println!("  • JSON: scpf scan ... --output json > results.json");
+        println!("  • SARIF: scpf scan ... --output sarif > results.sarif");
+        println!("  • More: https://github.com/Teycir/smartcontractpatternfinder");
     }
 
     println!("{}", "═".repeat(60).cyan());

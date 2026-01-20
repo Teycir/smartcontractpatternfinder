@@ -64,13 +64,21 @@ pub struct Match {
 }
 
 impl Match {
+    /// Calculate risk score for this match
+    /// 
+    /// Formula:
+    /// - CRITICAL: 100 points
+    /// - HIGH: 10 points
+    /// - MEDIUM: 3 points
+    /// - LOW: 1 point
+    /// - INFO: 0 points
     pub fn risk_score(&self) -> u32 {
         match self.severity {
-            Severity::Critical => 10,
-            Severity::High => 7,
-            Severity::Medium => 4,
-            Severity::Low => 2,
-            Severity::Info => 1,
+            Severity::Critical => 100,
+            Severity::High => 10,
+            Severity::Medium => 3,
+            Severity::Low => 1,
+            Severity::Info => 0,
         }
     }
 }
@@ -84,18 +92,88 @@ pub struct ScanResult {
 }
 
 impl ScanResult {
+    /// Calculate total risk score for all matches
+    /// 
+    /// Formula: Σ(severity_weight × count)
+    /// Weights: CRITICAL=100, HIGH=10, MEDIUM=3, LOW=1, INFO=0
     pub fn total_risk_score(&self) -> u32 {
         self.matches.iter().map(|m| m.risk_score()).sum()
     }
 
+    /// Get risk level based on total score
+    /// 
+    /// Thresholds:
+    /// - 0: None ✅
+    /// - 1-100: Low ✅
+    /// - 101-500: Medium ⚠️
+    /// - 501-2000: High 🔴
+    /// - 2000+: Critical 🚨
     pub fn risk_level(&self) -> &'static str {
         match self.total_risk_score() {
             0 => "None",
-            1..=5 => "Low",
-            6..=15 => "Medium",
-            16..=30 => "High",
+            1..=100 => "Low",
+            101..=500 => "Medium",
+            501..=2000 => "High",
             _ => "Critical",
         }
+    }
+
+    /// Get risk level emoji
+    pub fn risk_emoji(&self) -> &'static str {
+        match self.total_risk_score() {
+            0 => "✅",
+            1..=100 => "✅",
+            101..=500 => "⚠️",
+            501..=2000 => "🔴",
+            _ => "🚨",
+        }
+    }
+
+    /// Get severity breakdown for risk calculation
+    pub fn severity_breakdown(&self) -> SeverityBreakdown {
+        let mut breakdown = SeverityBreakdown::default();
+        for m in &self.matches {
+            match m.severity {
+                Severity::Critical => breakdown.critical += 1,
+                Severity::High => breakdown.high += 1,
+                Severity::Medium => breakdown.medium += 1,
+                Severity::Low => breakdown.low += 1,
+                Severity::Info => breakdown.info += 1,
+            }
+        }
+        breakdown
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct SeverityBreakdown {
+    pub critical: usize,
+    pub high: usize,
+    pub medium: usize,
+    pub low: usize,
+    pub info: usize,
+}
+
+impl SeverityBreakdown {
+    /// Calculate risk score from breakdown
+    pub fn risk_score(&self) -> u32 {
+        (self.critical as u32 * 100)
+            + (self.high as u32 * 10)
+            + (self.medium as u32 * 3)
+            + (self.low as u32 * 1)
+    }
+
+    /// Format breakdown as string
+    pub fn format(&self) -> String {
+        format!(
+            "CRITICAL: {} × 100 = {}\n  HIGH: {} × 10 = {}\n  MEDIUM: {} × 3 = {}",
+            self.critical,
+            self.critical * 100,
+            self.high,
+            self.high * 10,
+            self.medium,
+            self.medium * 3
+        )
     }
 }
 
