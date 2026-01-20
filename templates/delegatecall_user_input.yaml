@@ -11,8 +11,12 @@ tags:
 patterns:
   - id: delegatecall-to-input
     kind: semantic
+    validate: true
     pattern: |
       (call_expression
         function: (expression (member_expression
            property: (identifier) @method (#eq? @method "delegatecall"))))
     message: "Delegatecall usage detected. Ensure the target address and data are trusted."
+    required: true
+    fallback: regex
+    on_error: skip

@@ -1,4 +1,4 @@
-id: unprotected-selfdestruct-v4
+id: unprotected-selfdestruct-v2
 name: Selfdestruct Usage Detection
 description: |
   Detects all uses of selfdestruct/suicide. This operation:
@@ -45,9 +45,11 @@ patterns:
     kind: regex
     pattern: '(selfdestruct|suicide)\s*\('
     message: "selfdestruct/suicide usage detected. Contract will be permanently destroyed."
+    cache: true
 
   # Regex: selfdestruct in public function
   - id: selfdestruct-public-regex
     kind: regex
     pattern: 'function\s+\w+\s*\([^)]*\)\s*(public|external)[^{]*\{[^}]*(selfdestruct|suicide)\s*\('
     message: "CRITICAL: selfdestruct in public/external function. Verify access control modifier."
+    cache: true

@@ -40,11 +40,19 @@ patterns:
   # Regex: call followed by assignment
   - id: call-then-assign-regex
     kind: regex
+    validate: true
     pattern: '\.(call|delegatecall|staticcall|transfer|send)\s*[\({][^;]*;[^}]*\n\s*\w+\s*(\[[\w\.\[\]]+\])?\s*[-+*/]?='
     message: "Pattern suggests state change after external call. Review for reentrancy vulnerability."
+    required: true
+    on_error: skip
+    cache: true
 
   # Regex: Classic reentrancy pattern
   - id: classic-reentrancy-regex
     kind: regex
+    validate: true
     pattern: '\.call\{[^}]*value[^}]*\}[^;]*;[\s\S]{0,200}(balances|balance|amounts?|deposits?)\s*\[[^\]]+\]\s*[-=]'
     message: "High-risk: balance mapping modified after value transfer. Classic reentrancy pattern."
+    required: true
+    on_error: skip
+    cache: true

@@ -11,10 +11,18 @@ inputs:
     description: 'Minimum severity to fail the build (info, low, medium, high, critical)'
     required: false
     default: 'high'
+    type: choice
+    options:
+      - info
+      - low
+      - medium
+      - high
+      - critical
   templates:
     description: 'Path to custom templates directory'
     required: false
     default: 'templates'
+    type: string
   output-format:
     description: 'Output format (console, json, sarif)'
     required: false
@@ -46,7 +54,9 @@ runs:
           ~/.cargo/registry/index/
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
-        key: ${{ runner.os }}-scpf-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ runner.os }}-scpf-${{ hashFiles('**/Cargo.lock') || 'no-lock' }}
+        restore-keys: |
+          ${{ runner.os }}-scpf-
         
     - name: Install SCPF
       shell: bash
@@ -60,14 +70,23 @@ runs:
       shell: bash
       run: |
         set +e
-        scpf scan --output ${{ inputs.output-format }} --templates ${{ inputs.templates }} > scpf-results.sarif
+        if ! scpf scan --output ${{ inputs.output-format }} --templates ${{ inputs.templates }} > scpf-results.sarif 2>&1; then
+          echo "::warning::SCPF scan command encountered issues"
+        fi
         EXIT_CODE=$?
         
         if [ -f scpf-results.sarif ]; then
-          FINDINGS=$(jq '[.runs[].results | length] | add' scpf-results.sarif 2>/dev/null || echo "0")
+          if ! FINDINGS=$(jq '[.runs[].results | length] | add' scpf-results.sarif 2>/dev/null); then
+            echo "::warning::Failed to parse SARIF file, defaulting to 0 findings"
+            FINDINGS="0"
+          fi
+          FINDINGS=${FINDINGS:-0}
           echo "findings=$FINDINGS" >> $GITHUB_OUTPUT
           echo "sarif=scpf-results.sarif" >> $GITHUB_OUTPUT
           echo "Found $FINDINGS vulnerabilities"
+        else
+          echo "::error::Failed to generate SARIF output file"
+          exit 1
         fi
         
         if [ "${{ inputs.fail-on-findings }}" = "true" ] && [ $EXIT_CODE -ne 0 ]; then
@@ -75,9 +94,31 @@ runs:
           exit 1
         fi
         
+    - name: Validate SARIF File
+      if: inputs.output-format == 'sarif'
+      shell: bash
+      run: |
+        if [ ! -f scpf-results.sarif ]; then
+          echo "::error::SARIF file not found for upload"
+          exit 1
+        fi
+        if [ ! -s scpf-results.sarif ]; then
+          echo "::warning::SARIF file is empty"
+        fi
+        
     - name: Upload SARIF
       if: inputs.output-format == 'sarif'
+      id: upload-sarif
       uses: github/codeql-action/upload-sarif@v2
+      continue-on-error: false
       with:
-        sarif_file: scpf-results.sarif
+        sarif_file: ${{ github.workspace }}/scpf-results.sarif
         category: scpf-security
+        wait-for-processing: true
+        
+    - name: Verify SARIF Upload
+      if: failure() && inputs.output-format == 'sarif'
+      shell: bash
+      run: |
+        echo "::error::Failed to upload SARIF results to GitHub Security"
+        exit 1

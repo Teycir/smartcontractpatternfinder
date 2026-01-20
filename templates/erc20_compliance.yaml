@@ -7,27 +7,53 @@ tags:
   - erc20
   - standards
 patterns:
+  # Core transfer functions
   - id: transfer-function
+    kind: regex
+    validate: true
     pattern: 'function\s+transfer\s*\(\s*address\s+\w+\s*,\s*uint256\s+\w+\s*\)'
     message: ERC-20 transfer function found
+    required: false
+    on_error: skip
+    
   - id: transferfrom-function
+    kind: regex
+    validate: true
     pattern: 'function\s+transferFrom\s*\(\s*address\s+\w+\s*,\s*address\s+\w+\s*,\s*uint256\s+\w+\s*\)'
     message: ERC-20 transferFrom function found
+    required: false
+    on_error: skip
+    
+  # Approval functions
   - id: approve-function
+    kind: regex
+    validate: true
     pattern: 'function\s+approve\s*\(\s*address\s+\w+\s*,\s*uint256\s+\w+\s*\)'
     message: ERC-20 approve function found
+    required: false
+    on_error: skip
+    
   - id: allowance-function
+    kind: regex
+    validate: true
     pattern: 'function\s+allowance\s*\(\s*address\s+\w+\s*,\s*address\s+\w+\s*\)'
     message: ERC-20 allowance function found
+    required: false
+    on_error: skip
+    
+  # Query functions
   - id: balanceof-function
+    kind: regex
+    validate: true
     pattern: 'function\s+balanceOf\s*\(\s*address\s+\w+\s*\)'
     message: ERC-20 balanceOf function found
+    required: false
+    on_error: skip
+    
   - id: totalsupply-function
+    kind: regex
+    validate: true
     pattern: 'function\s+totalSupply\s*\(\s*\)'
     message: ERC-20 totalSupply function found
-  # - id: missing-return-transfer
-  #   pattern: 'function\s+transfer\s*\([^)]+\)\s+(?!.*returns\s*\(\s*bool\s*\))'
-  #   message: Warning - transfer should return bool
-  # - id: missing-return-approve
-  #   pattern: 'function\s+approve\s*\([^)]+\)\s+(?!.*returns\s*\(\s*bool\s*\))'
-  #   message: Warning - approve should return bool
+    required: false
+    on_error: skip

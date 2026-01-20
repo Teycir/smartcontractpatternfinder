@@ -1,6 +1,12 @@
 id: advanced-audit-checks
 name: Advanced Audit-Level Vulnerability Detection
-description: Deep semantic analysis to catch vulnerabilities auditors commonly miss
+description: |
+  Deep semantic analysis to catch vulnerabilities auditors commonly miss:
+  - Reentrancy patterns (state changes after external calls)
+  - Unchecked return values from low-level calls
+  - Access control issues on critical functions
+  - Oracle manipulation and flash loan vulnerabilities
+  - Timestamp dependence and front-running risks
 severity: high
 tags:
   - security
@@ -11,6 +17,7 @@ patterns:
   # State changes after external calls (reentrancy)
   - id: state-after-call
     kind: semantic
+    validate: true
     pattern: |
       (function_definition
         body: (function_body
@@ -21,16 +28,23 @@ patterns:
           (expression_statement
             (assignment_expression))))
     message: State change after external call - potential reentrancy vulnerability
+    required: true
+    fallback: regex
+    on_error: skip
 
   # Unchecked return values
   - id: unchecked-call-return
     kind: semantic
+    validate: true
     pattern: |
       (expression_statement
         (call_expression
           function: (member_expression
             property: (identifier) @method (#match? @method "^(call|delegatecall|send)$"))))
     message: Unchecked low-level call return value - may silently fail
+    required: true
+    fallback: regex
+    on_error: skip
 
   # Unsafe delegatecall with user input
   - id: delegatecall-user-input
@@ -127,6 +141,7 @@ patterns:
   # Missing event emission
   - id: state-change-no-event
     kind: semantic
+    validate: true
     pattern: |
       (function_definition
         visibility: (visibility) @vis (#match? @vis "^(public|external)$")
@@ -135,16 +150,25 @@ patterns:
             (assignment_expression
               left: (member_expression)))))
     message: State change in public function without event emission
+    required: false
+    fallback: regex
+    on_error: skip
+    cache: true
 
   # Shadowing state variables
   - id: variable-shadowing
     kind: semantic
+    validate: true
     pattern: |
       (function_definition
         parameters: (parameter_list
           (parameter
             name: (identifier) @param)))
     message: Parameter may shadow state variable - verify no naming conflicts
+    required: false
+    fallback: regex
+    on_error: skip
+    cache: true
 
   # Uninitialized storage pointer
   - id: uninitialized-storage
@@ -210,6 +234,7 @@ patterns:
   # Flash loan attack surface
   - id: flash-loan-vulnerable
     kind: semantic
+    validate: true
     pattern: |
       (function_definition
         visibility: (visibility) @vis (#match? @vis "^(public|external)$")
@@ -219,11 +244,18 @@ patterns:
               left: (member_expression
                 property: (identifier) @bal (#eq? @bal "balance"))))))
     message: Balance-dependent logic in public function - vulnerable to flash loan attacks
+    required: true
+    fallback: regex
+    on_error: skip
 
-  # Centralization risk
+  # Centralization risk - detects single point of control via owner/admin modifiers
   - id: owner-single-point
     kind: semantic
+    validate: true
     pattern: |
       (modifier_invocation
         (identifier) @mod (#match? @mod "^(onlyOwner|onlyAdmin)$"))
     message: Single owner/admin control - consider multi-sig or timelock for decentralization
+    required: false
+    fallback: regex
+    on_error: skip

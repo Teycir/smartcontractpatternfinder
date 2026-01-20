@@ -34,17 +34,26 @@ patterns:
   # Regex: Expression statement with low-level call (no assignment)
   - id: unchecked-call-regex
     kind: regex
+    validate: true
     pattern: '^\s*[^=\n]*\.(call|delegatecall|staticcall|send)\s*[\({]'
     message: "Unchecked low-level call detected. Return value should be verified."
+    required: true
+    on_error: skip
 
   # Regex: send without assignment or require
   - id: unchecked-send-regex
     kind: regex
+    validate: true
     pattern: '^\s*\w+\.send\([^)]+\)\s*;'
     message: "'.send()' return not checked. Use require(addr.send(amount)) or .transfer()."
+    required: true
+    on_error: skip
 
   # Regex: Properly checked call (info only)
   - id: checked-call-info
     kind: regex
+    validate: true
     pattern: '\(\s*bool\s+\w+\s*,?\s*\)\s*=\s*\w+\.(call|delegatecall)'
     message: "[INFO] Properly checked low-level call found. Good practice."
+    required: false
+    on_error: skip

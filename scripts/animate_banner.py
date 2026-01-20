@@ -4,8 +4,9 @@ import os
 def create_scanline_animation(input_path, output_path, frames=40):
     try:
         # Load the original image
-        original = Image.open(input_path).convert('RGBA')
-        width, height = original.size
+        with Image.open(input_path) as img:
+            original = img.convert('RGBA')
+            width, height = original.size
         
         # Create a list to hold the frames
         animation_frames = []
@@ -55,8 +56,15 @@ def create_scanline_animation(input_path, output_path, frames=40):
         )
         print(f"Successfully created scanline banner at: {output_path}")
         
+    except FileNotFoundError as e:
+        print(f"Error: Input file not found: {e}")
+        raise
+    except PermissionError as e:
+        print(f"Error: Permission denied: {e}")
+        raise
     except Exception as e:
         print(f"Error creating animation: {e}")
+        raise
 
 if __name__ == "__main__":
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -65,5 +73,10 @@ if __name__ == "__main__":
     
     if not os.path.exists(input_img):
         print(f"Error: Input image not found at {input_img}")
+        exit(1)
     else:
-        create_scanline_animation(input_img, output_gif)
+        try:
+            create_scanline_animation(input_img, output_gif)
+        except Exception as e:
+            print(f"Fatal error: {e}")
+            exit(1)

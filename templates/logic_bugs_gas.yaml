@@ -135,8 +135,11 @@ patterns:
   # Logic: Floating pragma
   - id: floating-pragma
     kind: regex
+    validate: true
     pattern: '^\s*pragma\s+solidity\s+\^'
     message: Floating pragma - lock to specific version for production
+    required: false
+    on_error: skip
 
   # Gas: Emit in loop
   - id: emit-in-loop
@@ -176,6 +179,7 @@ patterns:
   # Gas: Struct packing inefficient
   - id: struct-packing-inefficient
     kind: semantic
+    validate: true
     pattern: |
       (struct_declaration
         body: (struct_member
@@ -183,21 +187,32 @@ patterns:
         body: (struct_member
           type: (type_name) @type2 (#match? @type2 "^(uint8|uint16|uint32|uint64|uint128|bool|address)$")))
     message: Struct packing inefficient - group smaller types together to save storage slots
+    required: false
+    fallback: regex
+    on_error: skip
 
   # Logic: Timestamp overflow
   - id: timestamp-uint32-overflow
     kind: semantic
+    validate: true
     pattern: |
       (variable_declaration
         type: (type_name) @type (#match? @type "^uint32$")
         name: (identifier) @name (#match? @name "^(timestamp|time|deadline)$"))
     message: uint32 for timestamp - overflows in 2106, use uint256
+    required: false
+    fallback: regex
+    on_error: skip
 
   # Logic: Missing constructor
   - id: missing-constructor-init
     kind: semantic
+    validate: true
     pattern: |
       (contract_declaration
         (state_variable_declaration
           type: (user_defined_type_name)))
     message: Contract reference without constructor initialization - verify proper setup
+    required: false
+    fallback: regex
+    on_error: skip

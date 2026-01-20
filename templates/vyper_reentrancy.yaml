@@ -8,11 +8,26 @@ tags:
   - security
 patterns:
   - id: raw-call-usage
+    kind: regex
+    validate: true
     pattern: 'raw_call\('
     message: raw_call detected - potential reentrancy if state changes after call
+    required: true
+    on_error: skip
+    
   - id: send-usage
+    kind: regex
+    validate: true
     pattern: 'send\([^,]+,\s*\w+\)'
     message: send() with value detected - check for state changes after call
+    required: true
+    on_error: skip
+    
   - id: state-change-after-call
+    kind: regex
+    validate: true
     pattern: 'self\.\w+\s*=.*\n.*raw_call|raw_call.*\n.*self\.\w+\s*='
     message: State change near external call - potential reentrancy
+    required: true
+    on_error: skip
+    cache: true

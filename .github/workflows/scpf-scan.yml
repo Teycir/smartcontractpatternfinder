@@ -26,9 +26,12 @@ jobs:
           output-format: sarif
           fail-on-findings: true
           
+      # Upload scan results as artifact for review
       - name: Upload Results
         if: always()
         uses: actions/upload-artifact@v3
+        continue-on-error: true
         with:
           name: scpf-results
           path: scpf-results.sarif
+          retention-days: 30

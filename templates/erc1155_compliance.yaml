@@ -9,20 +9,38 @@ tags:
   - standards
 patterns:
   - id: safetransferfrom-function
+    kind: regex
     pattern: 'function\s+safeTransferFrom\s*\(\s*address\s+\w+\s*,\s*address\s+\w+\s*,\s*uint256\s+\w+\s*,\s*uint256\s+\w+\s*,\s*bytes\s+'
     message: ERC-1155 safeTransferFrom function found
+    required: false
+    on_error: skip
   - id: safebatchtransferfrom-function
+    kind: regex
     pattern: 'function\s+safeBatchTransferFrom\s*\(\s*address\s+\w+\s*,\s*address\s+\w+\s*,\s*uint256\[\]\s+'
     message: ERC-1155 safeBatchTransferFrom function found
+    required: false
+    on_error: skip
   - id: balanceof-function
+    kind: regex
     pattern: 'function\s+balanceOf\s*\(\s*address\s+\w+\s*,\s*uint256\s+\w+\s*\)'
     message: ERC-1155 balanceOf function found
+    required: false
+    on_error: skip
   - id: balanceofbatch-function
+    kind: regex
     pattern: 'function\s+balanceOfBatch\s*\(\s*address\[\]\s+'
     message: ERC-1155 balanceOfBatch function found
+    required: false
+    on_error: skip
   - id: setapprovalforall-function
+    kind: regex
     pattern: 'function\s+setApprovalForAll\s*\(\s*address\s+\w+\s*,\s*bool\s+\w+\s*\)'
     message: ERC-1155 setApprovalForAll function found
+    required: false
+    on_error: skip
   - id: isapprovedforall-function
+    kind: regex
     pattern: 'function\s+isApprovedForAll\s*\(\s*address\s+\w+\s*,\s*address\s+\w+\s*\)'
     message: ERC-1155 isApprovedForAll function found
+    required: false
+    on_error: skip

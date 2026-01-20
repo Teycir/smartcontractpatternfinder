@@ -8,8 +8,19 @@ tags:
   - weak-randomness
 patterns:
   - id: timestamp-comparison
+    kind: regex
+    validate: true
     pattern: 'block\.timestamp\s*[<>=!]+'
     message: block.timestamp used in comparison - miners can manipulate within ~15 seconds
+    required: false
+    on_error: skip
+    cache: true
+    
   - id: timestamp-arithmetic
+    kind: regex
+    validate: true
     pattern: 'block\.timestamp\s*[\+\-\*\/]'
     message: Arithmetic with block.timestamp - ensure tolerance for miner manipulation
+    required: false
+    on_error: skip
+    cache: true

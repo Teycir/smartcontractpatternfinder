@@ -1,4 +1,4 @@
-id: strict-balance-equality-v4
+id: strict-balance-equality-v2
 name: Strict Balance Equality
 description: |
   Detects strict equality (== or !=) comparisons involving .balance.
@@ -20,33 +20,53 @@ patterns:
   # Semantic: member access to .balance
   - id: balance-access
     kind: semantic
+    validate: true
     pattern: |
       (member_access
         (_) @obj
         (identifier) @prop
         (#eq? @prop "balance")) @balance_ref
     message: "Access to '@obj.balance'. If used in equality check, vulnerable to manipulation."
+    required: false
+    fallback: regex
+    on_error: skip
 
   # Regex: Universal balance equality (covers all cases)
   - id: balance-equality-regex
     kind: regex
+    validate: true
     pattern: '\.balance\s*(==|!=)\s*\S+'
     message: "Strict equality with .balance detected. Balance can be force-changed - use >= or <= instead."
+    required: false
+    fallback: regex
+    on_error: skip
 
   # Regex: Reversed operand
   - id: balance-equality-reversed-regex
     kind: regex
+    validate: true
     pattern: '\S+\s*(==|!=)\s*[^.]*\.balance'
     message: "Comparing value to .balance with strict equality. Vulnerable to forced deposits."
+    required: false
+    fallback: regex
+    on_error: skip
 
   # Regex: Specific zero check
   - id: balance-zero-regex
     kind: regex
+    validate: true
     pattern: '\.balance\s*==\s*0\b'
     message: "Checking balance == 0 is bypassable. Attacker can force-send ETH via selfdestruct."
+    required: false
+    fallback: regex
+    on_error: skip
 
   # Regex: address(this).balance pattern
   - id: this-balance-regex
     kind: regex
+    validate: true
     pattern: 'address\s*\(\s*this\s*\)\s*\.balance\s*(==|!=)'
     message: "Contract balance strict equality. Can be manipulated by external actors."
+    required: false
+    fallback: regex
+    on_error: skip

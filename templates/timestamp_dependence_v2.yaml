@@ -10,9 +10,13 @@ tags:
 patterns:
   - id: timestamp-in-comparison
     kind: semantic
+    validate: true
     pattern: |
       (binary_expression
         left: (expression [(identifier) (member_expression)] @time (#match? @time "^(now|block\.timestamp)$"))
         ["<" ">" "<=" ">=" "==" "!="] @op
         right: (expression))
     message: "Avoid using block.timestamp for logic or randomness. Miners can manipulate it."
+    required: true
+    fallback: regex
+    on_error: skip

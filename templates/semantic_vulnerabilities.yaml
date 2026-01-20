@@ -38,11 +38,16 @@ patterns:
         function: (identifier) @selfdestruct (#eq? @selfdestruct "selfdestruct"))
     message: selfdestruct usage detected - ensure proper access control
 
+  # Detects low-level calls without return value checks
   - id: unchecked-low-level-call
     kind: semantic
+    validate: true
     pattern: |
       (expression_statement
         (call_expression
           function: (member_expression
             property: (identifier) @call (#match? @call "^(call|delegatecall|staticcall)$"))))
     message: Unchecked low-level call - verify return value is checked
+    required: true
+    fallback: regex
+    on_error: skip

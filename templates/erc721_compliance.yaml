@@ -8,27 +8,61 @@ tags:
   - nft
   - standards
 patterns:
+  # Core transfer functions
   - id: safetransferfrom-function
+    kind: regex
     pattern: 'function\s+safeTransferFrom\s*\(\s*address\s+\w+\s*,\s*address\s+\w+\s*,\s*uint256\s+\w+\s*\)'
     message: ERC-721 safeTransferFrom function found
+    required: false
+    on_error: skip
+    
   - id: transferfrom-function
+    kind: regex
     pattern: 'function\s+transferFrom\s*\(\s*address\s+\w+\s*,\s*address\s+\w+\s*,\s*uint256\s+\w+\s*\)'
     message: ERC-721 transferFrom function found
+    required: false
+    on_error: skip
+    
+  # Approval functions
   - id: approve-function
+    kind: regex
     pattern: 'function\s+approve\s*\(\s*address\s+\w+\s*,\s*uint256\s+\w+\s*\)'
     message: ERC-721 approve function found
+    required: false
+    on_error: skip
+    
   - id: setapprovalforall-function
+    kind: regex
     pattern: 'function\s+setApprovalForAll\s*\(\s*address\s+\w+\s*,\s*bool\s+\w+\s*\)'
     message: ERC-721 setApprovalForAll function found
+    required: false
+    on_error: skip
+    
   - id: getapproved-function
+    kind: regex
     pattern: 'function\s+getApproved\s*\(\s*uint256\s+\w+\s*\)'
     message: ERC-721 getApproved function found
+    required: false
+    on_error: skip
+    
   - id: isapprovedforall-function
+    kind: regex
     pattern: 'function\s+isApprovedForAll\s*\(\s*address\s+\w+\s*,\s*address\s+\w+\s*\)'
     message: ERC-721 isApprovedForAll function found
+    required: false
+    on_error: skip
+    
+  # Query functions
   - id: balanceof-function
+    kind: regex
     pattern: 'function\s+balanceOf\s*\(\s*address\s+\w+\s*\)'
     message: ERC-721 balanceOf function found
+    required: false
+    on_error: skip
+    
   - id: ownerof-function
+    kind: regex
     pattern: 'function\s+ownerOf\s*\(\s*uint256\s+\w+\s*\)'
     message: ERC-721 ownerOf function found
+    required: false
+    on_error: skip

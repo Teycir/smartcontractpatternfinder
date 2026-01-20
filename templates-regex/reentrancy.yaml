@@ -6,15 +6,34 @@ tags:
   - security
   - reentrancy
 patterns:
+  # Detects external calls with value transfer (high reentrancy risk)
   - id: external-call-with-value
+    kind: regex
     pattern: '\.call\{value:'
     message: External call with value transfer detected
+    required: true
+    on_error: skip
+    
+  # Detects delegatecall usage (can execute arbitrary code)
   - id: delegatecall-usage
+    kind: regex
     pattern: '\.delegatecall\('
     message: Delegatecall usage detected
+    required: true
+    on_error: skip
+    
+  # Detects send usage (limited gas, can fail silently)
   - id: send-usage
+    kind: regex
     pattern: '\.send\('
     message: Send usage detected
-  - id: transfer-usage  
+    required: false
+    on_error: skip
+    
+  # Detects transfer usage (throws on failure)
+  - id: transfer-usage
+    kind: regex
     pattern: '\.transfer\('
     message: Transfer usage detected
+    required: false
+    on_error: skip

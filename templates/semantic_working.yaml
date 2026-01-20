@@ -49,22 +49,34 @@ patterns:
     pattern: '(assignment_expression) @assign'
     message: State change detected - verify ordering with external calls
 
-  # Binary expression with ==
+  # Detects strict equality comparisons (dangerous with balance)
   - id: strict-equality
     kind: semantic
+    validate: true
     pattern: |
       (binary_expression
         operator: "==") @eq
     message: Strict equality - verify not used with balance
+    required: false
+    fallback: regex
+    on_error: skip
 
-  # For loops
+  # Detects for loops (potential DoS)
   - id: for-loop
     kind: semantic
+    validate: true
     pattern: '(for_statement) @loop'
     message: Loop detected - verify no unbounded iterations
+    required: false
+    fallback: regex
+    on_error: skip
 
-  # Function definition
+  # Detects function definitions
   - id: function-def
     kind: semantic
+    validate: true
     pattern: '(function_definition) @func'
     message: Function detected - verify access control on critical functions
+    required: false
+    fallback: regex
+    on_error: skip

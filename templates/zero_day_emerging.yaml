@@ -11,6 +11,7 @@ patterns:
   # Read-only reentrancy (Curve Finance hack 2023)
   - id: readonly-reentrancy
     kind: semantic
+    validate: true
     pattern: |
       (function_definition
         (modifier_invocation
@@ -20,6 +21,9 @@ patterns:
             (call_expression
               function: (member_expression)))))
     message: View function with external call - vulnerable to read-only reentrancy (Curve-style)
+    required: true
+    fallback: regex
+    on_error: skip
 
   # ERC4626 inflation attack (2024)
   - id: erc4626-inflation
@@ -248,8 +252,12 @@ patterns:
   # Frax V3 AMO exploit
   - id: frax-amo-exploit
     kind: semantic
+    validate: true
     pattern: |
       (function_definition
         name: (identifier) @name (#match? @name "^(mintFrax|burnFrax|addAMO)$")
         visibility: (visibility) @vis (#match? @vis "^(public|external)$"))
     message: Frax AMO operation without proper access control - collateral manipulation risk
+    required: true
+    fallback: regex
+    on_error: skip

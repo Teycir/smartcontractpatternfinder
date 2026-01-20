@@ -10,11 +10,15 @@ tags:
 patterns:
   - id: multiply-before-divide
     kind: semantic
+    validate: true
     pattern: |
       (binary_expression
         left: (expression (binary_expression "/" @op_div))
         "*" @op_mul)
     message: "Division before multiplication often leads to precision loss."
+    required: true
+    fallback: regex
+    on_error: skip
 
   - id: unchecked-addition-assignment
     kind: semantic
@@ -34,8 +38,12 @@ patterns:
 
   - id: array-length-decrement
     kind: semantic
+    validate: true
     pattern: |
       (update_expression
         argument: (expression (member_expression property: (identifier) @len (#eq? @len "length")))
         "--" @op)
     message: "Dangerous array length decrement."
+    required: true
+    fallback: regex
+    on_error: skip

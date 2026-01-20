@@ -8,11 +8,25 @@ tags:
   - security
 patterns:
   - id: unprotected-external
+    kind: regex
+    validate: true
     pattern: '@external\s+def\s+(?!__init__|__default__)\w+.*:\s*\n(?!.*assert\s+msg\.sender)'
     message: External function without msg.sender check - add access control
+    required: true
+    on_error: skip
+    
   - id: missing-owner-check
+    kind: regex
+    validate: true
     pattern: 'self\.owner\s*=\s*msg\.sender'
     message: Owner assignment detected - ensure proper initialization and transfer logic
+    required: false
+    on_error: skip
+    
   - id: selfdestruct-usage
+    kind: regex
+    validate: true
     pattern: 'selfdestruct\('
     message: selfdestruct detected - ensure proper access control
+    required: true
+    on_error: skip

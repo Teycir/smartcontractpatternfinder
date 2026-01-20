@@ -21,11 +21,11 @@ jobs:
           
       - name: Install dependencies
         run: |
-          pip install requests pyyaml
+          pip install requests pyyaml || { echo "Error: Failed to install dependencies"; exit 1; }
           
       - name: Fetch latest 0-day patterns
         run: |
-          python scripts/fetch_0day_patterns.py
+          python scripts/fetch_0day_patterns.py || { echo "Error: Failed to fetch 0-day patterns"; exit 1; }
           
       - name: Setup Rust
         uses: actions-rs/toolchain@v1
@@ -34,10 +34,12 @@ jobs:
           
       - name: Run tests
         run: |
-          cargo test --all
+          cargo test --all || { echo "Error: Tests failed"; exit 1; }
           
       - name: Create Pull Request
+        id: create-pr
         uses: peter-evans/create-pull-request@v5
+        continue-on-error: false
         with:
           commit-message: 'feat: add 0-day patterns from security feeds'
           title: '🚨 Live 0-Day Patterns - {{ date }}'
@@ -64,3 +66,9 @@ jobs:
           branch: 0day-patterns-{{ date }}
           delete-branch: true
           labels: security,0-day,auto-generated
+          
+      - name: Check PR creation
+        if: failure()
+        run: |
+          echo "Error: Failed to create pull request"
+          exit 1

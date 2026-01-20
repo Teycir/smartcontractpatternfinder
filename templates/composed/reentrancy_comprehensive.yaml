@@ -27,6 +27,7 @@ composition:
         - state-mutation-pattern
       max_distance: 50
       severity: critical
+      required: true
     
     - type: all_of
       templates:
@@ -61,3 +62,5 @@ patterns:
     kind: regex
     pattern: '\.call\{[^}]*value[^}]*\}[^;]*;[\s\S]{0,200}(balances|balance)\s*\[[^\]]+\]\s*[-=]'
     message: "Classic reentrancy pattern"
+    required: true
+    fallback: skip
