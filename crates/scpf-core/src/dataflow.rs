@@ -1,6 +1,93 @@
 use std::collections::{HashMap, HashSet};
 use tree_sitter::{Node, Tree};
 
+/// Trait for dataflow analyzers
+pub trait DataFlowAnalyzer {
+    fn analyze(&self, tree: &Tree, source: &str) -> Vec<AnalyzerFinding>;
+    fn analyzer_id(&self) -> &str;
+}
+
+/// Generic dataflow finding from analyzers
+#[derive(Debug, Clone)]
+pub struct AnalyzerFinding {
+    pub analyzer_id: String,
+    pub pattern_id: String,
+    pub line: usize,
+    pub message: String,
+    pub severity: DataFlowSeverity,
+    pub context: String,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum DataFlowSeverity {
+    Critical,
+    High,
+    Medium,
+    Low,
+}
+
+/// Registry for dataflow analyzers
+pub struct DataFlowRegistry {
+    analyzers: Vec<Box<dyn DataFlowAnalyzer>>,
+}
+
+impl DataFlowRegistry {
+    pub fn new() -> Self {
+        Self {
+            analyzers: Vec::new(),
+        }
+    }
+
+    pub fn register(&mut self, analyzer: Box<dyn DataFlowAnalyzer>) {
+        self.analyzers.push(analyzer);
+    }
+
+    pub fn analyze_all(&self, tree: &Tree, source: &str) -> Vec<AnalyzerFinding> {
+        self.analyzers
+            .iter()
+            .flat_map(|analyzer| analyzer.analyze(tree, source))
+            .collect()
+    }
+
+    pub fn with_default_analyzers() -> Self {
+        let mut registry = Self::new();
+        registry.register(Box::new(ReentrancyAnalyzer));
+        registry
+    }
+}
+
+/// Reentrancy analyzer implementation
+pub struct ReentrancyAnalyzer;
+
+impl DataFlowAnalyzer for ReentrancyAnalyzer {
+    fn analyze(&self, tree: &Tree, source: &str) -> Vec<AnalyzerFinding> {
+        let analysis = DataFlowAnalysis::analyze(tree, source);
+        analysis
+            .reentrancy_risks
+            .into_iter()
+            .map(|risk| AnalyzerFinding {
+                analyzer_id: self.analyzer_id().to_string(),
+                pattern_id: "state-mutation-after-call".to_string(),
+                line: risk.call_line,
+                message: format!(
+                    "Data flow analysis: {} call on line {} followed by state mutation of '{}' on line {}. Potential reentrancy vulnerability.",
+                    risk.call_method, risk.call_line, risk.state_var, risk.state_change_line
+                ),
+                severity: match risk.severity {
+                    RiskSeverity::Critical => DataFlowSeverity::Critical,
+                    RiskSeverity::High => DataFlowSeverity::High,
+                    RiskSeverity::Medium => DataFlowSeverity::Medium,
+                },
+                context: risk.call_method.clone(),
+            })
+            .collect()
+    }
+
+    fn analyzer_id(&self) -> &str {
+        "dataflow-reentrancy"
+    }
+}
+
 /// Represents a taint source
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TaintSource {
@@ -36,7 +123,7 @@ pub struct TaintInfo {
     pub propagation_path: Vec<String>,
 }
 
-/// Data flow finding
+/// Data flow finding (for unused DataFlowAnalyzer struct)
 #[derive(Debug, Clone)]
 pub struct DataFlowFinding {
     pub source: TaintSource,
@@ -46,21 +133,13 @@ pub struct DataFlowFinding {
     pub severity: DataFlowSeverity,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum DataFlowSeverity {
-    Critical,
-    High,
-    Medium,
-    Low,
-}
-
-/// Data flow analyzer
-pub struct DataFlowAnalyzer {
+/// Data flow analyzer (unused - kept for compatibility)
+pub struct OldDataFlowAnalyzer {
     taint_map: HashMap<String, TaintInfo>,
     pub findings: Vec<DataFlowFinding>,
 }
 
-impl DataFlowAnalyzer {
+impl OldDataFlowAnalyzer {
     pub fn new() -> Self {
         Self {
             taint_map: HashMap::new(),

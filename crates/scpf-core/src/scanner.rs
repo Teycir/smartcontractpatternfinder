@@ -1,4 +1,4 @@
-use crate::dataflow::DataFlowAnalysis;
+use crate::dataflow::{DataFlowRegistry, DataFlowSeverity};
 use crate::regex_validator::RegexValidator;
 use crate::semantic::SemanticScanner;
 use anyhow::Result;
@@ -21,6 +21,7 @@ struct CompiledTemplate {
 pub struct Scanner {
     templates: Vec<CompiledTemplate>,
     semantic_scanner: Option<SemanticScanner>,
+    dataflow_registry: DataFlowRegistry,
 }
 
 impl Scanner {
@@ -113,6 +114,7 @@ impl Scanner {
         Ok(Self {
             templates: compiled_templates,
             semantic_scanner,
+            dataflow_registry: DataFlowRegistry::with_default_analyzers(),
         })
     }
 
@@ -122,47 +124,51 @@ impl Scanner {
         let mut matches = Vec::new();
         let mut seen = std::collections::HashSet::new();
 
-        // Run data flow analysis for enhanced reentrancy detection
-        if let Some(ref mut semantic_scanner) = self.semantic_scanner {
-            if let Ok(tree) = semantic_scanner.parse(source) {
-                let analysis = DataFlowAnalysis::analyze(&tree, source);
+        // Parse AST once for all semantic patterns and dataflow analysis
+        let parsed_tree = if self.semantic_scanner.is_some() {
+            self.semantic_scanner
+                .as_mut()
+                .and_then(|scanner| scanner.parse(source).ok())
+        } else {
+            None
+        };
 
-                // Add reentrancy risks as matches
-                for risk in &analysis.reentrancy_risks {
-                    let severity = match risk.severity {
-                        crate::dataflow::RiskSeverity::Critical => scpf_types::Severity::Critical,
-                        crate::dataflow::RiskSeverity::High => scpf_types::Severity::High,
-                        crate::dataflow::RiskSeverity::Medium => scpf_types::Severity::Medium,
-                    };
+        // Run all registered dataflow analyzers
+        if let Some(ref tree) = parsed_tree {
+            let findings = self.dataflow_registry.analyze_all(tree, source);
 
-                    let line_start = if risk.call_line > 1 {
-                        newlines.get(risk.call_line - 2).copied().unwrap_or(0) + 1
-                    } else {
-                        0
-                    };
-                    let line_end = newlines
-                        .get(risk.call_line - 1)
-                        .copied()
-                        .unwrap_or(source.len());
-                    let context = source[line_start..line_end].to_string();
+            for finding in findings {
+                let line_start = if finding.line > 1 {
+                    newlines.get(finding.line - 2).copied().unwrap_or(0) + 1
+                } else {
+                    0
+                };
+                let line_end = newlines
+                    .get(finding.line - 1)
+                    .copied()
+                    .unwrap_or(source.len());
+                let context = source[line_start..line_end].to_string();
 
-                    matches.push(Match {
-                        template_id: "dataflow-reentrancy".to_string(),
-                        pattern_id: "state-mutation-after-call".to_string(),
-                        file_path: file_path.clone(),
-                        line_number: risk.call_line,
-                        column: 0,
-                        matched_text: risk.call_method.clone(),
-                        context,
-                        severity,
-                        message: format!(
-                            "Data flow analysis: {} call on line {} followed by state mutation of '{}' on line {}. Potential reentrancy vulnerability.",
-                            risk.call_method, risk.call_line, risk.state_var, risk.state_change_line
-                        ),
-                        start_byte: None,
-                        end_byte: None,
-                    });
-                }
+                let severity = match finding.severity {
+                    DataFlowSeverity::Critical => scpf_types::Severity::Critical,
+                    DataFlowSeverity::High => scpf_types::Severity::High,
+                    DataFlowSeverity::Medium => scpf_types::Severity::Medium,
+                    DataFlowSeverity::Low => scpf_types::Severity::Low,
+                };
+
+                matches.push(Match {
+                    template_id: finding.analyzer_id,
+                    pattern_id: finding.pattern_id,
+                    file_path: file_path.clone(),
+                    line_number: finding.line,
+                    column: 0,
+                    matched_text: finding.context,
+                    context,
+                    severity,
+                    message: finding.message,
+                    start_byte: None,
+                    end_byte: None,
+                });
             }
         }
 
@@ -170,9 +176,12 @@ impl Scanner {
             for compiled_pattern in &compiled_template.patterns {
                 // Dispatch based on pattern kind
                 if compiled_pattern.pattern.kind == PatternKind::Semantic {
-                    if let Some(ref mut semantic_scanner) = self.semantic_scanner {
-                        match semantic_scanner.scan(
+                    if let (Some(ref mut semantic_scanner), Some(ref tree)) =
+                        (&mut self.semantic_scanner, &parsed_tree)
+                    {
+                        match semantic_scanner.scan_with_tree(
                             source,
+                            tree,
                             &compiled_pattern.pattern,
                             &compiled_template.template.id,
                             compiled_template.template.severity,

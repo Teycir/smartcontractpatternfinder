@@ -23,19 +23,15 @@ impl SemanticScanner {
             .context("Failed to parse source code")
     }
 
-    pub fn scan(
+    pub fn scan_with_tree(
         &mut self,
         source: &str,
+        tree: &Tree,
         pattern: &Pattern,
         template_id: &str,
         severity: Severity,
         file_path: PathBuf,
     ) -> Result<Vec<Match>> {
-        let tree = self
-            .parser
-            .parse(source, None)
-            .context("Failed to parse source code")?;
-
         let language = tree_sitter_solidity::LANGUAGE.into();
         let query = Query::new(&language, &pattern.pattern)
             .context("Failed to compile tree-sitter query")?;
@@ -85,6 +81,22 @@ impl SemanticScanner {
         }
 
         Ok(results)
+    }
+
+    pub fn scan(
+        &mut self,
+        source: &str,
+        pattern: &Pattern,
+        template_id: &str,
+        severity: Severity,
+        file_path: PathBuf,
+    ) -> Result<Vec<Match>> {
+        let tree = self
+            .parser
+            .parse(source, None)
+            .context("Failed to parse source code")?;
+
+        self.scan_with_tree(source, &tree, pattern, template_id, severity, file_path)
     }
 }
 

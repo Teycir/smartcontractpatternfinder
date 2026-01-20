@@ -1,4 +1,4 @@
-use assert_cmd::Command;
+use assert_cmd::cargo::cargo_bin_cmd;
 use predicates::prelude::*;
 use std::fs;
 use tempfile::TempDir;
@@ -8,7 +8,7 @@ fn test_init_command_creates_structure() {
     let temp_dir = TempDir::new().unwrap();
     let project_path = temp_dir.path();
 
-    let mut cmd = Command::cargo_bin("scpf").unwrap();
+    let mut cmd = cargo_bin_cmd!("scpf");
     cmd.arg("init")
         .arg(project_path)
         .assert()
@@ -22,7 +22,7 @@ fn test_init_command_creates_structure() {
 fn test_scan_command_no_templates() {
     let temp_dir = TempDir::new().unwrap();
     
-    let mut cmd = Command::cargo_bin("scpf").unwrap();
+    let mut cmd = cargo_bin_cmd!("scpf");
     cmd.arg("scan")
         .arg("0x1234567890123456789012345678901234567890")
         .arg("--templates")
@@ -34,7 +34,7 @@ fn test_scan_command_no_templates() {
 
 #[test]
 fn test_scan_command_invalid_address() {
-    let mut cmd = Command::cargo_bin("scpf").unwrap();
+    let mut cmd = cargo_bin_cmd!("scpf");
     cmd.arg("scan")
         .arg("invalid-address")
         .assert()
@@ -61,7 +61,7 @@ patterns:
 "#;
     fs::write(templates_dir.join("test.yaml"), template_content).unwrap();
 
-    let mut cmd = Command::cargo_bin("scpf").unwrap();
+    let mut cmd = cargo_bin_cmd!("scpf");
     cmd.arg("scan")
         .arg("0x1234567890123456789012345678901234567890")
         .arg("--templates")
@@ -73,7 +73,7 @@ patterns:
 
 #[test]
 fn test_output_format_json() {
-    let mut cmd = Command::cargo_bin("scpf").unwrap();
+    let mut cmd = cargo_bin_cmd!("scpf");
     cmd.arg("scan")
         .arg("0x1234567890123456789012345678901234567890")
         .arg("--output")
@@ -84,7 +84,7 @@ fn test_output_format_json() {
 
 #[test]
 fn test_chain_argument() {
-    let mut cmd = Command::cargo_bin("scpf").unwrap();
+    let mut cmd = cargo_bin_cmd!("scpf");
     cmd.arg("scan")
         .arg("0x1234567890123456789012345678901234567890")
         .arg("--chain")
