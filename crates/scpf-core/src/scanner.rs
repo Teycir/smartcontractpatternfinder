@@ -112,6 +112,7 @@ impl Scanner {
                     column: 0,
                     matched_text: finding.context,
                     context,
+                    code_snippet: extract_code_snippet(source, &newlines, finding.line),
                     severity,
                     message: finding.message,
                     start_byte: None,
@@ -180,6 +181,7 @@ impl Scanner {
                         column: mat.start() - line_start,
                         matched_text: mat.as_str().to_string(),
                         context,
+                        code_snippet: extract_code_snippet(source, &newlines, line_number),
                         severity: compiled_template.template.severity,
                         message: compiled_pattern.pattern.message.clone(),
                         start_byte: None,
@@ -299,4 +301,37 @@ fn get_match_context(
             .unwrap_or(source.len());
         source[context_start..context_end].to_string()
     }
+}
+
+fn extract_code_snippet(
+    source: &str,
+    newlines: &[usize],
+    line_number: usize,
+) -> Option<scpf_types::CodeSnippet> {
+    let lines: Vec<&str> = source.lines().collect();
+    if line_number == 0 || line_number > lines.len() {
+        return None;
+    }
+
+    let idx = line_number - 1;
+    let before = if idx > 0 {
+        lines[idx - 1].to_string()
+    } else {
+        String::new()
+    };
+    
+    let vulnerable_line = lines[idx].to_string();
+    
+    let after = if idx + 1 < lines.len() {
+        lines[idx + 1].to_string()
+    } else {
+        String::new()
+    };
+
+    Some(scpf_types::CodeSnippet {
+        before,
+        vulnerable_line,
+        after,
+        line_start: line_number.saturating_sub(1),
+    })
 }

@@ -98,6 +98,7 @@ impl SemanticScanner {
                 let matched_text = &source[start_byte..end_byte];
 
                 results.push(Match {
+                    code_snippet: None,
                     template_id: template_id.to_string(),
                     pattern_id: pattern.id.clone(),
                     file_path: file_path.clone(),

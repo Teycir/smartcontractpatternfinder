@@ -55,12 +55,22 @@ pub struct Match {
     pub column: usize,
     pub matched_text: String,
     pub context: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code_snippet: Option<CodeSnippet>,
     pub severity: Severity,
     pub message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub start_byte: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub end_byte: Option<usize>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CodeSnippet {
+    pub before: String,
+    pub vulnerable_line: String,
+    pub after: String,
+    pub line_start: usize,
 }
 
 impl Match {

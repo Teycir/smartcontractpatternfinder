@@ -162,20 +162,88 @@ fn print_console(results: &[ScanResult], failed: usize) {
 
     println!("\n{}", "═".repeat(60).cyan());
 
-    // Group by file/address
-    let mut by_address: std::collections::HashMap<String, Vec<&scpf_types::Match>> =
+    // Group vulnerabilities by pattern
+    let mut pattern_groups: std::collections::HashMap<String, Vec<&scpf_types::Match>> =
         std::collections::HashMap::new();
     for result in results {
         for m in &result.matches {
-            by_address
-                .entry(result.address.clone())
+            pattern_groups
+                .entry(m.pattern_id.clone())
                 .or_default()
                 .push(m);
         }
     }
 
-    let mut total_matches = 0;
+    // Count by severity
+    let mut critical = 0;
+    let mut high = 0;
+    let mut medium = 0;
 
+    for result in results {
+        for m in &result.matches {
+            match m.severity {
+                scpf_types::Severity::Critical => critical += 1,
+                scpf_types::Severity::High => high += 1,
+                scpf_types::Severity::Medium => medium += 1,
+                _ => {}
+            }
+        }
+    }
+
+    // Show vulnerability groups first
+    if !pattern_groups.is_empty() {
+        println!("{}  Vulnerability Groups:", "🎯".cyan());
+        println!();
+
+        let mut sorted_groups: Vec<_> = pattern_groups.iter().collect();
+        sorted_groups.sort_by(|a, b| b.1.len().cmp(&a.1.len()));
+
+        for (i, (pattern_id, matches)) in sorted_groups.iter().take(10).enumerate() {
+            let severity = matches[0].severity;
+            let severity_str = match severity {
+                scpf_types::Severity::Critical => "CRITICAL".red().bold(),
+                scpf_types::Severity::High => "HIGH".red(),
+                scpf_types::Severity::Medium => "MEDIUM".yellow(),
+                _ => continue,
+            };
+
+            // Count files affected
+            let mut files: std::collections::HashSet<String> = std::collections::HashSet::new();
+            for m in *matches {
+                files.insert(m.file_path.display().to_string());
+            }
+
+            println!(
+                "{}. [{}] {} ({} instances in {} files)",
+                i + 1,
+                severity_str,
+                pattern_id.replace("-", " "),
+                matches.len(),
+                files.len()
+            );
+
+            // Show first match with code snippet
+            if let Some(first_match) = matches.first() {
+                if let Some(ref snippet) = first_match.code_snippet {
+                    println!("   {}", first_match.message.dimmed());
+                    println!();
+                    if !snippet.before.is_empty() {
+                        println!("     {} | {}", snippet.line_start, snippet.before.dimmed());
+                    }
+                    println!("   {} {} | {}", "→".red(), first_match.line_number, snippet.vulnerable_line);
+                    if !snippet.after.is_empty() {
+                        println!("     {} | {}", first_match.line_number + 1, snippet.after.dimmed());
+                    }
+                    println!();
+                }
+            }
+        }
+
+        println!("{}", "─".repeat(60).cyan());
+    }
+
+    // Show individual file results
+    let mut total_matches = 0;
     for result in results {
         total_matches += result.matches.len();
 
@@ -195,12 +263,12 @@ fn print_console(results: &[ScanResult], failed: usize) {
                 result.scan_time_ms
             );
 
-            for m in result.matches.iter().take(5) {
+            for m in result.matches.iter().take(3) {
                 let severity_str = match m.severity {
                     scpf_types::Severity::Critical => "CRITICAL".red().bold(),
                     scpf_types::Severity::High => "HIGH".red(),
                     scpf_types::Severity::Medium => "MEDIUM".yellow(),
-                    _ => continue, // Skip LOW and INFO
+                    _ => continue,
                 };
                 println!(
                     "   [{}] Line {}: {}",
@@ -208,11 +276,11 @@ fn print_console(results: &[ScanResult], failed: usize) {
                 );
             }
 
-            if result.matches.len() > 5 {
+            if result.matches.len() > 3 {
                 println!(
                     "   {} and {} more issues",
                     "...".dimmed(),
-                    result.matches.len() - 5
+                    result.matches.len() - 3
                 );
             }
         }
@@ -226,14 +294,16 @@ fn print_console(results: &[ScanResult], failed: usize) {
     let mut critical = 0;
     let mut high = 0;
     let mut medium = 0;
+    let mut total_matches = 0;
 
     for result in results {
+        total_matches += result.matches.len();
         for m in &result.matches {
             match m.severity {
                 scpf_types::Severity::Critical => critical += 1,
                 scpf_types::Severity::High => high += 1,
                 scpf_types::Severity::Medium => medium += 1,
-                _ => {} // Skip LOW and INFO
+                _ => {}
             }
         }
     }
