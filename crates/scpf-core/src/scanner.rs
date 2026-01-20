@@ -319,9 +319,9 @@ fn extract_code_snippet(
     } else {
         String::new()
     };
-    
+
     let vulnerable_line = lines[idx].to_string();
-    
+
     let after = if idx + 1 < lines.len() {
         lines[idx + 1].to_string()
     } else {
