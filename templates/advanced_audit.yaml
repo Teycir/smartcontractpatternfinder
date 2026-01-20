@@ -1,0 +1,229 @@
+id: advanced-audit-checks
+name: Advanced Audit-Level Vulnerability Detection
+description: Deep semantic analysis to catch vulnerabilities auditors commonly miss
+severity: high
+tags:
+  - security
+  - audit
+  - advanced
+  - semantic
+patterns:
+  # State changes after external calls (reentrancy)
+  - id: state-after-call
+    kind: semantic
+    pattern: |
+      (function_definition
+        body: (block
+          (expression_statement
+            (call_expression
+              function: (member_expression
+                property: (identifier) @call (#match? @call "^(call|transfer|send)$"))))
+          (expression_statement
+            (assignment_expression))))
+    message: State change after external call - potential reentrancy vulnerability
+
+  # Unchecked return values
+  - id: unchecked-call-return
+    kind: semantic
+    pattern: |
+      (expression_statement
+        (call_expression
+          function: (member_expression
+            property: (identifier) @method (#match? @method "^(call|delegatecall|send)$"))))
+    message: Unchecked low-level call return value - may silently fail
+
+  # Unsafe delegatecall with user input
+  - id: delegatecall-user-input
+    kind: semantic
+    pattern: |
+      (call_expression
+        function: (member_expression
+          property: (identifier) @dc (#eq? @dc "delegatecall"))
+        arguments: (call_arguments
+          (identifier) @arg (#match? @arg "^(msg|_|data|input|calldata)")))
+    message: Delegatecall with potential user-controlled input - critical vulnerability
+
+  # Missing zero address check
+  - id: missing-zero-check
+    kind: semantic
+    pattern: |
+      (function_definition
+        parameters: (parameter_list
+          (parameter
+            type: (type_name) @type (#eq? @type "address")))
+        body: (block
+          (expression_statement
+            (assignment_expression
+              left: (member_expression)
+              right: (identifier)))))
+    message: Address parameter assigned without zero-address validation
+
+  # Integer overflow in multiplication before division
+  - id: overflow-mul-div
+    kind: semantic
+    pattern: |
+      (binary_expression
+        operator: "/"
+        left: (binary_expression
+          operator: "*"))
+    message: Multiplication before division - potential overflow, use SafeMath or Solidity 0.8+
+
+  # Timestamp dependence
+  - id: timestamp-dependence
+    kind: semantic
+    pattern: |
+      (binary_expression
+        left: (member_expression
+          object: (identifier) @block (#eq? @block "block")
+          property: (identifier) @prop (#eq? @prop "timestamp")))
+    message: Block timestamp used in logic - miners can manipulate within ~15 seconds
+
+  # Unprotected selfdestruct
+  - id: unprotected-selfdestruct
+    kind: semantic
+    pattern: |
+      (function_definition
+        body: (block
+          (expression_statement
+            (call_expression
+              function: (identifier) @sd (#eq? @sd "selfdestruct")))))
+    message: Selfdestruct without access control - verify proper protection
+
+  # Ether locked forever (no withdraw function)
+  - id: payable-no-withdraw
+    kind: semantic
+    pattern: |
+      (function_definition
+        (modifier_invocation
+          (identifier) @mod (#eq? @mod "payable")))
+    message: Payable function detected - ensure withdrawal mechanism exists
+
+  # Front-running vulnerable patterns
+  - id: frontrun-vulnerable
+    kind: semantic
+    pattern: |
+      (function_definition
+        visibility: (visibility) @vis (#match? @vis "^(public|external)$")
+        body: (block
+          (expression_statement
+            (assignment_expression
+              operator: "="
+              left: (member_expression)
+              right: (member_expression
+                object: (identifier) @msg (#eq? @msg "msg")
+                property: (identifier) @val (#eq? @val "value"))))))
+    message: Public function with msg.value assignment - vulnerable to front-running
+
+  # Dangerous strict equality with balance
+  - id: strict-balance-equality
+    kind: semantic
+    pattern: |
+      (binary_expression
+        operator: "=="
+        (member_expression
+          property: (identifier) @bal (#eq? @bal "balance")))
+    message: Strict equality with balance - use >= instead, balance can be forced
+
+  # Missing event emission
+  - id: state-change-no-event
+    kind: semantic
+    pattern: |
+      (function_definition
+        visibility: (visibility) @vis (#match? @vis "^(public|external)$")
+        body: (block
+          (expression_statement
+            (assignment_expression
+              left: (member_expression)))))
+    message: State change in public function without event emission
+
+  # Shadowing state variables
+  - id: variable-shadowing
+    kind: semantic
+    pattern: |
+      (function_definition
+        parameters: (parameter_list
+          (parameter
+            name: (identifier) @param)))
+    message: Parameter may shadow state variable - verify no naming conflicts
+
+  # Uninitialized storage pointer
+  - id: uninitialized-storage
+    kind: semantic
+    pattern: |
+      (variable_declaration
+        type: (type_name)
+        storage_location: (identifier) @loc (#eq? @loc "storage")
+        name: (identifier))
+    message: Storage pointer without initialization - points to slot 0
+
+  # Reentrancy via modifier
+  - id: modifier-external-call
+    kind: semantic
+    pattern: |
+      (modifier_definition
+        body: (block
+          (expression_statement
+            (call_expression
+              function: (member_expression
+                property: (identifier) @call (#match? @call "^(call|transfer|send)$"))))))
+    message: External call in modifier - can enable reentrancy attacks
+
+  # DoS with block gas limit
+  - id: unbounded-loop
+    kind: semantic
+    pattern: |
+      (for_statement
+        body: (block
+          (expression_statement
+            (call_expression))))
+    message: Loop with external calls - vulnerable to DoS via block gas limit
+
+  # Access control on critical functions
+  - id: missing-access-control
+    kind: semantic
+    pattern: |
+      (function_definition
+        name: (identifier) @name (#match? @name "^(withdraw|transfer|mint|burn|destroy|kill|pause|unpause|upgrade)$")
+        visibility: (visibility) @vis (#match? @vis "^(public|external)$"))
+    message: Critical function without visible access control modifier
+
+  # Signature replay attacks
+  - id: missing-nonce
+    kind: semantic
+    pattern: |
+      (function_definition
+        parameters: (parameter_list
+          (parameter
+            type: (type_name) @type (#match? @type "^(bytes|bytes32)$")
+            name: (identifier) @name (#match? @name "^(sig|signature)$"))))
+    message: Signature parameter without nonce - vulnerable to replay attacks
+
+  # Price oracle manipulation
+  - id: single-source-price
+    kind: semantic
+    pattern: |
+      (call_expression
+        function: (member_expression
+          property: (identifier) @method (#match? @method "^(getPrice|price|getReserves)$")))
+    message: Single price source - vulnerable to oracle manipulation, use TWAP or multiple sources
+
+  # Flash loan attack surface
+  - id: flash-loan-vulnerable
+    kind: semantic
+    pattern: |
+      (function_definition
+        visibility: (visibility) @vis (#match? @vis "^(public|external)$")
+        body: (block
+          (expression_statement
+            (binary_expression
+              left: (member_expression
+                property: (identifier) @bal (#eq? @bal "balance"))))))
+    message: Balance-dependent logic in public function - vulnerable to flash loan attacks
+
+  # Centralization risk
+  - id: owner-single-point
+    kind: semantic
+    pattern: |
+      (modifier_invocation
+        (identifier) @mod (#match? @mod "^(onlyOwner|onlyAdmin)$"))
+    message: Single owner/admin control - consider multi-sig or timelock for decentralization

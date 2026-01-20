@@ -1,0 +1,236 @@
+id: defi-vulnerabilities
+name: DeFi Protocol Vulnerability Detection
+description: Specialized patterns for DeFi protocols - AMM, lending, staking vulnerabilities
+severity: critical
+tags:
+  - defi
+  - amm
+  - lending
+  - security
+  - semantic
+patterns:
+  # AMM: K value manipulation
+  - id: amm-k-manipulation
+    kind: semantic
+    pattern: |
+      (binary_expression
+        operator: "*"
+        left: (identifier) @reserve1
+        right: (identifier) @reserve2)
+    message: Reserve multiplication detected - verify K value protection against manipulation
+
+  # Slippage protection missing
+  - id: missing-slippage-check
+    kind: semantic
+    pattern: |
+      (function_definition
+        name: (identifier) @name (#match? @name "^(swap|exchange|trade)$")
+        parameters: (parameter_list
+          (parameter
+            name: (identifier) @amount)))
+    message: Swap function without visible slippage parameter - users vulnerable to sandwich attacks
+
+  # Price impact not calculated
+  - id: no-price-impact
+    kind: semantic
+    pattern: |
+      (function_definition
+        name: (identifier) @name (#match? @name "^(swap|buy|sell)$")
+        body: (block
+          (expression_statement
+            (assignment_expression))))
+    message: Trade function without price impact calculation - large trades can be exploited
+
+  # Reentrancy in LP token operations
+  - id: lp-reentrancy
+    kind: semantic
+    pattern: |
+      (function_definition
+        name: (identifier) @name (#match? @name "^(mint|burn|addLiquidity|removeLiquidity)$")
+        body: (block
+          (expression_statement
+            (call_expression
+              function: (member_expression
+                property: (identifier) @call (#eq? @call "call"))))))
+    message: External call in liquidity function - reentrancy risk for LP tokens
+
+  # Flash loan callback without validation
+  - id: unvalidated-flash-callback
+    kind: semantic
+    pattern: |
+      (function_definition
+        name: (identifier) @name (#match? @name "^(onFlashLoan|executeOperation|flashLoanCallback)$")
+        visibility: (visibility) @vis (#eq? @vis "external"))
+    message: Flash loan callback without sender validation - anyone can trigger
+
+  # Lending: Collateral ratio manipulation
+  - id: collateral-ratio-unsafe
+    kind: semantic
+    pattern: |
+      (binary_expression
+        operator: "/"
+        left: (identifier) @collateral
+        right: (identifier) @debt)
+    message: Collateral ratio calculation - verify oracle manipulation protection
+
+  # Liquidation without price check
+  - id: liquidation-no-price-check
+    kind: semantic
+    pattern: |
+      (function_definition
+        name: (identifier) @name (#match? @name "^(liquidate|seize)$")
+        body: (block
+          (expression_statement
+            (call_expression
+              function: (member_expression
+                property: (identifier) @transfer (#match? @transfer "^(transfer|transferFrom)$"))))))
+    message: Liquidation function - verify current price oracle check before execution
+
+  # Interest rate manipulation
+  - id: interest-rate-exploit
+    kind: semantic
+    pattern: |
+      (function_definition
+        name: (identifier) @name (#match? @name "^(borrow|withdraw)$")
+        body: (block
+          (expression_statement
+            (binary_expression
+              operator: "*"
+              (identifier) @rate))))
+    message: Interest rate calculation in borrow/withdraw - verify manipulation protection
+
+  # Staking: Reward calculation overflow
+  - id: reward-overflow
+    kind: semantic
+    pattern: |
+      (function_definition
+        name: (identifier) @name (#match? @name "^(getReward|claimReward|harvest)$")
+        body: (block
+          (expression_statement
+            (binary_expression
+              operator: "*"))))
+    message: Reward multiplication - verify overflow protection and precision loss
+
+  # Staking: Withdrawal delay bypass
+  - id: withdrawal-delay-bypass
+    kind: semantic
+    pattern: |
+      (function_definition
+        name: (identifier) @name (#match? @name "^(withdraw|unstake)$")
+        body: (block
+          (expression_statement
+            (call_expression
+              function: (member_expression
+                property: (identifier) @transfer (#eq? @transfer "transfer"))))))
+    message: Withdrawal without timelock check - verify delay mechanism cannot be bypassed
+
+  # Governance: Vote manipulation
+  - id: vote-weight-manipulation
+    kind: semantic
+    pattern: |
+      (function_definition
+        name: (identifier) @name (#match? @name "^(vote|castVote)$")
+        body: (block
+          (expression_statement
+            (call_expression
+              function: (member_expression
+                property: (identifier) @balanceOf (#eq? @balanceOf "balanceOf"))))))
+    message: Vote using current balance - vulnerable to flash loan vote manipulation
+
+  # Governance: Proposal execution delay
+  - id: no-timelock-execution
+    kind: semantic
+    pattern: |
+      (function_definition
+        name: (identifier) @name (#match? @name "^(execute|executeProposal)$")
+        visibility: (visibility) @vis (#match? @vis "^(public|external)$"))
+    message: Proposal execution without visible timelock - users cannot react to malicious proposals
+
+  # Oracle: Stale price data
+  - id: no-staleness-check
+    kind: semantic
+    pattern: |
+      (call_expression
+        function: (member_expression
+          property: (identifier) @method (#match? @method "^(latestAnswer|getPrice|latestRoundData)$")))
+    message: Oracle price fetch without staleness check - may use outdated prices
+
+  # Oracle: Single point of failure
+  - id: single-oracle-dependency
+    kind: semantic
+    pattern: |
+      (variable_declaration
+        type: (user_defined_type_name) @type (#match? @type "^(AggregatorV3Interface|IOracle|IPriceOracle)$"))
+    message: Single oracle interface - consider multiple oracle sources for redundancy
+
+  # MEV: Sandwich attack surface
+  - id: mev-sandwich-vulnerable
+    kind: semantic
+    pattern: |
+      (function_definition
+        name: (identifier) @name (#match? @name "^(swap|buy|sell)$")
+        visibility: (visibility) @vis (#eq? @vis "public")
+        body: (block
+          (expression_statement
+            (call_expression
+              function: (member_expression
+                property: (identifier) @transfer (#eq? @transfer "transfer"))))))
+    message: Public swap without MEV protection - vulnerable to sandwich attacks
+
+  # Yield farming: Reward dilution
+  - id: reward-dilution
+    kind: semantic
+    pattern: |
+      (function_definition
+        name: (identifier) @name (#match? @name "^(stake|deposit)$")
+        body: (block
+          (expression_statement
+            (assignment_expression
+              left: (member_expression
+                property: (identifier) @totalStaked (#eq? @totalStaked "totalStaked"))))))
+    message: Total staked update - verify reward distribution prevents dilution attacks
+
+  # Cross-chain: Bridge validation
+  - id: bridge-no-validation
+    kind: semantic
+    pattern: |
+      (function_definition
+        name: (identifier) @name (#match? @name "^(bridge|mint|unlock)$")
+        parameters: (parameter_list
+          (parameter
+            type: (type_name) @type (#eq? @type "bytes"))))
+    message: Bridge function with bytes parameter - verify signature and merkle proof validation
+
+  # NFT: Reentrancy in transfers
+  - id: nft-transfer-reentrancy
+    kind: semantic
+    pattern: |
+      (function_definition
+        name: (identifier) @name (#match? @name "^(safeTransferFrom|transferFrom)$")
+        body: (block
+          (expression_statement
+            (call_expression))))
+    message: NFT transfer with external call - verify reentrancy protection (CEI pattern)
+
+  # Vault: Share price manipulation
+  - id: vault-share-manipulation
+    kind: semantic
+    pattern: |
+      (function_definition
+        name: (identifier) @name (#match? @name "^(deposit|mint)$")
+        body: (block
+          (expression_statement
+            (binary_expression
+              operator: "/"
+              left: (identifier) @assets
+              right: (identifier) @totalSupply))))
+    message: Share calculation using totalSupply - vulnerable to first depositor attack
+
+  # Auction: Bid front-running
+  - id: auction-frontrun
+    kind: semantic
+    pattern: |
+      (function_definition
+        name: (identifier) @name (#match? @name "^(bid|placeBid)$")
+        visibility: (visibility) @vis (#eq? @vis "public"))
+    message: Public bid function - vulnerable to front-running, consider commit-reveal scheme
