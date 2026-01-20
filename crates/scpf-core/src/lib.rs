@@ -7,6 +7,7 @@ pub mod regex_validator;
 pub mod zeroday;
 pub mod dataflow;
 pub mod composition;
+pub mod risk_scoring;
 
 pub use scanner::Scanner;
 pub use semantic::SemanticScanner;
@@ -17,6 +18,7 @@ pub use regex_validator::RegexValidator;
 pub use zeroday::ZeroDayFetcher;
 pub use dataflow::DataFlowAnalysis;
 pub use composition::TemplateComposer;
+pub use risk_scoring::{RiskScorer, RiskAssessment, RiskLevel, RiskConfig};
 
 #[cfg(test)]
 mod tests;

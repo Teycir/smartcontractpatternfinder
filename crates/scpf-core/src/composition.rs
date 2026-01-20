@@ -1,3 +1,4 @@
+use crate::risk_scoring::RiskScorer;
 use scpf_types::{Severity, Template};
 use std::collections::HashMap;
 
@@ -79,6 +80,42 @@ impl TemplateComposer {
             }
         }
         true
+    }
+
+    /// Evaluate composition and calculate risk score
+    pub fn evaluate_with_risk(
+        &self,
+        composition: &ComposedTemplate,
+        matches: &HashMap<String, Vec<usize>>,
+        scorer: &RiskScorer,
+    ) -> (bool, u32) {
+        let matched = self.evaluate_composition(composition, matches);
+        let risk_score = if matched {
+            self.calculate_composition_risk(composition, matches, scorer)
+        } else {
+            0
+        };
+        (matched, risk_score)
+    }
+
+    fn calculate_composition_risk(
+        &self,
+        composition: &ComposedTemplate,
+        matches: &HashMap<String, Vec<usize>>,
+        scorer: &RiskScorer,
+    ) -> u32 {
+        let base_score = match composition.severity {
+            Severity::Critical => 30,
+            Severity::High => 15,
+            Severity::Medium => 7,
+            Severity::Low => 3,
+            Severity::Info => 1,
+        };
+
+        let match_count: usize = matches.values().map(|v| v.len()).sum();
+        let multiplier = (match_count as f32).sqrt().ceil() as u32;
+
+        base_score * multiplier
     }
 
     fn evaluate_rule(&self, rule: &CompositionRule, matches: &HashMap<String, Vec<usize>>) -> bool {
