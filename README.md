@@ -1,5 +1,7 @@
 # Smart Contract Pattern Finder (SCPF)
 
+![Smart Contract Pattern Finder Banner](assets/scpf_banner.png)
+
 🔍 High-performance tool for detecting security vulnerabilities and patterns in smart contracts across multiple blockchains.
 
 **How it works:** Define patterns in YAML templates → SCPF scans smart contracts → Finds matching patterns → Reports vulnerabilities
