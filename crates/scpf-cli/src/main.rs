@@ -10,6 +10,12 @@ use cli::{Cli, Commands};
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Load .env file if it exists
+    if dotenvy::dotenv().is_err() {
+        eprintln!("Warning: No .env file found. API keys must be set via environment variables.");
+        eprintln!("Create a .env file with your API keys or export them manually.");
+    }
+
     let cli = Cli::parse();
 
     tracing_subscriber::fmt()

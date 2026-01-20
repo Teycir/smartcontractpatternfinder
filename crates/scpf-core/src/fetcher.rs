@@ -33,6 +33,14 @@ impl ContractFetcher {
         }
 
         let keys = self.api_keys.get(chain).unwrap_or(&[]);
+        if keys.is_empty() {
+            anyhow::bail!(
+                "No API keys configured for {}. Set {}_API_KEY environment variable.",
+                chain.as_str().to_uppercase(),
+                chain.as_str().to_uppercase()
+            );
+        }
+
         let mut last_error = None;
 
         for (idx, key) in keys.iter().enumerate() {
@@ -59,6 +67,16 @@ impl ContractFetcher {
                         .as_str()
                         .map(|s| s.to_string())
                         .unwrap_or_else(|| format!("Unknown API error. Response: {:?}", json));
+                    
+                    // Categorize API errors
+                    if error_msg.contains("Invalid API Key") || error_msg.contains("Missing/Invalid") {
+                        anyhow::bail!("INVALID_KEY: {}", error_msg);
+                    } else if error_msg.contains("rate limit") || error_msg.contains("Max rate limit") {
+                        anyhow::bail!("RATE_LIMITED: {}", error_msg);
+                    } else if error_msg.contains("NOTOK") {
+                        anyhow::bail!("API_ERROR: {}", error_msg);
+                    }
+                    
                     anyhow::bail!("API error: {}", error_msg);
                 }
 
@@ -85,15 +103,36 @@ impl ContractFetcher {
             {
                 Ok(result) => return Ok(result),
                 Err(e) => {
-                    last_error = Some(e);
-                    if idx < keys.len() - 1 {
+                    let err_msg = e.to_string();
+                    if err_msg.contains("INVALID_KEY") {
+                        tracing::error!("API key {} is invalid or expired for {}", idx + 1, chain.as_str());
+                    } else if err_msg.contains("RATE_LIMITED") {
+                        tracing::warn!("API key {} is rate limited for {}", idx + 1, chain.as_str());
+                    } else if idx < keys.len() - 1 {
                         tracing::warn!("API key {} failed, trying next key", idx + 1);
                     }
+                    last_error = Some(e);
                 }
             }
         }
 
-        Err(last_error.unwrap_or_else(|| anyhow::anyhow!("No API keys available")))
+        // Analyze all errors to provide helpful message
+        if let Some(ref err) = last_error {
+            let err_str = err.to_string();
+            if err_str.contains("INVALID_KEY") {
+                return Err(anyhow::anyhow!(
+                    "All API keys for {} are invalid or expired. Please update your API keys.",
+                    chain.as_str()
+                ));
+            } else if err_str.contains("RATE_LIMITED") {
+                return Err(anyhow::anyhow!(
+                    "All API keys for {} have reached their rate limit. Please wait or add more keys.",
+                    chain.as_str()
+                ));
+            }
+        }
+
+        Err(last_error.unwrap_or_else(|| anyhow::anyhow!("All API keys failed for {}", chain.as_str())))
     }
 
     pub fn parse_source_code(source_code: &str) -> String {

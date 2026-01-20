@@ -27,6 +27,7 @@ dirs = { workspace = true }
 indicatif = { workspace = true }
 colored = { workspace = true }
 walkdir = "2.4"
+dotenvy = "0.15"
 
 [dev-dependencies]
 assert_cmd = "2.0"
