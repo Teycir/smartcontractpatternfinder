@@ -5,6 +5,21 @@ use std::path::PathBuf;
 use tempfile::tempdir;
 
 #[tokio::test]
+async fn test_etherscan_v2_api() {
+    if let Ok(key) = std::env::var("ETHERSCAN_API_KEY") {
+        let config = ApiKeyConfig::new().with_key(Chain::Ethereum, key);
+        
+        let fetcher = ContractFetcher::new(config).unwrap();
+        let result = fetcher
+            .fetch_source("0xdac17f958d2ee523a2206206994597c13d831ec7", Chain::Ethereum)
+            .await;
+        
+        assert!(result.is_ok(), "Etherscan v2 API should work");
+        assert!(!result.unwrap().is_empty());
+    }
+}
+
+#[tokio::test]
 async fn test_cache_operations() -> Result<()> {
     let dir = tempdir()?;
     let cache = Cache::new(dir.path().to_path_buf()).await?;

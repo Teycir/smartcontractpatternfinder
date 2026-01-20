@@ -20,17 +20,17 @@ pub enum Chain {
 impl Chain {
     pub fn api_base_url(&self) -> &'static str {
         match self {
-            Chain::Ethereum => "https://api.etherscan.io/api",
-            Chain::Bsc => "https://api.bscscan.com/api",
-            Chain::Polygon => "https://api.polygonscan.com/api",
-            Chain::Arbitrum => "https://api.arbiscan.io/api",
-            Chain::Optimism => "https://api-optimistic.etherscan.io/api",
-            Chain::Base => "https://api.basescan.org/api",
-            Chain::Avalanche => "https://api.snowtrace.io/api",
-            Chain::Fantom => "https://api.ftmscan.com/api",
+            Chain::Ethereum => "https://api.etherscan.io/v2/api",
+            Chain::Bsc => "https://api.bscscan.com/v2/api",
+            Chain::Polygon => "https://api.polygonscan.com/v2/api",
+            Chain::Arbitrum => "https://api.arbiscan.io/v2/api",
+            Chain::Optimism => "https://api-optimistic.etherscan.io/v2/api",
+            Chain::Base => "https://api.basescan.org/v2/api",
+            Chain::Avalanche => "https://api.snowtrace.io/v2/api",
+            Chain::Fantom => "https://api.ftmscan.com/v2/api",
             Chain::ZkSync => "https://block-explorer-api.mainnet.zksync.io/api",
-            Chain::Linea => "https://api.lineascan.build/api",
-            Chain::Scroll => "https://api.scrollscan.com/api",
+            Chain::Linea => "https://api.lineascan.build/v2/api",
+            Chain::Scroll => "https://api.scrollscan.com/v2/api",
             Chain::Zora => "https://explorer.zora.energy/api",
         }
     }
