@@ -1,34 +1,50 @@
-id: unchecked-low-level-call
-name: Unchecked Return Value of Low-Level Call
+id: unchecked-return-value-v4
+name: Unchecked Low-Level Call Return Value
 description: |
-  Low-level calls (call/delegatecall/staticcall/send) return a boolean 
-  indicating success. Ignoring this can lead to silent failures.
+  Detects low-level calls (call, delegatecall, staticcall, send) where the
+  boolean return value is discarded. These functions return false on failure
+  rather than reverting.
+  
+  Safe patterns NOT flagged:
+  - (bool success, ) = addr.call{...}(...);
+  - require(addr.send(amount), "failed");
+  - if (addr.call(...)) { ... }
+  
+  Note: .transfer() reverts on failure and is not flagged.
 severity: high
 tags:
   - security
-  - unchecked-call
+  - unchecked-return
   - SWC-104
-patterns:
-  - id: unchecked-call-expression
-    kind: semantic
-    pattern: |
-      (expression_statement
-        (expression
-          (call_expression
-            function: (expression (member_expression
-              property: (identifier) @_method (#match? @_method "^(call|delegatecall|staticcall|send)$")))
-            (call_argument))) @_call)
-    message: "Return value of low-level call not checked. Wrap in require() or check the boolean return value."
+  - error-handling
 
-  - id: unchecked-call-no-assignment
+patterns:
+  # Semantic: Low-level call detection
+  - id: low-level-call
     kind: semantic
     pattern: |
       (expression_statement
-        (expression
-          (call_expression
-            function: (expression (member_expression
-              object: (expression (identifier) @_target)
-              property: (identifier) @_method (#eq? @_method "call")))
-            (call_argument
-              (expression (string_literal))))))
-    message: "Low-level call without return value check. Use: (bool success, ) = target.call(...); require(success);"
+        (function_call
+          (member_access
+            (_) @target
+            (identifier) @method)
+          (#match? @method "^(call|delegatecall|staticcall|send)$"))) @unchecked
+    message: "Low-level '@method' call return value not captured. Use: (bool success,) = @target.@method(...); require(success);"
+
+  # Regex: Expression statement with low-level call (no assignment)
+  - id: unchecked-call-regex
+    kind: regex
+    pattern: '^\s*[^=\n]*\.(call|delegatecall|staticcall|send)\s*[\({]'
+    message: "Unchecked low-level call detected. Return value should be verified."
+
+  # Regex: send without assignment or require
+  - id: unchecked-send-regex
+    kind: regex
+    pattern: '^\s*\w+\.send\([^)]+\)\s*;'
+    message: "'.send()' return not checked. Use require(addr.send(amount)) or .transfer()."
+
+  # Regex: Properly checked call (info only)
+  - id: checked-call-info
+    kind: regex
+    pattern: '\(\s*bool\s+\w+\s*,?\s*\)\s*=\s*\w+\.(call|delegatecall)'
+    message: "[INFO] Properly checked low-level call found. Good practice."

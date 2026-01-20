@@ -1,58 +1,52 @@
-id: strict-balance-equality-v2
-name: Strict Balance Equality (Semantic)
+id: strict-balance-equality-v4
+name: Strict Balance Equality
 description: |
-  Using strict equality (==) with contract balance is dangerous as forcible sending of ether
-  can break the logic.
+  Detects strict equality (== or !=) comparisons involving .balance.
+  
+  Contract balance can be forcibly increased via:
+  - selfdestruct(contractAddress)
+  - Coinbase rewards
+  - Pre-funded CREATE2 addresses
+  
+  Recommendation: Use >= or <= instead of == for balance checks.
 severity: medium
 tags:
   - security
-  - logic
+  - balance-manipulation
   - SWC-132
+  - logic-error
+
 patterns:
-  - id: this-balance-equality
+  # Semantic: member access to .balance
+  - id: balance-access
     kind: semantic
     pattern: |
-      (binary_expression
-        left: (expression 
-          (member_expression
-            object: (expression (type_cast_expression 
-              type: (primitive_type) @_addr (#eq? @_addr "address")
-              (call_argument (expression (identifier) @_this (#eq? @_this "this")))))
-            property: (identifier) @_bal (#eq? @_bal "balance")))
-        "==" @op)
-    message: "Avoid strict balance equality checks. Use >= or <= instead."
+      (member_access
+        (_) @obj
+        (identifier) @prop
+        (#eq? @prop "balance")) @balance_ref
+    message: "Access to '@obj.balance'. If used in equality check, vulnerable to manipulation."
 
-  - id: balance-equals-zero
-    kind: semantic
-    pattern: |
-      (binary_expression
-        left: (expression 
-             (member_expression
-                property: (identifier) @_bal (#eq? @_bal "balance")))
-        "==" @op
-        right: (expression (number_literal) @_zero (#eq? @_zero "0")))
-    message: "Checking if balance is 0 using strict equality is risky."
+  # Regex: Universal balance equality (covers all cases)
+  - id: balance-equality-regex
+    kind: regex
+    pattern: '\.balance\s*(==|!=)\s*\S+'
+    message: "Strict equality with .balance detected. Balance can be force-changed - use >= or <= instead."
 
-  - id: require-exact-balance
-    kind: semantic
-    pattern: |
-      (call_expression
-        function: (expression (identifier) @_req (#eq? @_req "require"))
-        (call_argument
-          (expression
-            (binary_expression
-              left: (expression (member_expression property: (identifier) @_bal (#eq? @_bal "balance")))
-              "==" @op))))
-    message: "Using require with strict balance equality."
+  # Regex: Reversed operand
+  - id: balance-equality-reversed-regex
+    kind: regex
+    pattern: '\S+\s*(==|!=)\s*[^.]*\.balance'
+    message: "Comparing value to .balance with strict equality. Vulnerable to forced deposits."
 
-  - id: assert-balance
-    kind: semantic
-    pattern: |
-      (call_expression
-        function: (expression (identifier) @_assert (#eq? @_assert "assert"))
-        (call_argument
-          (expression
-            (binary_expression
-              left: (expression (member_expression property: (identifier) @_bal (#eq? @_bal "balance")))
-              "==" @op))))
-    message: "Using assert with strict balance equality."
+  # Regex: Specific zero check
+  - id: balance-zero-regex
+    kind: regex
+    pattern: '\.balance\s*==\s*0\b'
+    message: "Checking balance == 0 is bypassable. Attacker can force-send ETH via selfdestruct."
+
+  # Regex: address(this).balance pattern
+  - id: this-balance-regex
+    kind: regex
+    pattern: 'address\s*\(\s*this\s*\)\s*\.balance\s*(==|!=)'
+    message: "Contract balance strict equality. Can be manipulated by external actors."

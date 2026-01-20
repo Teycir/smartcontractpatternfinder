@@ -1,46 +1,50 @@
-id: reentrancy-state-change-after-external-call
+id: reentrancy-state-change-v4
 name: Reentrancy - State Change After External Call
 description: |
-  External call (call/send/transfer) followed by state modification enables 
-  reentrancy attacks. Attacker can recursively call back before state updates.
-severity: critical
+  Detects potential reentrancy vulnerabilities where state variables may be
+  modified after external calls. Follows the Checks-Effects-Interactions pattern
+  violation detection.
+  
+  Limitations:
+  - Cannot distinguish storage vs memory variables
+  - Cannot detect reentrancy guards (nonReentrant modifier)
+  - Manual review required to confirm exploitability
+severity: high
 tags:
   - security
   - reentrancy
   - SWC-107
-patterns:
-  - id: call-then-state-change
-    kind: semantic
-    pattern: |
-      (function_body
-        (statement
-          (expression_statement
-            (expression
-              (call_expression
-                function: (expression (member_expression
-                  property: (identifier) @_method (#match? @_method "^(call|send|transfer)$")))))))
-        (statement
-          (expression_statement
-            (expression
-              (assignment_expression
-                left: (expression) @_state_var)))))
-    message: "Reentrancy risk: state change after external call. Apply checks-effects-interactions pattern or use ReentrancyGuard."
+  - CEI-pattern
 
-  - id: call-then-mapping-update
+patterns:
+  # Semantic: External call detection
+  - id: external-call-detected
     kind: semantic
     pattern: |
-      (function_body
-        (statement
-          (expression_statement
-            (expression
-              (call_expression
-                function: (expression (member_expression
-                  property: (identifier) @_method (#match? @_method "^(call|send|transfer)$")))))))
-        (statement
-          (expression_statement
-            (expression
-              (assignment_expression
-                left: (expression 
-                  (subscript_expression
-                    object: (expression (identifier) @_mapping))))))))
-    message: "Reentrancy risk: mapping update after external call. Update balances before transfers."
+      (function_call
+        (member_access
+          (identifier) @target
+          (identifier) @method)
+        (#match? @method "^(call|delegatecall|staticcall|transfer|send)$")) @ext_call
+    message: "External call via '@method' detected. Verify state changes occur BEFORE this call (CEI pattern)."
+
+  # Semantic: Assignment in function body
+  - id: state-assignment-in-function
+    kind: semantic
+    pattern: |
+      (assignment
+        (identifier) @var
+        (_)) @assign
+    message: "State assignment to '@var'. If this follows an external call, potential reentrancy."
+
+  # Regex: call followed by assignment
+  - id: call-then-assign-regex
+    kind: regex
+    pattern: '\.(call|delegatecall|staticcall|transfer|send)\s*[\({][^;]*;[^}]*\n\s*\w+\s*(\[[\w\.\[\]]+\])?\s*[-+*/]?='
+    message: "Pattern suggests state change after external call. Review for reentrancy vulnerability."
+
+  # Regex: Classic reentrancy pattern
+  - id: classic-reentrancy-regex
+    kind: regex
+    pattern: '\.call\{[^}]*value[^}]*\}[^;]*;[\s\S]{0,200}(balances|balance|amounts?|deposits?)\s*\[[^\]]+\]\s*[-=]'
+    message: "High-risk: balance mapping modified after value transfer. Classic reentrancy pattern."
