@@ -24,11 +24,13 @@ patterns:
     kind: semantic
     pattern: |
       (expression_statement
-        (function_call
-          (member_access
-            (_) @target
-            (identifier) @method)
-          (#match? @method "^(call|delegatecall|staticcall|send)$"))) @unchecked
+        (expression
+          (call_expression
+            (expression
+              (member_expression
+                (identifier) @target
+                (identifier) @method))))) @unchecked
+      (#match? @method "^(call|delegatecall|staticcall|send)$")
     message: "Low-level '@method' call return value not captured. Use: (bool success,) = @target.@method(...); require(success);"
 
   # Regex: Expression statement with low-level call (no assignment)

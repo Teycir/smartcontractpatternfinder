@@ -7,26 +7,114 @@ tags:
   - gas
   - optimization
   - semantic
+
 patterns:
   # Logic: Off-by-one errors
   - id: off-by-one-loop
     kind: semantic
     pattern: |
       (for_statement
-        condition: (binary_expression
-          operator: "<="
-          right: (member_expression
-            property: (identifier) @length (#eq? @length "length"))))
+        (binary_expression
+          (identifier)
+          (member_expression
+            (identifier)
+            (identifier) @length)))
+      (#eq? @length "length")
     message: Loop with <= length - off-by-one error, arrays are 0-indexed
+
+  # Gas: Array length in loop condition
+  - id: array-length-not-cached
+    kind: semantic
+    pattern: |
+      (for_statement
+        (binary_expression
+          (identifier)
+          (member_expression
+            (identifier)
+            (identifier) @length)))
+      (#eq? @length "length")
+    message: Array length read every iteration - cache in variable to save gas
+
+  # Logic: Shadowing built-in
+  - id: shadowing-builtin
+    kind: semantic
+    pattern: |
+      (variable_declaration_statement
+        (variable_declaration
+          (identifier) @name))
+      (#match? @name "^(now|assert|require|revert)$")
+    message: Variable shadows built-in symbol - confusing and error-prone
+
+  # Gas: Unnecessary initialization
+  - id: unnecessary-zero-init
+    kind: semantic
+    pattern: |
+      (variable_declaration_statement
+        (variable_declaration
+          (identifier)
+          (number_literal) @zero))
+      (#eq? @zero "0")
+    message: Explicit zero initialization - unnecessary, default is zero
+
+  # Gas: Struct packing inefficient
+  - id: struct-packing-inefficient
+    kind: semantic
+    validate: true
+    pattern: |
+      (struct_declaration
+        (struct_member
+          (type_name) @type1)
+        (struct_member
+          (type_name) @type2))
+      (#eq? @type1 "uint256")
+      (#match? @type2 "^(uint8|uint16|uint32|uint64|uint128|bool|address)$")
+    message: Struct packing inefficient - group smaller types together to save storage slots
+    required: false
+    fallback: regex
+    on_error: skip
+
+  # Logic: Timestamp overflow
+  - id: timestamp-uint32-overflow
+    kind: semantic
+    validate: true
+    pattern: |
+      (variable_declaration_statement
+        (variable_declaration
+          (type_name) @type
+          (identifier) @name))
+      (#eq? @type "uint32")
+      (#match? @name "^(timestamp|time|deadline)$")
+    message: uint32 for timestamp - overflows in 2106, use uint256
+    required: false
+    fallback: regex
+    on_error: skip
+
+  # Logic: Missing constructor
+  - id: missing-constructor-init
+    kind: semantic
+    validate: true
+    pattern: |
+      (contract_declaration
+        (contract_body
+          (state_variable_declaration
+            (type_name) @type)))
+      (#match? @type "^[A-Z]")
+    message: Contract reference without constructor initialization - verify proper setup
+    required: false
+    fallback: regex
+    on_error: skip
+
+  # ============================================
+  # REMAINING PATTERNS (already working)
+  # ============================================
 
   # Logic: Division before multiplication
   - id: division-before-multiplication
     kind: semantic
     pattern: |
       (binary_expression
-        operator: "*"
-        left: (binary_expression
-          operator: "/"))
+        (binary_expression)
+        (identifier))
     message: Division before multiplication - precision loss, reorder operations
 
   # Logic: Incorrect comparison operator
@@ -34,7 +122,7 @@ patterns:
     kind: semantic
     pattern: |
       (if_statement
-        condition: (assignment_expression))
+        (assignment_expression))
     message: Assignment in condition instead of comparison - likely bug
 
   # Gas: Storage read in loop
@@ -42,7 +130,7 @@ patterns:
     kind: semantic
     pattern: |
       (for_statement
-        body: (function_body
+        (block_statement
           (expression_statement
             (member_expression))))
     message: Storage variable accessed in loop - cache in memory to save gas
@@ -53,8 +141,8 @@ patterns:
     pattern: |
       (expression_statement
         (assignment_expression
-          left: (member_expression)
-          right: (member_expression)))
+          (member_expression)
+          (member_expression)))
     message: Storage-to-storage assignment - verify not redundant write
 
   # Gas: String comparison
@@ -62,13 +150,12 @@ patterns:
     kind: semantic
     pattern: |
       (binary_expression
-        operator: "=="
-        left: (call_expression
-          function: (member_expression
-            property: (identifier) @keccak (#eq? @keccak "keccak256")))
-        right: (call_expression
-          function: (member_expression
-            property: (identifier) @keccak2 (#eq? @keccak2 "keccak256"))))
+        (call_expression
+          (identifier) @func1)
+        (call_expression
+          (identifier) @func2))
+      (#eq? @func1 "keccak256")
+      (#eq? @func2 "keccak256")
     message: String comparison via keccak256 - consider using bytes32 for gas savings
 
   # Gas: Unnecessary SafeMath in 0.8+
@@ -76,8 +163,10 @@ patterns:
     kind: semantic
     pattern: |
       (call_expression
-        function: (member_expression
-          property: (identifier) @method (#match? @method "^(add|sub|mul|div)$")))
+        (member_expression
+          (identifier)
+          (identifier) @method))
+      (#match? @method "^(add|sub|mul|div)$")
     message: SafeMath usage detected - unnecessary in Solidity 0.8+, use native operators
 
   # Gas: Public function not called internally
@@ -85,18 +174,9 @@ patterns:
     kind: semantic
     pattern: |
       (function_definition
-        visibility: (visibility) @vis (#eq? @vis "public"))
+        (visibility) @vis)
+      (#eq? @vis "public")
     message: Public function - if not called internally, use external to save gas
-
-  # Gas: Array length in loop condition
-  - id: array-length-not-cached
-    kind: semantic
-    pattern: |
-      (for_statement
-        condition: (binary_expression
-          right: (member_expression
-            property: (identifier) @length (#eq? @length "length"))))
-    message: Array length read every iteration - cache in variable to save gas
 
   # Logic: Unhandled return value
   - id: ignored-return-value
@@ -104,8 +184,10 @@ patterns:
     pattern: |
       (expression_statement
         (call_expression
-          function: (member_expression
-            property: (identifier) @method (#match? @method "^(approve|transfer|transferFrom)$"))))
+          (member_expression
+            (identifier)
+            (identifier) @method)))
+      (#match? @method "^(approve|transfer|transferFrom)$")
     message: ERC20 return value ignored - some tokens return false instead of reverting
 
   # Logic: Missing input validation
@@ -113,13 +195,14 @@ patterns:
     kind: semantic
     pattern: |
       (function_definition
-        parameters: (parameter_list
-          (parameter
-            type: (type_name) @type (#match? @type "^(uint|uint256)$")
-            name: (identifier) @name (#match? @name "^(amount|value|quantity)$")))
-        body: (function_body
+        (parameter
+          (type_name) @type
+          (identifier) @name)
+        (function_body
           (expression_statement
             (call_expression))))
+      (#match? @type "^(uint|uint256)$")
+      (#match? @name "^(amount|value|quantity)$")
     message: Amount parameter without zero check - validate inputs to prevent waste
 
   # Logic: Incorrect event parameter
@@ -127,9 +210,9 @@ patterns:
     kind: semantic
     pattern: |
       (event_definition
-        parameters: (event_parameter_list
-          (event_parameter
-            type: (type_name) @type (#match? @type "^(string|bytes)$"))))
+        (event_parameter
+          (type_name) @type))
+      (#match? @type "^(string|bytes)$")
     message: String/bytes in event - cannot be indexed, use bytes32 hash instead
 
   # Logic: Floating pragma
@@ -146,26 +229,9 @@ patterns:
     kind: semantic
     pattern: |
       (for_statement
-        body: (function_body
+        (block_statement
           (emit_statement)))
     message: Event emission in loop - expensive gas cost, consider batching
-
-  # Logic: Shadowing built-in
-  - id: shadowing-builtin
-    kind: semantic
-    pattern: |
-      (variable_declaration
-        name: (identifier) @name (#match? @name "^(now|assert|require|revert)$"))
-    message: Variable shadows built-in symbol - confusing and error-prone
-
-  # Gas: Unnecessary initialization
-  - id: unnecessary-zero-init
-    kind: semantic
-    pattern: |
-      (variable_declaration
-        name: (identifier)
-        value: (number_literal) @zero (#eq? @zero "0"))
-    message: Explicit zero initialization - unnecessary, default is zero
 
   # Logic: Incorrect inheritance order
   - id: inheritance-order
@@ -175,44 +241,3 @@ patterns:
         (inheritance_specifier)
         (inheritance_specifier))
     message: Multiple inheritance - verify C3 linearization order is correct
-
-  # Gas: Struct packing inefficient
-  - id: struct-packing-inefficient
-    kind: semantic
-    validate: true
-    pattern: |
-      (struct_declaration
-        body: (struct_member
-          type: (type_name) @type1 (#match? @type1 "^uint256$"))
-        body: (struct_member
-          type: (type_name) @type2 (#match? @type2 "^(uint8|uint16|uint32|uint64|uint128|bool|address)$")))
-    message: Struct packing inefficient - group smaller types together to save storage slots
-    required: false
-    fallback: regex
-    on_error: skip
-
-  # Logic: Timestamp overflow
-  - id: timestamp-uint32-overflow
-    kind: semantic
-    validate: true
-    pattern: |
-      (variable_declaration
-        type: (type_name) @type (#match? @type "^uint32$")
-        name: (identifier) @name (#match? @name "^(timestamp|time|deadline)$"))
-    message: uint32 for timestamp - overflows in 2106, use uint256
-    required: false
-    fallback: regex
-    on_error: skip
-
-  # Logic: Missing constructor
-  - id: missing-constructor-init
-    kind: semantic
-    validate: true
-    pattern: |
-      (contract_declaration
-        (state_variable_declaration
-          type: (user_defined_type_name)))
-    message: Contract reference without constructor initialization - verify proper setup
-    required: false
-    fallback: regex
-    on_error: skip

@@ -31,7 +31,9 @@ impl Scanner {
         let mut needs_semantic = false;
 
         for template in templates {
-            if let Some(compiled) = compile_template(template, &mut pattern_index, &mut needs_semantic)? {
+            if let Some(compiled) =
+                compile_template(template, &mut pattern_index, &mut needs_semantic)?
+            {
                 compiled_templates.push(compiled);
             }
         }
@@ -153,7 +155,8 @@ impl Scanner {
                         0
                     };
 
-                    let context = get_match_context(source, &newlines, mat.start(), mat.end(), line_number);
+                    let context =
+                        get_match_context(source, &newlines, mat.start(), mat.end(), line_number);
 
                     matches.push(Match {
                         template_id: compiled_template.template.id.clone(),
@@ -176,11 +179,7 @@ impl Scanner {
     }
 }
 
-fn compile_pattern(
-    pattern: &Pattern,
-    template_id: &str,
-    index: u32,
-) -> Result<CompiledPattern> {
+fn compile_pattern(pattern: &Pattern, template_id: &str, index: u32) -> Result<CompiledPattern> {
     if pattern.kind == PatternKind::Semantic {
         return Ok(CompiledPattern {
             regex: RegexBuilder::new(".*").build().unwrap(),
@@ -190,8 +189,16 @@ fn compile_pattern(
     }
 
     RegexValidator::validate_pattern(&pattern.pattern).map_err(|e| {
-        warn!("Unsafe regex pattern in template '{}', pattern '{}': {}", template_id, pattern.id, e);
-        anyhow::anyhow!("Unsafe regex pattern in template '{}', pattern '{}': {}", template_id, pattern.id, e)
+        warn!(
+            "Unsafe regex pattern in template '{}', pattern '{}': {}",
+            template_id, pattern.id, e
+        );
+        anyhow::anyhow!(
+            "Unsafe regex pattern in template '{}', pattern '{}': {}",
+            template_id,
+            pattern.id,
+            e
+        )
     })?;
 
     let regex = RegexBuilder::new(&pattern.pattern)
@@ -199,8 +206,16 @@ fn compile_pattern(
         .dot_matches_new_line(true)
         .build()
         .map_err(|e| {
-            warn!("Invalid regex in template '{}', pattern '{}': {}", template_id, pattern.id, e);
-            anyhow::anyhow!("Invalid regex in template '{}', pattern '{}': {}", template_id, pattern.id, e)
+            warn!(
+                "Invalid regex in template '{}', pattern '{}': {}",
+                template_id, pattern.id, e
+            );
+            anyhow::anyhow!(
+                "Invalid regex in template '{}', pattern '{}': {}",
+                template_id,
+                pattern.id,
+                e
+            )
         })?;
 
     Ok(CompiledPattern {

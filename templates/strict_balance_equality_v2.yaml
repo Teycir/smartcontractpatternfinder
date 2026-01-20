@@ -22,10 +22,10 @@ patterns:
     kind: semantic
     validate: true
     pattern: |
-      (member_access
-        (_) @obj
-        (identifier) @prop
-        (#eq? @prop "balance")) @balance_ref
+      (member_expression
+        (identifier) @obj
+        (identifier) @prop) @balance_ref
+      (#eq? @prop "balance")
     message: "Access to '@obj.balance'. If used in equality check, vulnerable to manipulation."
     required: false
     fallback: regex

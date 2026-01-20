@@ -22,22 +22,26 @@ patterns:
   - id: selfdestruct-call
     kind: semantic
     pattern: |
-      (function_call
-        (identifier) @func
-        (#match? @func "^(selfdestruct|suicide)$")) @destruct
+      (call_expression
+        (expression
+          (identifier) @func)) @destruct
+      (#match? @func "^(selfdestruct|suicide)$")
     message: "selfdestruct detected. CRITICAL: Verify onlyOwner or equivalent access control."
 
   # Semantic: selfdestruct with payable cast
   - id: selfdestruct-payable
     kind: semantic
     pattern: |
-      (function_call
-        (identifier) @func
-        (#match? @func "^(selfdestruct|suicide)$")
-        (function_call_arguments
-          (function_call
-            (identifier) @cast
-            (#eq? @cast "payable")))) @destruct
+      (call_expression
+        (expression
+          (identifier) @func)
+        (call_argument
+          (expression
+            (call_expression
+              (expression
+                (identifier) @cast))))) @destruct
+      (#match? @func "^(selfdestruct|suicide)$")
+      (#eq? @cast "payable")
     message: "selfdestruct(payable(...)) detected. Ensure protected by access modifier."
 
   # Regex: Any selfdestruct

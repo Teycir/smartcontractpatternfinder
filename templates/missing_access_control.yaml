@@ -7,6 +7,7 @@ tags:
   - security
   - access-control
   - SWC-105
+
 patterns:
   # Detects critical functions without access control modifiers
   - id: critical-function-no-auth
@@ -14,9 +15,10 @@ patterns:
     validate: true
     pattern: |
       (function_definition
-        name: (identifier) @func_name (#match? @func_name "^(withdraw|mint|burn|setOwner|transferOwnership)$")
-        (visibility) @vis (#match? @vis "^(public|external)$")
-        !modifier_invocation)
+        (identifier) @func_name
+        (visibility) @vis)
+      (#match? @func_name "^(withdraw|mint|burn|setOwner|transferOwnership)$")
+      (#match? @vis "^(public|external)$")
     message: "Critical function found without modifiers. Ensure access control is implemented (e.g. onlyOwner)."
     required: true
     fallback: regex

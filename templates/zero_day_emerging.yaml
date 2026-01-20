@@ -7,6 +7,7 @@ tags:
   - emerging
   - cutting-edge
   - 2024-2025
+
 patterns:
   # Read-only reentrancy (Curve Finance hack 2023)
   - id: readonly-reentrancy
@@ -14,12 +15,15 @@ patterns:
     validate: true
     pattern: |
       (function_definition
-        (modifier_invocation
-          (identifier) @mod (#match? @mod "^(view|pure)$"))
-        body: (function_body
-          (expression_statement
-            (call_expression
-              function: (member_expression)))))
+        (state_mutability) @mut
+        (function_body
+          (statement
+            (expression_statement
+              (expression
+                (call_expression
+                  (expression
+                    (member_expression))))))))
+      (#match? @mut "^(view|pure)$")
     message: View function with external call - vulnerable to read-only reentrancy (Curve-style)
     required: true
     fallback: regex
@@ -30,14 +34,18 @@ patterns:
     kind: semantic
     pattern: |
       (function_definition
-        name: (identifier) @name (#match? @name "^(deposit|mint)$")
-        body: (function_body
-          (expression_statement
-            (binary_expression
-              operator: "*"
-              (call_expression
-                function: (member_expression
-                  property: (identifier) @supply (#eq? @supply "totalSupply")))))))
+        (identifier) @name
+        (function_body
+          (statement
+            (expression_statement
+              (expression
+                (call_expression
+                  (expression
+                    (member_expression
+                      (identifier)
+                      (identifier) @method))))))))
+      (#match? @name "^(deposit|mint)$")
+      (#eq? @method "totalSupply")
     message: ERC4626 vault without virtual shares - vulnerable to inflation attack
 
   # Permit front-running (2023-2024)
@@ -45,56 +53,71 @@ patterns:
     kind: semantic
     pattern: |
       (function_definition
-        parameters: (parameter_list
-          (parameter
-            name: (identifier) @sig (#match? @sig "^(v|r|s|signature|permit)$")))
-        body: (function_body
-          (expression_statement
-            (call_expression
-              function: (member_expression
-                property: (identifier) @permit (#eq? @permit "permit"))))))
+        (parameter
+          (identifier) @sig)
+        (function_body
+          (statement
+            (expression_statement
+              (expression
+                (call_expression
+                  (expression
+                    (member_expression
+                      (identifier)
+                      (identifier) @method)))))))) 
+      (#match? @sig "^(v|r|s|signature|permit)$")
+      (#eq? @method "permit")
     message: Permit signature without deadline check - vulnerable to front-running
 
   # Cross-contract reentrancy (Uniswap V3 style)
   - id: cross-contract-reentrancy
     kind: semantic
     pattern: |
-      (function_definition
-        body: (function_body
+      (function_body
+        (statement
           (expression_statement
-            (call_expression
-              function: (member_expression
-                property: (identifier) @callback (#match? @callback "^(callback|hook|onFlash)$"))))
+            (expression
+              (call_expression
+                (expression
+                  (member_expression
+                    (identifier)
+                    (identifier) @callback))))))
+        (statement
           (expression_statement
-            (member_expression))))
+            (expression
+              (member_expression)))))
+      (#match? @callback "^(callback|hook|onFlash)$")
     message: Callback with state read after - vulnerable to cross-contract reentrancy
 
   # ERC777 reentrancy hooks
   - id: erc777-hook-reentrancy
     kind: semantic
     pattern: |
-      (function_definition
-        body: (function_body
-          (expression_statement
-            (call_expression
-              function: (member_expression
-                property: (identifier) @method (#match? @method "^(send|transfer)$"))
-              arguments: (call_arguments
-                (identifier) @token)))))
-    message: Token transfer without reentrancy guard - ERC777 hooks enable reentrancy
+      (call_expression
+        (expression
+          (member_expression
+            (identifier) @token
+            (identifier) @method)))
+      (#match? @method "^(send|operatorSend)$")
+    message: ERC777 token transfer without reentrancy guard - hooks enable reentrancy
 
   # Vyper reentrancy lock bypass (2023)
   - id: vyper-lock-bypass
     kind: semantic
     pattern: |
-      (function_definition
-        body: (function_body
+      (function_body
+        (statement
           (expression_statement
-            (call_expression
-              function: (member_expression
-                property: (identifier) @raw (#match? @raw "^(raw_call|create_forwarder_to)$"))))
+            (expression
+              (call_expression
+                (expression
+                  (member_expression
+                    (identifier)
+                    (identifier) @raw))))))
+        (statement
           (expression_statement
-            (assignment_expression))))
+            (expression
+              (assignment_expression)))))
+      (#match? @raw "^(raw_call|create_forwarder_to)$")
     message: Raw call with state change - Vyper lock bypass pattern detected
 
   # Arbitrum sequencer downtime (2024)
@@ -102,20 +125,23 @@ patterns:
     kind: semantic
     pattern: |
       (call_expression
-        function: (member_expression
-          property: (identifier) @method (#match? @method "^(latestRoundData|latestAnswer)$")))
+        (expression
+          (member_expression
+            (identifier) @oracle
+            (identifier) @method)))
+      (#match? @method "^(latestRoundData|latestAnswer)$")
     message: Chainlink oracle without sequencer uptime check - critical on L2s (Arbitrum/Optimism)
 
   # Blast yield manipulation (2024)
   - id: blast-yield-exploit
     kind: semantic
     pattern: |
-      (function_definition
-        body: (function_body
-          (expression_statement
-            (call_expression
-              function: (member_expression
-                property: (identifier) @claim (#match? @claim "^(claim|claimYield|claimGas)$"))))))
+      (call_expression
+        (expression
+          (member_expression
+            (identifier) @contract
+            (identifier) @method)))
+      (#match? @method "^(claim|claimYield|claimGas|claimAllYield)$")
     message: Blast yield claim without access control - yield can be stolen
 
   # EIP-4844 blob data manipulation
@@ -123,10 +149,11 @@ patterns:
     kind: semantic
     pattern: |
       (function_definition
-        parameters: (parameter_list
-          (parameter
-            type: (type_name) @type (#eq? @type "bytes")
-            name: (identifier) @blob (#match? @blob "^(blob|blobData)$"))))
+        (parameter
+          (type_name) @type
+          (identifier) @name))
+      (#eq? @type "bytes")
+      (#match? @name "^(blob|blobData)$")
     message: Blob data parameter without validation - EIP-4844 data integrity risk
 
   # Account abstraction (ERC-4337) validation
@@ -134,9 +161,11 @@ patterns:
     kind: semantic
     pattern: |
       (function_definition
-        name: (identifier) @name (#match? @name "^(validateUserOp|validatePaymasterUserOp)$")
-        body: (function_body
-          (return_statement)))
+        (identifier) @name
+        (function_body
+          (statement
+            (return_statement))))
+      (#match? @name "^(validateUserOp|validatePaymasterUserOp)$")
     message: AA validation without proper checks - can bypass signature verification
 
   # Multicall reentrancy (2024)
@@ -144,14 +173,20 @@ patterns:
     kind: semantic
     pattern: |
       (function_definition
-        name: (identifier) @name (#eq? @name "multicall")
-        body: (function_body
-          (for_statement
-            body: (function_body
-              (expression_statement
-                (call_expression
-                  function: (member_expression
-                    property: (identifier) @delegatecall (#eq? @delegatecall "delegatecall"))))))))
+        (identifier) @name
+        (function_body
+          (statement
+            (for_statement
+              (statement
+                (expression_statement
+                  (expression
+                    (call_expression
+                      (expression
+                        (member_expression
+                          (identifier)
+                          (identifier) @method))))))))))
+      (#eq? @name "multicall")
+      (#eq? @method "delegatecall")
     message: Multicall with delegatecall in loop - enables complex reentrancy attacks
 
   # Uniswap V4 hook manipulation
@@ -159,10 +194,13 @@ patterns:
     kind: semantic
     pattern: |
       (function_definition
-        name: (identifier) @name (#match? @name "^(beforeSwap|afterSwap|beforeModifyPosition|afterModifyPosition)$")
-        body: (function_body
-          (expression_statement
-            (call_expression))))
+        (identifier) @name
+        (function_body
+          (statement
+            (expression_statement
+              (expression
+                (call_expression))))))
+      (#match? @name "^(beforeSwap|afterSwap|beforeModifyPosition|afterModifyPosition)$")
     message: Uniswap V4 hook with external call - can manipulate pool state
 
   # Eigenlayer restaking risks (2024)
@@ -170,24 +208,30 @@ patterns:
     kind: semantic
     pattern: |
       (function_definition
-        name: (identifier) @name (#match? @name "^(stake|delegate|restake)$")
-        body: (function_body
-          (expression_statement
-            (call_expression
-              function: (member_expression
-                property: (identifier) @approve (#eq? @approve "approve"))))))
+        (identifier) @name
+        (function_body
+          (statement
+            (expression_statement
+              (expression
+                (call_expression
+                  (expression
+                    (member_expression
+                      (identifier)
+                      (identifier) @method)))))))) 
+      (#match? @name "^(stake|delegate|restake)$")
+      (#eq? @method "approve")
     message: Restaking without slashing protection - funds at risk from operator misbehavior
 
   # Pendle PT/YT manipulation (2024)
   - id: pendle-pt-yt-exploit
     kind: semantic
     pattern: |
-      (function_definition
-        body: (function_body
-          (expression_statement
-            (call_expression
-              function: (member_expression
-                property: (identifier) @method (#match? @method "^(mintPY|redeemPY|swapExactPtForYt)$"))))))
+      (call_expression
+        (expression
+          (member_expression
+            (identifier) @contract
+            (identifier) @method)))
+      (#match? @method "^(mintPY|redeemPY|swapExactPtForYt)$")
     message: Pendle PT/YT operation - verify oracle manipulation protection
 
   # Balancer composable pool reentrancy (2023)
@@ -195,11 +239,15 @@ patterns:
     kind: semantic
     pattern: |
       (function_definition
-        name: (identifier) @name (#match? @name "^(onJoinPool|onExitPool)$")
-        body: (function_body
-          (expression_statement
-            (call_expression
-              function: (member_expression)))))
+        (identifier) @name
+        (function_body
+          (statement
+            (expression_statement
+              (expression
+                (call_expression
+                  (expression
+                    (member_expression))))))))
+      (#match? @name "^(onJoinPool|onExitPool)$")
     message: Balancer pool hook with external call - composable pool reentrancy risk
 
   # Aave V3 e-mode manipulation
@@ -207,10 +255,13 @@ patterns:
     kind: semantic
     pattern: |
       (function_definition
-        name: (identifier) @name (#match? @name "^(setUserEMode|borrow)$")
-        body: (function_body
-          (expression_statement
-            (call_expression))))
+        (identifier) @name
+        (function_body
+          (statement
+            (expression_statement
+              (expression
+                (call_expression))))))
+      (#match? @name "^(setUserEMode|borrow)$")
     message: Aave e-mode operation - verify category manipulation protection
 
   # Compound V3 absorb exploit
@@ -218,10 +269,13 @@ patterns:
     kind: semantic
     pattern: |
       (function_definition
-        name: (identifier) @name (#eq? @name "absorb")
-        body: (function_body
-          (expression_statement
-            (call_expression))))
+        (identifier) @name
+        (function_body
+          (statement
+            (expression_statement
+              (expression
+                (call_expression))))))
+      (#eq? @name "absorb")
     message: Compound V3 absorb without validation - liquidation manipulation risk
 
   # GMX V2 price impact manipulation
@@ -229,11 +283,13 @@ patterns:
     kind: semantic
     pattern: |
       (function_definition
-        name: (identifier) @name (#match? @name "^(createOrder|executeOrder)$")
-        body: (function_body
-          (expression_statement
-            (binary_expression
-              operator: "/"))))
+        (identifier) @name
+        (function_body
+          (statement
+            (expression_statement
+              (expression
+                (binary_expression))))))
+      (#match? @name "^(createOrder|executeOrder)$")
     message: GMX V2 order execution - verify price impact calculation protection
 
   # Morpho optimizer rate manipulation
@@ -241,12 +297,18 @@ patterns:
     kind: semantic
     pattern: |
       (function_definition
-        name: (identifier) @name (#match? @name "^(supply|borrow)$")
-        body: (function_body
-          (expression_statement
-            (call_expression
-              function: (member_expression
-                property: (identifier) @rate (#match? @rate "^(supplyRate|borrowRate)$"))))))
+        (identifier) @name
+        (function_body
+          (statement
+            (expression_statement
+              (expression
+                (call_expression
+                  (expression
+                    (member_expression
+                      (identifier)
+                      (identifier) @rate))))))))
+      (#match? @name "^(supply|borrow)$")
+      (#match? @rate "^(supplyRate|borrowRate)$")
     message: Morpho rate-dependent logic - verify manipulation protection
 
   # Frax V3 AMO exploit
@@ -255,8 +317,10 @@ patterns:
     validate: true
     pattern: |
       (function_definition
-        name: (identifier) @name (#match? @name "^(mintFrax|burnFrax|addAMO)$")
-        visibility: (visibility) @vis (#match? @vis "^(public|external)$"))
+        (identifier) @name
+        (visibility) @vis)
+      (#match? @name "^(mintFrax|burnFrax|addAMO)$")
+      (#match? @vis "^(public|external)$")
     message: Frax AMO operation without proper access control - collateral manipulation risk
     required: true
     fallback: regex

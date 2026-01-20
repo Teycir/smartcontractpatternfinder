@@ -8,16 +8,19 @@ tags:
   - security
   - tx-origin
   - SWC-115
+
 patterns:
   - id: tx-origin-equals
     kind: semantic
     validate: true
     pattern: |
       (binary_expression
-        (member_expression
-          object: (identifier) @_tx (#eq? @_tx "tx")
-          property: (identifier) @_origin (#eq? @_origin "origin"))
-        operator: "==")
+        (expression
+          (member_expression
+            (identifier) @_tx
+            (identifier) @_origin)))
+      (#eq? @_tx "tx")
+      (#eq? @_origin "origin")
     message: "tx.origin used for authentication. Use msg.sender instead to prevent phishing."
     required: true
     fallback: regex
@@ -27,22 +30,31 @@ patterns:
     kind: semantic
     pattern: |
       (call_expression
-        function: (identifier) @_func (#eq? @_func "require")
-        arguments: (call_argument
-          (binary_expression
-            (member_expression
-              object: (identifier) @_tx (#eq? @_tx "tx")
-              property: (identifier) @_origin (#eq? @_origin "origin"))
-            operator: "==")))
+        (expression
+          (identifier) @_func)
+        (call_argument
+          (expression
+            (binary_expression
+              (expression
+                (member_expression
+                  (identifier) @_tx
+                  (identifier) @_origin))))))
+      (#eq? @_func "require")
+      (#eq? @_tx "tx")
+      (#eq? @_origin "origin")
     message: "require(tx.origin == ...) is vulnerable to phishing. Use msg.sender for auth."
 
   - id: tx-origin-owner-check
     kind: semantic
     pattern: |
       (binary_expression
-        (member_expression
-          object: (identifier) @_tx (#eq? @_tx "tx")
-          property: (identifier) @_origin (#eq? @_origin "origin"))
-        operator: "=="
-        (identifier) @_owner (#match? @_owner "^(owner|admin|_owner)$"))
+        (expression
+          (member_expression
+            (identifier) @_tx
+            (identifier) @_origin))
+        (expression
+          (identifier) @_owner))
+      (#eq? @_tx "tx")
+      (#eq? @_origin "origin")
+      (#match? @_owner "^(owner|admin|_owner)$")
     message: "tx.origin owner check is insecure. Replace with msg.sender == owner."

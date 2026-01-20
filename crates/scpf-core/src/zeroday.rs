@@ -54,10 +54,7 @@ impl ZeroDayFetcher {
         Ok(exploits)
     }
 
-    async fn fetch_json<T: serde::de::DeserializeOwned>(
-        &self,
-        url: &str,
-    ) -> Result<Option<T>> {
+    async fn fetch_json<T: serde::de::DeserializeOwned>(&self, url: &str) -> Result<Option<T>> {
         match self.client.get(url).send().await {
             Ok(resp) => Ok(resp.json::<T>().await.ok()),
             Err(e) => {
@@ -77,32 +74,30 @@ impl ZeroDayFetcher {
             let exploits: Vec<Exploit> = hacks
                 .into_iter()
                 .filter_map(|hack| {
-                            // Date is Unix timestamp
-                            let timestamp = hack.get("date")?.as_i64()?;
-                            let date = DateTime::from_timestamp(timestamp, 0)?.with_timezone(&Utc);
+                    // Date is Unix timestamp
+                    let timestamp = hack.get("date")?.as_i64()?;
+                    let date = DateTime::from_timestamp(timestamp, 0)?.with_timezone(&Utc);
 
-                            if date < *cutoff {
-                                return None;
-                            }
+                    if date < *cutoff {
+                        return None;
+                    }
 
-                            let technique =
-                                hack.get("technique").and_then(|t| t.as_str()).unwrap_or("");
-                            let language =
-                                hack.get("language").and_then(|l| l.as_str()).unwrap_or("");
+                    let technique = hack.get("technique").and_then(|t| t.as_str()).unwrap_or("");
+                    let language = hack.get("language").and_then(|l| l.as_str()).unwrap_or("");
 
-                            // Filter for Solidity/Vyper or include all if no language specified
-                            if !language.is_empty()
-                                && !language.contains("Solidity")
-                                && !language.contains("Vyper")
-                            {
-                                return None;
-                            }
+                    // Filter for Solidity/Vyper or include all if no language specified
+                    if !language.is_empty()
+                        && !language.contains("Solidity")
+                        && !language.contains("Vyper")
+                    {
+                        return None;
+                    }
 
-                            let name = hack.get("name")?.as_str()?.to_string();
-                            let loss = hack
-                                .get("loss_amount")
-                                .and_then(|l| l.as_f64())
-                                .map(|l| (l * 1_000_000.0) as u64);
+                    let name = hack.get("name")?.as_str()?.to_string();
+                    let loss = hack
+                        .get("loss_amount")
+                        .and_then(|l| l.as_f64())
+                        .map(|l| (l * 1_000_000.0) as u64);
 
                     Some(Exploit {
                         source: "defillama".to_string(),
@@ -131,19 +126,19 @@ impl ZeroDayFetcher {
             let exploits: Vec<Exploit> = commits
                 .into_iter()
                 .filter_map(|commit| {
-                            let commit_data = commit.get("commit")?;
-                            let author = commit_data.get("author")?;
-                            let date_str = author.get("date")?.as_str()?;
-                            let date = DateTime::parse_from_rfc3339(date_str)
-                                .ok()?
-                                .with_timezone(&Utc);
+                    let commit_data = commit.get("commit")?;
+                    let author = commit_data.get("author")?;
+                    let date_str = author.get("date")?.as_str()?;
+                    let date = DateTime::parse_from_rfc3339(date_str)
+                        .ok()?
+                        .with_timezone(&Utc);
 
-                            if date < *cutoff {
-                                return None;
-                            }
+                    if date < *cutoff {
+                        return None;
+                    }
 
-                            let message = commit_data.get("message")?.as_str()?;
-                            let title = message.lines().next()?.to_string();
+                    let message = commit_data.get("message")?.as_str()?;
+                    let title = message.lines().next()?.to_string();
 
                     Some(Exploit {
                         source: "defihacklabs".to_string(),
@@ -175,14 +170,14 @@ impl ZeroDayFetcher {
             let exploits: Vec<Exploit> = advisories
                 .into_iter()
                 .filter_map(|adv| {
-                            let date_str = adv.get("published_at")?.as_str()?;
-                            let date = DateTime::parse_from_rfc3339(date_str)
-                                .ok()?
-                                .with_timezone(&Utc);
+                    let date_str = adv.get("published_at")?.as_str()?;
+                    let date = DateTime::parse_from_rfc3339(date_str)
+                        .ok()?
+                        .with_timezone(&Utc);
 
-                            if date < *cutoff {
-                                return None;
-                            }
+                    if date < *cutoff {
+                        return None;
+                    }
 
                     Some(Exploit {
                         source: "github_solidity".to_string(),
@@ -237,8 +232,6 @@ impl ZeroDayFetcher {
 
         Ok(all_exploits)
     }
-
-
 
     pub async fn generate_template(
         &self,

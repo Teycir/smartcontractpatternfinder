@@ -36,3 +36,11 @@ criterion = { version = "0.5", features = ["html_reports"] }
 [[bench]]
 name = "scanner_bench"
 harness = false
+
+[[bin]]
+name = "dump_tree"
+path = "src/bin/dump_tree.rs"
+
+[[bin]]
+name = "validate_all"
+path = "src/bin/validate_all.rs"

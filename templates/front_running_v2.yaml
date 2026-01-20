@@ -21,9 +21,10 @@ patterns:
     kind: semantic
     validate: true
     pattern: |
-      (function_call
-        (identifier) @hash_fn
-        (#match? @hash_fn "^(keccak256|sha256|sha3|ripemd160)$")) @hash_call
+      (call_expression
+        (expression
+          (identifier) @hash_fn)) @hash_call
+      (#match? @hash_fn "^(keccak256|sha256|sha3|ripemd160)$")
     message: "Hash function '@hash_fn' used. If comparing user input, implement commit-reveal to prevent front-running."
     required: true
     fallback: regex
@@ -34,11 +35,11 @@ patterns:
     kind: semantic
     validate: true
     pattern: |
-      (member_access
+      (member_expression
         (identifier) @obj
-        (#eq? @obj "block")
-        (identifier) @prop
-        (#match? @prop "^(timestamp|number|difficulty|prevrandao|coinbase)$")) @block_access
+        (identifier) @prop) @block_access
+      (#eq? @obj "block")
+      (#match? @prop "^(timestamp|number|difficulty|prevrandao|coinbase)$")
     message: "block.@prop used. If for randomness, miners can manipulate. Use Chainlink VRF."
     required: true
     fallback: regex

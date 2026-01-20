@@ -69,16 +69,20 @@ impl ContractFetcher {
                         .as_str()
                         .map(|s| s.to_string())
                         .unwrap_or_else(|| format!("Unknown API error. Response: {:?}", json));
-                    
+
                     // Categorize API errors
-                    if error_msg.contains("Invalid API Key") || error_msg.contains("Missing/Invalid") {
+                    if error_msg.contains("Invalid API Key")
+                        || error_msg.contains("Missing/Invalid")
+                    {
                         anyhow::bail!("INVALID_KEY: {}", error_msg);
-                    } else if error_msg.contains("rate limit") || error_msg.contains("Max rate limit") {
+                    } else if error_msg.contains("rate limit")
+                        || error_msg.contains("Max rate limit")
+                    {
                         anyhow::bail!("RATE_LIMITED: {}", error_msg);
                     } else if error_msg.contains("NOTOK") {
                         anyhow::bail!("API_ERROR: {}", error_msg);
                     }
-                    
+
                     anyhow::bail!("API error: {}", error_msg);
                 }
 
@@ -108,10 +112,18 @@ impl ContractFetcher {
                     let err_msg = e.to_string();
                     if err_msg.contains("INVALID_KEY") {
                         invalid_key_found = true;
-                        tracing::error!("API key {} is invalid or expired for {}", idx + 1, chain.as_str());
+                        tracing::error!(
+                            "API key {} is invalid or expired for {}",
+                            idx + 1,
+                            chain.as_str()
+                        );
                     } else if err_msg.contains("RATE_LIMITED") {
                         rate_limited_found = true;
-                        tracing::warn!("API key {} is rate limited for {}", idx + 1, chain.as_str());
+                        tracing::warn!(
+                            "API key {} is rate limited for {}",
+                            idx + 1,
+                            chain.as_str()
+                        );
                     } else if idx < keys.len() - 1 {
                         tracing::warn!("API key {} failed, trying next key", idx + 1);
                     }
@@ -127,7 +139,7 @@ impl ContractFetcher {
                 chain.as_str()
             ));
         }
-        
+
         if rate_limited_found {
             return Err(anyhow::anyhow!(
                 "All API keys for {} have reached their rate limit. Please wait or add more keys.",
@@ -135,7 +147,8 @@ impl ContractFetcher {
             ));
         }
 
-        Err(last_error.unwrap_or_else(|| anyhow::anyhow!("All API keys failed for {}", chain.as_str())))
+        Err(last_error
+            .unwrap_or_else(|| anyhow::anyhow!("All API keys failed for {}", chain.as_str())))
     }
 
     pub fn parse_source_code(source_code: &str) -> String {
@@ -214,7 +227,8 @@ impl ContractFetcher {
         let key = &keys[0];
         let cutoff_timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)?
-            .as_secs() - (days * 24 * 60 * 60);
+            .as_secs()
+            - (days * 24 * 60 * 60);
 
         let url = if matches!(chain, Chain::ZkSync | Chain::Zora) {
             format!(

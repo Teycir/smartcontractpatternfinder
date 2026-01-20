@@ -13,20 +13,27 @@ tags:
   - audit
   - advanced
   - semantic
+
 patterns:
   # State changes after external calls (reentrancy)
   - id: state-after-call
     kind: semantic
     validate: true
     pattern: |
-      (function_definition
-        body: (function_body
+      (function_body
+        (statement
           (expression_statement
-            (call_expression
-              function: (member_expression
-                property: (identifier) @call (#match? @call "^(call|transfer|send)$"))))
+            (expression
+              (call_expression
+                (expression
+                  (member_expression
+                    (identifier)
+                    (identifier) @method))))))
+        (statement
           (expression_statement
-            (assignment_expression))))
+            (expression
+              (assignment_expression)))))
+      (#match? @method "^(call|transfer|send)$")
     message: State change after external call - potential reentrancy vulnerability
     required: true
     fallback: regex
@@ -38,9 +45,13 @@ patterns:
     validate: true
     pattern: |
       (expression_statement
-        (call_expression
-          function: (member_expression
-            property: (identifier) @method (#match? @method "^(call|delegatecall|send)$"))))
+        (expression
+          (call_expression
+            (expression
+              (member_expression
+                (identifier)
+                (identifier) @method)))))
+      (#match? @method "^(call|delegatecall|send)$")
     message: Unchecked low-level call return value - may silently fail
     required: true
     fallback: regex
@@ -51,10 +62,15 @@ patterns:
     kind: semantic
     pattern: |
       (call_expression
-        function: (member_expression
-          property: (identifier) @dc (#eq? @dc "delegatecall"))
-        arguments: (call_arguments
-          (identifier) @arg (#match? @arg "^(msg|_|data|input|calldata)")))
+        (expression
+          (member_expression
+            (identifier)
+            (identifier) @method))
+        (call_argument
+          (expression
+            (identifier) @arg)))
+      (#eq? @method "delegatecall")
+      (#match? @arg "^(msg|_|data|input|calldata)")
     message: Delegatecall with potential user-controlled input - critical vulnerability
 
   # Missing zero address check
@@ -62,14 +78,18 @@ patterns:
     kind: semantic
     pattern: |
       (function_definition
-        parameters: (parameter_list
-          (parameter
-            type: (type_name) @type (#eq? @type "address")))
-        body: (function_body
-          (expression_statement
-            (assignment_expression
-              left: (member_expression)
-              right: (identifier)))))
+        (parameter
+          (type_name) @type)
+        (function_body
+          (statement
+            (expression_statement
+              (expression
+                (assignment_expression
+                  (expression
+                    (member_expression))
+                  (expression
+                    (identifier))))))))
+      (#eq? @type "address")
     message: Address parameter assigned without zero-address validation
 
   # Integer overflow in multiplication before division
@@ -77,9 +97,10 @@ patterns:
     kind: semantic
     pattern: |
       (binary_expression
-        operator: "/"
-        left: (binary_expression
-          operator: "*"))
+        (expression
+          (binary_expression))
+        (expression
+          (identifier)))
     message: Multiplication before division - potential overflow, use SafeMath or Solidity 0.8+
 
   # Timestamp dependence
@@ -87,9 +108,12 @@ patterns:
     kind: semantic
     pattern: |
       (binary_expression
-        left: (member_expression
-          object: (identifier) @block (#eq? @block "block")
-          property: (identifier) @prop (#eq? @prop "timestamp")))
+        (expression
+          (member_expression
+            (identifier) @obj
+            (identifier) @prop)))
+      (#eq? @obj "block")
+      (#eq? @prop "timestamp")
     message: Block timestamp used in logic - miners can manipulate within ~15 seconds
 
   # Unprotected selfdestruct
@@ -97,10 +121,16 @@ patterns:
     kind: semantic
     pattern: |
       (function_definition
-        body: (function_body
-          (expression_statement
-            (call_expression
-              function: (identifier) @sd (#eq? @sd "selfdestruct")))))
+        (visibility) @vis
+        (function_body
+          (statement
+            (expression_statement
+              (expression
+                (call_expression
+                  (expression
+                    (identifier) @func)))))))
+      (#match? @vis "^(public|external)$")
+      (#eq? @func "selfdestruct")
     message: Selfdestruct without access control - verify proper protection
 
   # Ether locked forever (no withdraw function)
@@ -108,8 +138,8 @@ patterns:
     kind: semantic
     pattern: |
       (function_definition
-        (modifier_invocation
-          (identifier) @mod (#eq? @mod "payable")))
+        (state_mutability) @mut)
+      (#eq? @mut "payable")
     message: Payable function detected - ensure withdrawal mechanism exists
 
   # Front-running vulnerable patterns
@@ -117,15 +147,21 @@ patterns:
     kind: semantic
     pattern: |
       (function_definition
-        visibility: (visibility) @vis (#match? @vis "^(public|external)$")
-        body: (function_body
-          (expression_statement
-            (assignment_expression
-              operator: "="
-              left: (member_expression)
-              right: (member_expression
-                object: (identifier) @msg (#eq? @msg "msg")
-                property: (identifier) @val (#eq? @val "value"))))))
+        (visibility) @vis
+        (function_body
+          (statement
+            (expression_statement
+              (expression
+                (assignment_expression
+                  (expression
+                    (member_expression))
+                  (expression
+                    (member_expression
+                      (identifier) @msg
+                      (identifier) @val))))))))
+      (#match? @vis "^(public|external)$")
+      (#eq? @msg "msg")
+      (#eq? @val "value")
     message: Public function with msg.value assignment - vulnerable to front-running
 
   # Dangerous strict equality with balance
@@ -133,9 +169,11 @@ patterns:
     kind: semantic
     pattern: |
       (binary_expression
-        operator: "=="
-        (member_expression
-          property: (identifier) @bal (#eq? @bal "balance")))
+        (expression
+          (member_expression
+            (identifier)
+            (identifier) @prop)))
+      (#eq? @prop "balance")
     message: Strict equality with balance - use >= instead, balance can be forced
 
   # Missing event emission
@@ -144,11 +182,15 @@ patterns:
     validate: true
     pattern: |
       (function_definition
-        visibility: (visibility) @vis (#match? @vis "^(public|external)$")
-        body: (function_body
-          (expression_statement
-            (assignment_expression
-              left: (member_expression)))))
+        (visibility) @vis
+        (function_body
+          (statement
+            (expression_statement
+              (expression
+                (assignment_expression
+                  (expression
+                    (member_expression))))))))
+      (#match? @vis "^(public|external)$")
     message: State change in public function without event emission
     required: false
     fallback: regex
@@ -161,9 +203,8 @@ patterns:
     validate: true
     pattern: |
       (function_definition
-        parameters: (parameter_list
-          (parameter
-            name: (identifier) @param)))
+        (parameter
+          (identifier) @param))
     message: Parameter may shadow state variable - verify no naming conflicts
     required: false
     fallback: regex
@@ -174,10 +215,11 @@ patterns:
   - id: uninitialized-storage
     kind: semantic
     pattern: |
-      (variable_declaration
-        type: (type_name)
-        storage_location: (identifier) @loc (#eq? @loc "storage")
-        name: (identifier))
+      (variable_declaration_statement
+        (type_name)
+        (data_location) @loc
+        (identifier))
+      (#eq? @loc "storage")
     message: Storage pointer without initialization - points to slot 0
 
   # Reentrancy via modifier
@@ -185,11 +227,16 @@ patterns:
     kind: semantic
     pattern: |
       (modifier_definition
-        body: (function_body
-          (expression_statement
-            (call_expression
-              function: (member_expression
-                property: (identifier) @call (#match? @call "^(call|transfer|send)$"))))))
+        (function_body
+          (statement
+            (expression_statement
+              (expression
+                (call_expression
+                  (expression
+                    (member_expression
+                      (identifier)
+                      (identifier) @method)))))))) 
+      (#match? @method "^(call|transfer|send)$")
     message: External call in modifier - can enable reentrancy attacks
 
   # DoS with block gas limit
@@ -197,9 +244,10 @@ patterns:
     kind: semantic
     pattern: |
       (for_statement
-        body: (function_body
+        (statement
           (expression_statement
-            (call_expression))))
+            (expression
+              (call_expression)))))
     message: Loop with external calls - vulnerable to DoS via block gas limit
 
   # Access control on critical functions
@@ -207,8 +255,10 @@ patterns:
     kind: semantic
     pattern: |
       (function_definition
-        name: (identifier) @name (#match? @name "^(withdraw|transfer|mint|burn|destroy|kill|pause|unpause|upgrade)$")
-        visibility: (visibility) @vis (#match? @vis "^(public|external)$"))
+        (identifier) @name
+        (visibility) @vis)
+      (#match? @name "^(withdraw|transfer|mint|burn|destroy|kill|pause|unpause|upgrade)$")
+      (#match? @vis "^(public|external)$")
     message: Critical function without visible access control modifier
 
   # Signature replay attacks
@@ -216,10 +266,11 @@ patterns:
     kind: semantic
     pattern: |
       (function_definition
-        parameters: (parameter_list
-          (parameter
-            type: (type_name) @type (#match? @type "^(bytes|bytes32)$")
-            name: (identifier) @name (#match? @name "^(sig|signature)$"))))
+        (parameter
+          (type_name) @type
+          (identifier) @name))
+      (#match? @type "^(bytes|bytes32)$")
+      (#match? @name "^(sig|signature)$")
     message: Signature parameter without nonce - vulnerable to replay attacks
 
   # Price oracle manipulation
@@ -227,8 +278,11 @@ patterns:
     kind: semantic
     pattern: |
       (call_expression
-        function: (member_expression
-          property: (identifier) @method (#match? @method "^(getPrice|price|getReserves)$")))
+        (expression
+          (member_expression
+            (identifier)
+            (identifier) @method)))
+      (#match? @method "^(getPrice|price|getReserves)$")
     message: Single price source - vulnerable to oracle manipulation, use TWAP or multiple sources
 
   # Flash loan attack surface
@@ -237,24 +291,31 @@ patterns:
     validate: true
     pattern: |
       (function_definition
-        visibility: (visibility) @vis (#match? @vis "^(public|external)$")
-        body: (function_body
-          (expression_statement
-            (binary_expression
-              left: (member_expression
-                property: (identifier) @bal (#eq? @bal "balance"))))))
+        (visibility) @vis
+        (function_body
+          (statement
+            (expression_statement
+              (expression
+                (binary_expression
+                  (expression
+                    (member_expression
+                      (identifier)
+                      (identifier) @prop))))))))
+      (#match? @vis "^(public|external)$")
+      (#eq? @prop "balance")
     message: Balance-dependent logic in public function - vulnerable to flash loan attacks
     required: true
     fallback: regex
     on_error: skip
 
-  # Centralization risk - detects single point of control via owner/admin modifiers
+  # Centralization risk
   - id: owner-single-point
     kind: semantic
     validate: true
     pattern: |
       (modifier_invocation
-        (identifier) @mod (#match? @mod "^(onlyOwner|onlyAdmin)$"))
+        (identifier) @mod)
+      (#match? @mod "^(onlyOwner|onlyAdmin)$")
     message: Single owner/admin control - consider multi-sig or timelock for decentralization
     required: false
     fallback: regex

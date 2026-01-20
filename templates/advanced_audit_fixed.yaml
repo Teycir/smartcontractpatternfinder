@@ -1,0 +1,128 @@
+id: advanced-audit-checks-fixed
+name: Advanced Audit-Level Vulnerability Detection (Fixed v2)
+description: Fixed semantic patterns using correct tree-sitter-solidity node types
+severity: high
+tags:
+  - security
+  - audit
+  - semantic
+  - fixed
+
+patterns:
+  # Unbounded loop with external calls
+  - id: unbounded-loop-fixed
+    kind: semantic
+    pattern: |
+      (for_statement
+        (statement
+          (expression_statement
+            (expression
+              (call_expression)))))
+    message: Loop with external calls - vulnerable to DoS via block gas limit
+
+  # tx.origin authentication
+  - id: tx-origin-auth-fixed
+    kind: semantic
+    pattern: |
+      (call_expression
+        (expression
+          (identifier) @func)
+        (call_argument
+          (expression
+            (binary_expression
+              (expression
+                (member_expression
+                  (identifier) @obj
+                  (identifier) @prop))))))
+      (#eq? @func "require")
+      (#eq? @obj "tx")
+      (#eq? @prop "origin")
+    message: tx.origin used for authentication - vulnerable to phishing
+
+  # Missing access control on critical functions
+  - id: missing-access-control-fixed
+    kind: semantic
+    pattern: |
+      (function_definition
+        (identifier) @name
+        (visibility) @vis
+        (function_body))
+      (#match? @name "^(withdraw|transfer|destroy|kill)$")
+      (#eq? @vis "public")
+    message: Critical function without access control modifier
+
+  # Reentrancy: external call before state change
+  - id: reentrancy-pattern-fixed
+    kind: semantic
+    pattern: |
+      (function_body
+        (statement
+          (expression_statement
+            (expression
+              (call_expression
+                (expression
+                  (member_expression
+                    (identifier)
+                    (identifier) @method))))))
+        (statement
+          (expression_statement
+            (expression
+              (assignment_expression)))))
+      (#match? @method "^(call|transfer|send)$")
+    message: External call before state modification - reentrancy risk
+
+  # Unprotected selfdestruct
+  - id: unprotected-selfdestruct-fixed
+    kind: semantic
+    pattern: |
+      (function_definition
+        (visibility) @vis
+        (function_body
+          (statement
+            (expression_statement
+              (expression
+                (call_expression
+                  (expression
+                    (identifier) @func)))))))
+      (#eq? @vis "public")
+      (#eq? @func "selfdestruct")
+    message: Unprotected selfdestruct - contract can be destroyed by anyone
+
+  # Unchecked low-level call
+  - id: unchecked-call-fixed
+    kind: semantic
+    pattern: |
+      (expression_statement
+        (expression
+          (call_expression
+            (expression
+              (member_expression
+                (identifier)
+                (identifier) @method)))))
+      (#match? @method "^(call|delegatecall|send)$")
+    message: Unchecked low-level call return value - may silently fail
+
+  # Timestamp dependence
+  - id: timestamp-dependence-fixed
+    kind: semantic
+    pattern: |
+      (binary_expression
+        (expression
+          (member_expression
+            (identifier) @obj
+            (identifier) @prop)))
+      (#eq? @obj "block")
+      (#eq? @prop "timestamp")
+    message: Block timestamp used in logic - miners can manipulate
+
+  # Strict balance equality
+  - id: strict-balance-equality-fixed
+    kind: semantic
+    pattern: |
+      (binary_expression
+        (expression
+          (member_expression
+            (identifier)
+            (identifier) @prop)))
+      (#eq? @prop "balance")
+    message: Strict equality with balance - use >= instead

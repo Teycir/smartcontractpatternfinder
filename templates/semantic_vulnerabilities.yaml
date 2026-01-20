@@ -6,36 +6,47 @@ tags:
   - security
   - semantic
   - ast-analysis
+
 patterns:
   - id: external-call-detection
     kind: semantic
     pattern: |
       (call_expression
-        function: (member_expression
-          property: (identifier) @call (#eq? @call "call")))
+        (expression
+          (member_expression
+            (identifier)
+            (identifier) @method)))
+      (#eq? @method "call")
     message: External call detected - potential reentrancy risk
 
   - id: delegatecall-usage
     kind: semantic
     pattern: |
       (call_expression
-        function: (member_expression
-          property: (identifier) @delegatecall (#eq? @delegatecall "delegatecall")))
+        (expression
+          (member_expression
+            (identifier)
+            (identifier) @method)))
+      (#eq? @method "delegatecall")
     message: Delegatecall usage detected - verify target contract safety
 
   - id: tx-origin-auth
     kind: semantic
     pattern: |
       (member_expression
-        object: (identifier) @tx (#eq? @tx "tx")
-        property: (identifier) @origin (#eq? @origin "origin"))
+        (identifier) @obj
+        (identifier) @prop)
+      (#eq? @obj "tx")
+      (#eq? @prop "origin")
     message: tx.origin used for authentication - use msg.sender instead
 
   - id: selfdestruct-usage
     kind: semantic
     pattern: |
       (call_expression
-        function: (identifier) @selfdestruct (#eq? @selfdestruct "selfdestruct"))
+        (expression
+          (identifier) @func))
+      (#eq? @func "selfdestruct")
     message: selfdestruct usage detected - ensure proper access control
 
   # Detects low-level calls without return value checks
@@ -44,9 +55,13 @@ patterns:
     validate: true
     pattern: |
       (expression_statement
-        (call_expression
-          function: (member_expression
-            property: (identifier) @call (#match? @call "^(call|delegatecall|staticcall)$"))))
+        (expression
+          (call_expression
+            (expression
+              (member_expression
+                (identifier)
+                (identifier) @method)))))
+      (#match? @method "^(call|delegatecall|staticcall)$")
     message: Unchecked low-level call - verify return value is checked
     required: true
     fallback: regex

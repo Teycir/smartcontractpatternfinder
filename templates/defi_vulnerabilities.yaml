@@ -14,6 +14,7 @@ tags:
   - lending
   - security
   - semantic
+
 patterns:
   # AMM: K value manipulation
   - id: amm-k-manipulation
@@ -21,9 +22,10 @@ patterns:
     validate: true
     pattern: |
       (binary_expression
-        operator: "*"
-        left: (identifier) @reserve1
-        right: (identifier) @reserve2)
+        (expression
+          (identifier) @reserve1)
+        (expression
+          (identifier) @reserve2))
     message: Reserve multiplication detected - verify K value protection against manipulation
     required: false
     fallback: regex
@@ -35,10 +37,10 @@ patterns:
     validate: true
     pattern: |
       (function_definition
-        name: (identifier) @name (#match? @name "^(swap|exchange|trade)$")
-        parameters: (parameter_list
-          (parameter
-            name: (identifier) @amount)))
+        (identifier) @name
+        (parameter
+          (identifier) @amount))
+      (#match? @name "^(swap|exchange|trade)$")
     message: Swap function without visible slippage parameter - users vulnerable to sandwich attacks
     required: true
     fallback: regex
@@ -50,10 +52,13 @@ patterns:
     validate: true
     pattern: |
       (function_definition
-        name: (identifier) @name (#match? @name "^(swap|buy|sell)$")
-        body: (function_body
-          (expression_statement
-            (assignment_expression))))
+        (identifier) @name
+        (function_body
+          (statement
+            (expression_statement
+              (expression
+                (assignment_expression))))))
+      (#match? @name "^(swap|buy|sell)$")
     message: Trade function without price impact calculation - large trades can be exploited
     required: false
     fallback: regex
@@ -65,12 +70,18 @@ patterns:
     validate: true
     pattern: |
       (function_definition
-        name: (identifier) @name (#match? @name "^(mint|burn|addLiquidity|removeLiquidity)$")
-        body: (function_body
-          (expression_statement
-            (call_expression
-              function: (member_expression
-                property: (identifier) @call (#eq? @call "call"))))))
+        (identifier) @name
+        (function_body
+          (statement
+            (expression_statement
+              (expression
+                (call_expression
+                  (expression
+                    (member_expression
+                      (identifier)
+                      (identifier) @method)))))))) 
+      (#match? @name "^(mint|burn|addLiquidity|removeLiquidity)$")
+      (#eq? @method "call")
     message: External call in liquidity function - reentrancy risk for LP tokens
     required: true
     fallback: regex
@@ -82,8 +93,10 @@ patterns:
     validate: true
     pattern: |
       (function_definition
-        name: (identifier) @name (#match? @name "^(onFlashLoan|executeOperation|flashLoanCallback)$")
-        visibility: (visibility) @vis (#eq? @vis "external"))
+        (identifier) @name
+        (visibility) @vis)
+      (#match? @name "^(onFlashLoan|executeOperation|flashLoanCallback)$")
+      (#eq? @vis "external")
     message: Flash loan callback without sender validation - anyone can trigger
     required: true
     fallback: regex
@@ -95,9 +108,10 @@ patterns:
     validate: true
     pattern: |
       (binary_expression
-        operator: "/"
-        left: (identifier) @collateral
-        right: (identifier) @debt)
+        (expression
+          (identifier) @collateral)
+        (expression
+          (identifier) @debt))
     message: Collateral ratio calculation - verify oracle manipulation protection
     required: false
     fallback: regex
@@ -109,12 +123,18 @@ patterns:
     validate: true
     pattern: |
       (function_definition
-        name: (identifier) @name (#match? @name "^(liquidate|seize)$")
-        body: (function_body
-          (expression_statement
-            (call_expression
-              function: (member_expression
-                property: (identifier) @transfer (#match? @transfer "^(transfer|transferFrom)$"))))))
+        (identifier) @name
+        (function_body
+          (statement
+            (expression_statement
+              (expression
+                (call_expression
+                  (expression
+                    (member_expression
+                      (identifier)
+                      (identifier) @method)))))))) 
+      (#match? @name "^(liquidate|seize)$")
+      (#match? @method "^(transfer|transferFrom)$")
     message: Liquidation function - verify current price oracle check before execution
     required: true
     fallback: regex
@@ -126,12 +146,15 @@ patterns:
     validate: true
     pattern: |
       (function_definition
-        name: (identifier) @name (#match? @name "^(borrow|withdraw)$")
-        body: (function_body
-          (expression_statement
-            (binary_expression
-              operator: "*"
-              (identifier) @rate))))
+        (identifier) @name
+        (function_body
+          (statement
+            (expression_statement
+              (expression
+                (binary_expression
+                  (expression
+                    (identifier) @rate)))))))
+      (#match? @name "^(borrow|withdraw)$")
     message: Interest rate calculation in borrow/withdraw - verify manipulation protection
     required: false
     fallback: regex
@@ -143,11 +166,13 @@ patterns:
     validate: true
     pattern: |
       (function_definition
-        name: (identifier) @name (#match? @name "^(getReward|claimReward|harvest)$")
-        body: (function_body
-          (expression_statement
-            (binary_expression
-              operator: "*"))))
+        (identifier) @name
+        (function_body
+          (statement
+            (expression_statement
+              (expression
+                (binary_expression))))))
+      (#match? @name "^(getReward|claimReward|harvest)$")
     message: Reward multiplication - verify overflow protection and precision loss
     required: false
     fallback: regex
@@ -159,12 +184,18 @@ patterns:
     validate: true
     pattern: |
       (function_definition
-        name: (identifier) @name (#match? @name "^(withdraw|unstake)$")
-        body: (function_body
-          (expression_statement
-            (call_expression
-              function: (member_expression
-                property: (identifier) @transfer (#eq? @transfer "transfer"))))))
+        (identifier) @name
+        (function_body
+          (statement
+            (expression_statement
+              (expression
+                (call_expression
+                  (expression
+                    (member_expression
+                      (identifier)
+                      (identifier) @method)))))))) 
+      (#match? @name "^(withdraw|unstake)$")
+      (#eq? @method "transfer")
     message: Withdrawal without timelock check - verify delay mechanism cannot be bypassed
     required: false
     fallback: regex
@@ -176,12 +207,18 @@ patterns:
     validate: true
     pattern: |
       (function_definition
-        name: (identifier) @name (#match? @name "^(vote|castVote)$")
-        body: (function_body
-          (expression_statement
-            (call_expression
-              function: (member_expression
-                property: (identifier) @balanceOf (#eq? @balanceOf "balanceOf"))))))
+        (identifier) @name
+        (function_body
+          (statement
+            (expression_statement
+              (expression
+                (call_expression
+                  (expression
+                    (member_expression
+                      (identifier)
+                      (identifier) @method)))))))) 
+      (#match? @name "^(vote|castVote)$")
+      (#eq? @method "balanceOf")
     message: Vote using current balance - vulnerable to flash loan vote manipulation
     required: true
     fallback: regex
@@ -193,8 +230,10 @@ patterns:
     validate: true
     pattern: |
       (function_definition
-        name: (identifier) @name (#match? @name "^(execute|executeProposal)$")
-        visibility: (visibility) @vis (#match? @vis "^(public|external)$"))
+        (identifier) @name
+        (visibility) @vis)
+      (#match? @name "^(execute|executeProposal)$")
+      (#match? @vis "^(public|external)$")
     message: Proposal execution without visible timelock - users cannot react to malicious proposals
     required: false
     fallback: regex
@@ -206,8 +245,11 @@ patterns:
     validate: true
     pattern: |
       (call_expression
-        function: (member_expression
-          property: (identifier) @method (#match? @method "^(latestAnswer|getPrice|latestRoundData)$")))
+        (expression
+          (member_expression
+            (identifier)
+            (identifier) @method)))
+      (#match? @method "^(latestAnswer|getPrice|latestRoundData)$")
     message: Oracle price fetch without staleness check - may use outdated prices
     required: true
     fallback: regex
@@ -218,8 +260,9 @@ patterns:
     kind: semantic
     validate: true
     pattern: |
-      (variable_declaration
-        type: (user_defined_type_name) @type (#match? @type "^(AggregatorV3Interface|IOracle|IPriceOracle)$"))
+      (state_variable_declaration
+        (type_name) @type)
+      (#match? @type "^(AggregatorV3Interface|IOracle|IPriceOracle)$")
     message: Single oracle interface - consider multiple oracle sources for redundancy
     required: false
     fallback: regex
@@ -231,13 +274,20 @@ patterns:
     validate: true
     pattern: |
       (function_definition
-        name: (identifier) @name (#match? @name "^(swap|buy|sell)$")
-        visibility: (visibility) @vis (#eq? @vis "public")
-        body: (function_body
-          (expression_statement
-            (call_expression
-              function: (member_expression
-                property: (identifier) @transfer (#eq? @transfer "transfer"))))))
+        (identifier) @name
+        (visibility) @vis
+        (function_body
+          (statement
+            (expression_statement
+              (expression
+                (call_expression
+                  (expression
+                    (member_expression
+                      (identifier)
+                      (identifier) @method)))))))) 
+      (#match? @name "^(swap|buy|sell)$")
+      (#eq? @vis "public")
+      (#eq? @method "transfer")
     message: Public swap without MEV protection - vulnerable to sandwich attacks
     required: true
     fallback: regex
@@ -249,12 +299,18 @@ patterns:
     validate: true
     pattern: |
       (function_definition
-        name: (identifier) @name (#match? @name "^(stake|deposit)$")
-        body: (function_body
-          (expression_statement
-            (assignment_expression
-              left: (member_expression
-                property: (identifier) @totalStaked (#eq? @totalStaked "totalStaked"))))))
+        (identifier) @name
+        (function_body
+          (statement
+            (expression_statement
+              (expression
+                (assignment_expression
+                  (expression
+                    (member_expression
+                      (identifier)
+                      (identifier) @var))))))))
+      (#match? @name "^(stake|deposit)$")
+      (#eq? @var "totalStaked")
     message: Total staked update - verify reward distribution prevents dilution attacks
     required: false
     fallback: regex
@@ -266,10 +322,11 @@ patterns:
     validate: true
     pattern: |
       (function_definition
-        name: (identifier) @name (#match? @name "^(bridge|mint|unlock)$")
-        parameters: (parameter_list
-          (parameter
-            type: (type_name) @type (#eq? @type "bytes"))))
+        (identifier) @name
+        (parameter
+          (type_name) @type))
+      (#match? @name "^(bridge|mint|unlock)$")
+      (#eq? @type "bytes")
     message: Bridge function with bytes parameter - verify signature and merkle proof validation
     required: true
     fallback: regex
@@ -281,10 +338,13 @@ patterns:
     validate: true
     pattern: |
       (function_definition
-        name: (identifier) @name (#match? @name "^(safeTransferFrom|transferFrom)$")
-        body: (function_body
-          (expression_statement
-            (call_expression))))
+        (identifier) @name
+        (function_body
+          (statement
+            (expression_statement
+              (expression
+                (call_expression))))))
+      (#match? @name "^(safeTransferFrom|transferFrom)$")
     message: NFT transfer with external call - verify reentrancy protection (CEI pattern)
     required: true
     fallback: regex
@@ -296,13 +356,17 @@ patterns:
     validate: true
     pattern: |
       (function_definition
-        name: (identifier) @name (#match? @name "^(deposit|mint)$")
-        body: (function_body
-          (expression_statement
-            (binary_expression
-              operator: "/"
-              left: (identifier) @assets
-              right: (identifier) @totalSupply))))
+        (identifier) @name
+        (function_body
+          (statement
+            (expression_statement
+              (expression
+                (binary_expression
+                  (expression
+                    (identifier) @assets)
+                  (expression
+                    (identifier) @supply)))))))
+      (#match? @name "^(deposit|mint)$")
     message: Share calculation using totalSupply - vulnerable to first depositor attack
     required: true
     fallback: regex
@@ -314,8 +378,10 @@ patterns:
     validate: true
     pattern: |
       (function_definition
-        name: (identifier) @name (#match? @name "^(bid|placeBid)$")
-        visibility: (visibility) @vis (#eq? @vis "public"))
+        (identifier) @name
+        (visibility) @vis)
+      (#match? @name "^(bid|placeBid)$")
+      (#eq? @vis "public")
     message: Public bid function - vulnerable to front-running, consider commit-reveal scheme
     required: false
     fallback: regex

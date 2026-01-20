@@ -33,8 +33,41 @@ impl SemanticScanner {
         file_path: PathBuf,
     ) -> Result<Vec<Match>> {
         let language = tree_sitter_solidity::LANGUAGE.into();
-        let query = Query::new(&language, &pattern.pattern)
-            .context("Failed to compile tree-sitter query")?;
+
+        // DETAILED ERROR REPORTING
+        let query = match Query::new(&language, &pattern.pattern) {
+            Ok(q) => q,
+            Err(e) => {
+                tracing::error!(
+                    "Query compilation failed for pattern '{}' in template '{}':\n\
+                     Error: {:?}\n\
+                     At row: {}, column: {}\n\
+                     Offset: {}\n\
+                     Query text:\n{}\n\
+                     ---",
+                    pattern.id,
+                    template_id,
+                    e.kind,
+                    e.row,
+                    e.column,
+                    e.offset,
+                    &pattern.pattern
+                );
+
+                let lines: Vec<&str> = pattern.pattern.lines().collect();
+                if (e.row as usize) < lines.len() {
+                    tracing::error!("Error line: {}", lines[e.row as usize]);
+                    tracing::error!("Position:   {}^", " ".repeat(e.column as usize));
+                }
+
+                return Err(anyhow::anyhow!(
+                    "Query error at {}:{} - {:?}",
+                    e.row,
+                    e.column,
+                    e.kind
+                ));
+            }
+        };
 
         let mut cursor = QueryCursor::new();
         let mut matches_iter = cursor.matches(&query, tree.root_node(), source.as_bytes());

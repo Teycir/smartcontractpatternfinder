@@ -21,20 +21,21 @@ patterns:
   - id: external-call-detected
     kind: semantic
     pattern: |
-      (function_call
-        (member_access
-          (identifier) @target
-          (identifier) @method)
-        (#match? @method "^(call|delegatecall|staticcall|transfer|send)$")) @ext_call
+      (call_expression
+        (expression
+          (member_expression
+            (identifier) @target
+            (identifier) @method))) @ext_call
+      (#match? @method "^(call|delegatecall|staticcall|transfer|send)$")
     message: "External call via '@method' detected. Verify state changes occur BEFORE this call (CEI pattern)."
 
   # Semantic: Assignment in function body
   - id: state-assignment-in-function
     kind: semantic
     pattern: |
-      (assignment
-        (identifier) @var
-        (_)) @assign
+      (assignment_expression
+        (expression
+          (identifier) @var)) @assign
     message: "State assignment to '@var'. If this follows an external call, potential reentrancy."
 
   # Regex: call followed by assignment
