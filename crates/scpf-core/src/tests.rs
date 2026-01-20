@@ -199,6 +199,40 @@ fn test_fetcher_unsupported_chain() {
 }
 
 #[test]
+fn test_parse_single_file_source() {
+    let source = "contract Test {}";
+    let parsed = ContractFetcher::parse_source_code(source);
+    assert_eq!(parsed, "contract Test {}");
+}
+
+#[test]
+fn test_parse_multi_file_source() {
+    let source = r##"{"sources":{"Contract.sol":{"content":"contract A {}"},"Library.sol":{"content":"library B {}"}}}"##;
+    let parsed = ContractFetcher::parse_source_code(source);
+    assert!(parsed.contains("// File: Contract.sol"));
+    assert!(parsed.contains("contract A {}"));
+    assert!(parsed.contains("// File: Library.sol"));
+    assert!(parsed.contains("library B {}"));
+}
+
+#[test]
+fn test_parse_double_braced_json() {
+    let source = r##"{{"sources":{"Contract.sol":{"content":"contract A {}"},"Library.sol":{"content":"library B {}"}}}}"##;
+    let parsed = ContractFetcher::parse_source_code(source);
+    assert!(parsed.contains("// File: Contract.sol"));
+    assert!(parsed.contains("contract A {}"));
+    assert!(parsed.contains("// File: Library.sol"));
+    assert!(parsed.contains("library B {}"));
+}
+
+#[test]
+fn test_parse_invalid_json_fallback() {
+    let source = "{invalid json";
+    let parsed = ContractFetcher::parse_source_code(source);
+    assert_eq!(parsed, "{invalid json");
+}
+
+#[test]
 fn test_scanner_deduplication() -> Result<()> {
     let templates = vec![Template {
         id: "template1".to_string(),

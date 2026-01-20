@@ -13,7 +13,7 @@ fn test_severity_serialization() {
     let severity = Severity::High;
     let json = serde_json::to_string(&severity).unwrap();
     assert_eq!(json, "\"high\"");
-    
+
     let deserialized: Severity = serde_json::from_str(&json).unwrap();
     assert_eq!(deserialized, Severity::High);
 }
@@ -32,7 +32,7 @@ patterns:
     pattern: "test"
     message: "Test message"
 "#;
-    
+
     let template: Template = serde_yaml::from_str(yaml).unwrap();
     assert_eq!(template.id, "test");
     assert_eq!(template.severity, Severity::High);
@@ -59,7 +59,7 @@ fn test_match_creation() {
         severity: Severity::Medium,
         message: "Test message".to_string(),
     };
-    
+
     assert_eq!(m.line_number, 42);
     assert_eq!(m.severity, Severity::Medium);
 }
@@ -72,7 +72,7 @@ fn test_scan_result_serialization() {
         matches: vec![],
         scan_time_ms: 100,
     };
-    
+
     let json = serde_json::to_string(&result).unwrap();
     assert!(json.contains("0x1234567890123456789012345678901234567890"));
     assert!(json.contains("ethereum"));

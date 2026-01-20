@@ -1,3 +1,4 @@
+use crate::cli::ScanArgs;
 use anyhow::Result;
 use futures::stream::{self, StreamExt};
 use scpf_core::{Cache, ContractFetcher, Scanner, TemplateLoader};
@@ -5,20 +6,19 @@ use scpf_types::{ApiKeyConfig, ScanResult};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
-use crate::cli::ScanArgs;
 
 pub async fn run(args: ScanArgs) -> Result<()> {
     let templates_dir = args.templates.unwrap_or_else(|| PathBuf::from("templates"));
     let templates = TemplateLoader::load_from_dir(&templates_dir).await?;
-    
+
     if templates.is_empty() {
         anyhow::bail!("No templates found in {:?}", templates_dir);
     }
-    
+
     let scanner = Arc::new(Scanner::new(templates)?);
     let api_keys = ApiKeyConfig::from_env();
     let fetcher = Arc::new(ContractFetcher::new(api_keys)?);
-    
+
     let cache_dir = dirs::cache_dir()
         .map(|d| d.join("scpf"))
         .unwrap_or_else(|| PathBuf::from(".cache"));
@@ -31,11 +31,11 @@ pub async fn run(args: ScanArgs) -> Result<()> {
             let fetcher = Arc::clone(&fetcher);
             let cache = Arc::clone(&cache);
             let address = address.clone();
-            
+
             async move {
                 let start = Instant::now();
                 println!("Scanning {}...", address);
-                
+
                 let cache_key = format!("{}:{}", chain, address);
                 let source = if let Some(cached) = cache.get(&cache_key).await {
                     cached
@@ -44,10 +44,10 @@ pub async fn run(args: ScanArgs) -> Result<()> {
                     cache.set(&cache_key, &src).await?;
                     src
                 };
-                
+
                 let matches = scanner.scan(&source, PathBuf::from(&address))?;
                 let scan_time_ms = start.elapsed().as_millis() as u64;
-                
+
                 Ok::<_, anyhow::Error>(ScanResult {
                     address,
                     chain: chain.to_string(),
@@ -60,7 +60,8 @@ pub async fn run(args: ScanArgs) -> Result<()> {
         .collect::<Vec<_>>()
         .await;
 
-    let scan_results: Vec<ScanResult> = results.into_iter()
+    let scan_results: Vec<ScanResult> = results
+        .into_iter()
         .filter_map(|r| match r {
             Ok(result) => Some(result),
             Err(e) => {
@@ -81,7 +82,12 @@ pub async fn run(args: ScanArgs) -> Result<()> {
 
 fn print_console(results: &[ScanResult]) {
     for result in results {
-        println!("\n{}: Found {} matches ({}ms)", result.address, result.matches.len(), result.scan_time_ms);
+        println!(
+            "\n{}: Found {} matches ({}ms)",
+            result.address,
+            result.matches.len(),
+            result.scan_time_ms
+        );
         for m in &result.matches {
             println!("  [{}:{}] {}", m.line_number, m.column, m.message);
         }
@@ -96,10 +102,10 @@ fn print_json(results: &[ScanResult]) -> Result<()> {
 
 fn print_sarif(results: &[ScanResult]) -> Result<()> {
     let mut runs = Vec::new();
-    
+
     for result in results {
         let mut sarif_results = Vec::new();
-        
+
         for m in &result.matches {
             sarif_results.push(serde_json::json!({
                 "ruleId": m.template_id,
@@ -124,7 +130,7 @@ fn print_sarif(results: &[ScanResult]) -> Result<()> {
                 }]
             }));
         }
-        
+
         runs.push(serde_json::json!({
             "tool": {
                 "driver": {
@@ -135,13 +141,13 @@ fn print_sarif(results: &[ScanResult]) -> Result<()> {
             "results": sarif_results
         }));
     }
-    
+
     let sarif = serde_json::json!({
         "version": "2.1.0",
         "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
         "runs": runs
     });
-    
+
     println!("{}", serde_json::to_string_pretty(&sarif)?);
     Ok(())
 }

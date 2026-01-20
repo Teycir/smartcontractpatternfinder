@@ -1,6 +1,6 @@
-use clap::{Parser, Subcommand, Args, ValueEnum};
-use std::path::PathBuf;
+use clap::{Args, Parser, Subcommand, ValueEnum};
 use scpf_types::Chain;
+use std::path::PathBuf;
 use std::str::FromStr;
 
 #[derive(Parser)]

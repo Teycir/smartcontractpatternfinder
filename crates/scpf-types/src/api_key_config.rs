@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use crate::Chain;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Default)]
 pub struct ApiKeyConfig {

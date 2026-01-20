@@ -1,2 +1,2 @@
-pub mod scan;
 pub mod init;
+pub mod scan;

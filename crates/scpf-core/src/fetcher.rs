@@ -60,12 +60,56 @@ impl ContractFetcher {
             .and_then(|arr| arr.first())
             .context("No result in API response")?;
 
-        let source = result["SourceCode"]
+        let source_code = result["SourceCode"]
             .as_str()
-            .context("Source code not found")?
-            .to_string();
+            .context("Source code not found")?;
 
-        Ok(source)
+        Ok(Self::parse_source_code(source_code))
+    }
+
+    pub fn parse_source_code(source_code: &str) -> String {
+        // Trim whitespace and normalize double-braced JSON
+        let normalized = source_code.trim();
+        let normalized = if normalized.starts_with("{{") && normalized.ends_with("}}") {
+            &normalized[1..normalized.len() - 1]
+        } else {
+            normalized
+        };
+
+        if normalized.starts_with('{') {
+            if let Ok(json) = serde_json::from_str::<Value>(normalized) {
+                // Check for Etherscan-style multi-file JSON structure
+                if json.get("language").is_some() && json.get("sources").is_some() {
+                    if let Some(sources) = json["sources"].as_object() {
+                        let mut combined = String::new();
+                        for (filename, file_obj) in sources {
+                            if let Some(content) = file_obj["content"].as_str() {
+                                combined.push_str(&format!("// File: {}\n", filename));
+                                combined.push_str(content);
+                                combined.push_str("\n\n");
+                            }
+                        }
+                        if !combined.is_empty() {
+                            return combined;
+                        }
+                    }
+                } else if let Some(sources) = json["sources"].as_object() {
+                    // Fallback for simpler multi-file JSON without language field
+                    let mut combined = String::new();
+                    for (filename, file_obj) in sources {
+                        if let Some(content) = file_obj["content"].as_str() {
+                            combined.push_str(&format!("// File: {}\n", filename));
+                            combined.push_str(content);
+                            combined.push_str("\n\n");
+                        }
+                    }
+                    if !combined.is_empty() {
+                        return combined;
+                    }
+                }
+            }
+        }
+        source_code.to_string()
     }
 
     fn build_url(&self, address: &str, chain: Chain) -> Result<String> {
