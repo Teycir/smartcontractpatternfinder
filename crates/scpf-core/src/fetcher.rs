@@ -142,11 +142,23 @@ impl ContractFetcher {
     }
 
     fn build_url_with_key(&self, address: &str, chain: Chain, key: &str) -> Result<String> {
-        Ok(format!(
-            "{}?module=contract&action=getsourcecode&address={}&apikey={}",
-            chain.api_base_url(),
-            address,
-            key
-        ))
+        // ZkSync and Zora don't use v2 API
+        if matches!(chain, Chain::ZkSync | Chain::Zora) {
+            Ok(format!(
+                "{}?module=contract&action=getsourcecode&address={}&apikey={}",
+                chain.api_base_url(),
+                address,
+                key
+            ))
+        } else {
+            // All Etherscan-based chains use v2 API with chainid
+            Ok(format!(
+                "{}?chainid={}&module=contract&action=getsourcecode&address={}&apikey={}",
+                chain.api_base_url(),
+                chain.chain_id(),
+                address,
+                key
+            ))
+        }
     }
 }

@@ -18,6 +18,23 @@ pub enum Chain {
 }
 
 impl Chain {
+    pub fn chain_id(&self) -> u64 {
+        match self {
+            Chain::Ethereum => 1,
+            Chain::Bsc => 56,
+            Chain::Polygon => 137,
+            Chain::Arbitrum => 42161,
+            Chain::Optimism => 10,
+            Chain::Base => 8453,
+            Chain::Avalanche => 43114,
+            Chain::Fantom => 250,
+            Chain::ZkSync => 324,
+            Chain::Linea => 59144,
+            Chain::Scroll => 534352,
+            Chain::Zora => 7777777,
+        }
+    }
+
     pub fn api_base_url(&self) -> &'static str {
         match self {
             Chain::Ethereum => "https://api.etherscan.io/v2/api",
