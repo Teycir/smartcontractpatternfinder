@@ -1,0 +1,63 @@
+id: reentrancy-comprehensive
+name: Comprehensive Reentrancy Detection
+description: |
+  Multi-layer reentrancy detection combining:
+  - Pattern matching (external calls)
+  - State mutation tracking (CEI violations)
+  - Data flow analysis (taint tracking)
+  - Balance equality checks
+severity: critical
+tags:
+  - security
+  - reentrancy
+  - SWC-107
+  - composed
+
+composition:
+  type: comprehensive
+  base_templates:
+    - reentrancy-state-change-v4
+    - unchecked-return-value-v4
+    - strict-balance-equality-v4
+  
+  rules:
+    - type: sequential
+      templates:
+        - external-call-pattern
+        - state-mutation-pattern
+      max_distance: 50
+      severity: critical
+    
+    - type: all_of
+      templates:
+        - external-call-with-value
+        - balance-mapping-write
+        - no-reentrancy-guard
+      severity: critical
+    
+    - type: and_not
+      required: external-call-pattern
+      excluded: nonreentrant-modifier
+      severity: high
+
+scoring:
+  pattern_scores:
+    external-call-with-value: 40
+    balance-mapping-write: 30
+    no-reentrancy-guard: 20
+    unchecked-return: 10
+  thresholds:
+    critical: 80
+    high: 50
+    medium: 30
+
+patterns:
+  - id: external-call-pattern
+    kind: regex
+    pattern: '\.(call|delegatecall|send)\s*[\({]'
+    message: "External call detected"
+  
+  - id: cei-violation-regex
+    kind: regex
+    pattern: '\.call\{[^}]*value[^}]*\}[^;]*;[\s\S]{0,200}(balances|balance)\s*\[[^\]]+\]\s*[-=]'
+    message: "Classic reentrancy pattern"

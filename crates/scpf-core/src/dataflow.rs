@@ -141,7 +141,13 @@ impl DataFlowAnalyzer {
                                     .map(|t| t.propagation_path.clone())
                                     .unwrap_or_default();
                                 path.push(target.clone());
-                                self.taint_map.insert(target, TaintInfo { sources: new_sources, propagation_path: path });
+                                self.taint_map.insert(
+                                    target,
+                                    TaintInfo {
+                                        sources: new_sources,
+                                        propagation_path: path,
+                                    },
+                                );
                                 changed = true;
                             }
                         }
@@ -158,7 +164,9 @@ impl DataFlowAnalyzer {
                 if let Some(callee) = child.child(0) {
                     let func_text = callee.utf8_text(source.as_bytes()).unwrap_or("");
                     let sink = match func_text {
-                        s if s.contains("selfdestruct") || s.contains("suicide") => Some(TaintSink::Selfdestruct),
+                        s if s.contains("selfdestruct") || s.contains("suicide") => {
+                            Some(TaintSink::Selfdestruct)
+                        }
                         s if s.contains("delegatecall") => Some(TaintSink::DelegateCall),
                         s if s.contains(".call") => Some(TaintSink::Call),
                         _ => None,
@@ -172,7 +180,10 @@ impl DataFlowAnalyzer {
                                         source: src.clone(),
                                         sink: sink_type.clone(),
                                         path: taint.propagation_path.clone(),
-                                        location: (child.start_position().row + 1, child.start_position().column),
+                                        location: (
+                                            child.start_position().row + 1,
+                                            child.start_position().column,
+                                        ),
                                         severity: self.calculate_severity(src, &sink_type),
                                     });
                                 }
@@ -317,15 +328,23 @@ impl StateMutationTracker {
         for child in node.children(&mut cursor) {
             if child.kind() == "state_variable_declaration" {
                 if let Some(name_node) = child.child_by_field_name("name") {
-                    let name = name_node.utf8_text(source.as_bytes()).unwrap_or("").to_string();
-                    let var_type = child.child_by_field_name("type")
+                    let name = name_node
+                        .utf8_text(source.as_bytes())
+                        .unwrap_or("")
+                        .to_string();
+                    let var_type = child
+                        .child_by_field_name("type")
                         .and_then(|t| t.utf8_text(source.as_bytes()).ok())
-                        .unwrap_or("unknown").to_string();
-                    self.state_variables.insert(name.clone(), StateVariable {
-                        name,
-                        var_type,
-                        declaration_line: child.start_position().row + 1,
-                    });
+                        .unwrap_or("unknown")
+                        .to_string();
+                    self.state_variables.insert(
+                        name.clone(),
+                        StateVariable {
+                            name,
+                            var_type,
+                            declaration_line: child.start_position().row + 1,
+                        },
+                    );
                 }
             }
             self.collect_state_variables(child, source);
@@ -336,9 +355,11 @@ impl StateMutationTracker {
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
             if child.kind() == "function_definition" {
-                let func_name = child.child_by_field_name("name")
+                let func_name = child
+                    .child_by_field_name("name")
                     .and_then(|n| n.utf8_text(source.as_bytes()).ok())
-                    .unwrap_or("anonymous").to_string();
+                    .unwrap_or("anonymous")
+                    .to_string();
                 self.current_function = Some(func_name.clone());
                 self.find_external_calls(child, source);
                 self.find_mutations(child, source);
@@ -354,9 +375,15 @@ impl StateMutationTracker {
         for child in node.children(&mut cursor) {
             if child.kind() == "function_call" {
                 let text = child.utf8_text(source.as_bytes()).unwrap_or("");
-                if text.contains(".call") || text.contains(".delegatecall") || text.contains(".send") {
+                if text.contains(".call")
+                    || text.contains(".delegatecall")
+                    || text.contains(".send")
+                {
                     let line = child.start_position().row + 1;
-                    self.external_calls.entry(func_name.clone()).or_insert_with(Vec::new).push(line);
+                    self.external_calls
+                        .entry(func_name.clone())
+                        .or_insert_with(Vec::new)
+                        .push(line);
                 }
             }
             self.find_external_calls(child, source);
@@ -425,13 +452,18 @@ impl StateMutationTracker {
     fn correlate_calls_and_mutations(&mut self) {
         for mutation in &mut self.mutations {
             if let Some(call_lines) = self.external_calls.get(&mutation.function_name) {
-                mutation.after_external_call = call_lines.iter().any(|&call_line| mutation.line > call_line);
+                mutation.after_external_call = call_lines
+                    .iter()
+                    .any(|&call_line| mutation.line > call_line);
             }
         }
     }
 
     pub fn get_cei_violations(&self) -> Vec<&MutationEvent> {
-        self.mutations.iter().filter(|m| m.after_external_call).collect()
+        self.mutations
+            .iter()
+            .filter(|m| m.after_external_call)
+            .collect()
     }
 }
 

@@ -6,6 +6,7 @@ pub mod cache;
 pub mod regex_validator;
 pub mod zeroday;
 pub mod dataflow;
+pub mod composition;
 
 pub use scanner::Scanner;
 pub use semantic::SemanticScanner;
@@ -15,6 +16,7 @@ pub use cache::Cache;
 pub use regex_validator::RegexValidator;
 pub use zeroday::ZeroDayFetcher;
 pub use dataflow::DataFlowAnalysis;
+pub use composition::TemplateComposer;
 
 #[cfg(test)]
 mod tests;
