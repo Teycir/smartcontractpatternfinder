@@ -1,4 +1,4 @@
-use scpf_types::{Pattern, Severity, Template};
+use scpf_types::{Severity, Template};
 use std::collections::HashMap;
 
 /// Template composition allows combining multiple templates
@@ -54,7 +54,7 @@ impl TemplateComposer {
     }
 
     /// Create a composed template from YAML
-    pub fn compose_from_yaml(&mut self, yaml: &str) -> Result<ComposedTemplate, String> {
+    pub fn compose_from_yaml(&mut self, _yaml: &str) -> Result<ComposedTemplate, String> {
         // Parse YAML and create composition
         // This is a simplified version - full implementation would use serde_yaml
         Ok(ComposedTemplate {

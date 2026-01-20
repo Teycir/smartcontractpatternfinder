@@ -1,0 +1,18 @@
+id: vyper-access-control
+name: Vyper Access Control Issues
+description: Detects missing access control in Vyper contracts
+severity: high
+tags:
+  - vyper
+  - access-control
+  - security
+patterns:
+  - id: unprotected-external
+    pattern: '@external\s+def\s+(?!__init__|__default__)\w+.*:\s*\n(?!.*assert\s+msg\.sender)'
+    message: External function without msg.sender check - add access control
+  - id: missing-owner-check
+    pattern: 'self\.owner\s*=\s*msg\.sender'
+    message: Owner assignment detected - ensure proper initialization and transfer logic
+  - id: selfdestruct-usage
+    pattern: 'selfdestruct\('
+    message: selfdestruct detected - ensure proper access control

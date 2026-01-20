@@ -117,16 +117,24 @@ pub async fn registry() -> Result<()> {
 
     println!("\n{} Aliases:\n", "🔗".cyan());
     for (alias, collections) in &registry.aliases {
-        println!("  {} {} → {}", "•".cyan(), alias.bold(), collections.join(", "));
+        println!(
+            "  {} {} → {}",
+            "•".cyan(),
+            alias.bold(),
+            collections.join(", ")
+        );
     }
 
-    println!("\n{} Install: scpf templates install <collection>", "→".cyan());
+    println!(
+        "\n{} Install: scpf templates install <collection>",
+        "→".cyan()
+    );
     Ok(())
 }
 
 pub async fn install(collection: &str, templates_dir: Option<PathBuf>) -> Result<()> {
     let dir = templates_dir.unwrap_or_else(|| PathBuf::from("templates"));
-    
+
     let registry_path = PathBuf::from("registry.yaml");
     if !registry_path.exists() {
         anyhow::bail!("Registry file not found. Run 'scpf init' first.");
@@ -143,14 +151,25 @@ pub async fn install(collection: &str, templates_dir: Option<PathBuf>) -> Result
         anyhow::bail!("Collection '{}' not found. Run 'scpf templates registry' to see available collections.", collection);
     };
 
-    println!("{}  Installing {} collection(s)...", "📦".cyan(), collections_to_install.len());
+    println!(
+        "{}  Installing {} collection(s)...",
+        "📦".cyan(),
+        collections_to_install.len()
+    );
 
     for coll_name in &collections_to_install {
-        let coll = registry.collections.get(coll_name)
+        let coll = registry
+            .collections
+            .get(coll_name)
             .ok_or_else(|| anyhow::anyhow!("Collection '{}' not found", coll_name))?;
-        
-        println!("\n{}  {} ({} templates)", "→".cyan(), coll_name.bold(), coll.templates.len());
-        
+
+        println!(
+            "\n{}  {} ({} templates)",
+            "→".cyan(),
+            coll_name.bold(),
+            coll.templates.len()
+        );
+
         for template_name in &coll.templates {
             let template_path = dir.join(template_name);
             if template_path.exists() {
@@ -161,22 +180,36 @@ pub async fn install(collection: &str, templates_dir: Option<PathBuf>) -> Result
         }
     }
 
-    println!("\n{}  Note: Template download from remote registries coming soon!", "ℹ".blue());
-    println!("{}  Currently using local templates from {:?}", "→".cyan(), dir);
-    
+    println!(
+        "\n{}  Note: Template download from remote registries coming soon!",
+        "ℹ".blue()
+    );
+    println!(
+        "{}  Currently using local templates from {:?}",
+        "→".cyan(),
+        dir
+    );
+
     Ok(())
 }
 
 pub async fn update(templates_dir: Option<PathBuf>) -> Result<()> {
     let dir = templates_dir.unwrap_or_else(|| PathBuf::from("templates"));
-    
+
     println!("{}  Checking for template updates...", "🔄".cyan());
-    
+
     let templates = TemplateLoader::load_from_dir(&dir).await?;
     println!("{}  Found {} local templates", "✓".green(), templates.len());
-    
-    println!("\n{}  Note: Automatic updates from remote registries coming soon!", "ℹ".blue());
-    println!("{}  For now, manually update templates in {:?}", "→".cyan(), dir);
-    
+
+    println!(
+        "\n{}  Note: Automatic updates from remote registries coming soon!",
+        "ℹ".blue()
+    );
+    println!(
+        "{}  For now, manually update templates in {:?}",
+        "→".cyan(),
+        dir
+    );
+
     Ok(())
 }

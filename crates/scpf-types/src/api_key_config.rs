@@ -36,6 +36,24 @@ impl ApiKeyConfig {
         if let Ok(key) = std::env::var("BASESCAN_API_KEY") {
             config.keys.insert(Chain::Base, key);
         }
+        if let Ok(key) = std::env::var("SNOWTRACE_API_KEY") {
+            config.keys.insert(Chain::Avalanche, key);
+        }
+        if let Ok(key) = std::env::var("FTMSCAN_API_KEY") {
+            config.keys.insert(Chain::Fantom, key);
+        }
+        if let Ok(key) = std::env::var("ZKSYNC_API_KEY") {
+            config.keys.insert(Chain::ZkSync, key);
+        }
+        if let Ok(key) = std::env::var("LINEASCAN_API_KEY") {
+            config.keys.insert(Chain::Linea, key);
+        }
+        if let Ok(key) = std::env::var("SCROLLSCAN_API_KEY") {
+            config.keys.insert(Chain::Scroll, key);
+        }
+        if let Ok(key) = std::env::var("ZORASCAN_API_KEY") {
+            config.keys.insert(Chain::Zora, key);
+        }
         config
     }
 

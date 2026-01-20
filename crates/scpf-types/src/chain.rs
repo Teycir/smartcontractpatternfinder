@@ -9,6 +9,12 @@ pub enum Chain {
     Arbitrum,
     Optimism,
     Base,
+    Avalanche,
+    Fantom,
+    ZkSync,
+    Linea,
+    Scroll,
+    Zora,
 }
 
 impl Chain {
@@ -20,6 +26,12 @@ impl Chain {
             Chain::Arbitrum => "https://api.arbiscan.io/api",
             Chain::Optimism => "https://api-optimistic.etherscan.io/api",
             Chain::Base => "https://api.basescan.org/api",
+            Chain::Avalanche => "https://api.snowtrace.io/api",
+            Chain::Fantom => "https://api.ftmscan.com/api",
+            Chain::ZkSync => "https://api-era.zksync.network/api",
+            Chain::Linea => "https://api.lineascan.build/api",
+            Chain::Scroll => "https://api.scrollscan.com/api",
+            Chain::Zora => "https://explorer.zora.energy/api",
         }
     }
 
@@ -31,6 +43,12 @@ impl Chain {
             Chain::Arbitrum => "arbitrum",
             Chain::Optimism => "optimism",
             Chain::Base => "base",
+            Chain::Avalanche => "avalanche",
+            Chain::Fantom => "fantom",
+            Chain::ZkSync => "zksync",
+            Chain::Linea => "linea",
+            Chain::Scroll => "scroll",
+            Chain::Zora => "zora",
         }
     }
 }
@@ -52,6 +70,12 @@ impl FromStr for Chain {
             "arbitrum" | "arb" => Ok(Chain::Arbitrum),
             "optimism" | "op" => Ok(Chain::Optimism),
             "base" => Ok(Chain::Base),
+            "avalanche" | "avax" => Ok(Chain::Avalanche),
+            "fantom" | "ftm" => Ok(Chain::Fantom),
+            "zksync" | "zk" => Ok(Chain::ZkSync),
+            "linea" => Ok(Chain::Linea),
+            "scroll" => Ok(Chain::Scroll),
+            "zora" => Ok(Chain::Zora),
             _ => Err(format!("Unsupported chain: {}", s)),
         }
     }

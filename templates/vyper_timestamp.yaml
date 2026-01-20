@@ -1,0 +1,15 @@
+id: vyper-timestamp-dependence
+name: Vyper Timestamp Dependence
+description: Detects reliance on block.timestamp in Vyper contracts
+severity: low
+tags:
+  - vyper
+  - timestamp
+  - weak-randomness
+patterns:
+  - id: timestamp-comparison
+    pattern: 'block\.timestamp\s*[<>=!]+'
+    message: block.timestamp used in comparison - miners can manipulate within ~15 seconds
+  - id: timestamp-arithmetic
+    pattern: 'block\.timestamp\s*[\+\-\*\/]'
+    message: Arithmetic with block.timestamp - ensure tolerance for miner manipulation

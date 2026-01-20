@@ -3,9 +3,11 @@ use std::path::PathBuf;
 
 mod chain;
 mod api_key_config;
+mod language;
 
 pub use chain::Chain;
 pub use api_key_config::ApiKeyConfig;
+pub use language::Language;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Template {

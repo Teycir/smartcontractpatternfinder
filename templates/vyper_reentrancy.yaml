@@ -1,0 +1,18 @@
+id: vyper-reentrancy
+name: Vyper Reentrancy Vulnerability
+description: Detects reentrancy patterns in Vyper contracts (raw_call, send, transfer)
+severity: high
+tags:
+  - vyper
+  - reentrancy
+  - security
+patterns:
+  - id: raw-call-usage
+    pattern: 'raw_call\('
+    message: raw_call detected - potential reentrancy if state changes after call
+  - id: send-usage
+    pattern: 'send\([^,]+,\s*\w+\)'
+    message: send() with value detected - check for state changes after call
+  - id: state-change-after-call
+    pattern: 'self\.\w+\s*=.*\n.*raw_call|raw_call.*\n.*self\.\w+\s*='
+    message: State change near external call - potential reentrancy
