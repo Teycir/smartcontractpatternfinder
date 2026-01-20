@@ -104,18 +104,14 @@ impl TemplateComposer {
         matches: &HashMap<String, Vec<usize>>,
         scorer: &RiskScorer,
     ) -> u32 {
-        let base_score = match composition.severity {
-            Severity::Critical => 30,
-            Severity::High => 15,
-            Severity::Medium => 7,
-            Severity::Low => 3,
-            Severity::Info => 1,
-        };
+        // Use RiskScorer to get the base score for this severity level
+        let base_score = scorer.score_for_severity(composition.severity);
 
         let match_count: usize = matches.values().map(|v| v.len()).sum();
-        let multiplier = (match_count as f32).sqrt().ceil() as u32;
+        // Ensure multiplier is always >= 1.0 so result never becomes 0
+        let multiplier = ((match_count as f32).sqrt().ceil()).max(1.0) as u32;
 
-        base_score * multiplier
+        base_score.saturating_mul(multiplier)
     }
 
     fn evaluate_rule(&self, rule: &CompositionRule, matches: &HashMap<String, Vec<usize>>) -> bool {

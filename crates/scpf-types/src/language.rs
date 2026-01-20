@@ -6,8 +6,8 @@ pub enum Language {
 
 impl Language {
     pub fn detect(source: &str) -> Self {
-        if source.contains("@version") 
-            || source.contains("@external") 
+        if source.contains("@version")
+            || source.contains("@external")
             || source.contains("@internal")
             || source.contains("def ")
             || source.contains("event ") && source.contains(":")

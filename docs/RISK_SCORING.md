@@ -16,10 +16,32 @@ The risk scoring system provides weighted vulnerability assessment for smart con
 
 ```rust
 use scpf_core::{RiskScorer, Scanner};
-use scpf_types::ScanResult;
+use scpf_types::{Template, Pattern, Severity, ScanResult};
+use std::path::PathBuf;
 
+// Create a scanner with templates
+let templates = vec![
+    Template {
+        id: "reentrancy-v4".to_string(),
+        name: "Reentrancy Detection".to_string(),
+        description: "Detects reentrancy vulnerabilities".to_string(),
+        tags: vec!["reentrancy".to_string()],
+        patterns: vec![
+            Pattern {
+                id: "external-call".to_string(),
+                pattern: r"call\s*\{".to_string(),
+                message: "External call detected".to_string(),
+            }
+        ],
+        severity: Severity::High,
+    }
+];
+
+let scanner = Scanner::new(templates)?;
+let contract = "pragma solidity ^0.8.0;\ncontract Test { function test() { call{}(address(0)); } }";
+
+let result: ScanResult = scanner.scan(contract, PathBuf::from("test.sol"))?;
 let scorer = RiskScorer::with_defaults();
-let result: ScanResult = scanner.scan(contract)?;
 let assessment = scorer.assess(&result);
 
 println!("Risk Score: {}", assessment.total_score);
@@ -52,11 +74,24 @@ let scorer = RiskScorer::new(config);
 
 ```rust
 use scpf_core::{TemplateComposer, RiskScorer};
+use scpf_types::{Severity, ComposedTemplate, CompositionRule};
 use std::collections::HashMap;
+
+// Create a reentrancy composition
+let composition = ComposedTemplate {
+    id: "reentrancy-comprehensive".to_string(),
+    name: "Comprehensive Reentrancy Detection".to_string(),
+    description: "Combines external calls with state mutations".to_string(),
+    severity: Severity::Critical,
+    base_templates: vec![],
+    composition_rules: vec![CompositionRule::Sequential {
+        templates: vec!["external-call".to_string(), "state-mutation".to_string()],
+        max_distance: 50,
+    }],
+};
 
 let composer = TemplateComposer::new();
 let scorer = RiskScorer::with_defaults();
-let composition = create_reentrancy_composition();
 
 let mut matches = HashMap::new();
 matches.insert("external-call".to_string(), vec![10, 20]);
@@ -131,9 +166,12 @@ scpf scan --output json | jq '.risk_assessment'
 
 ## Example Output
 
+The following example shows a complete risk assessment with composition bonuses applied.
+The `total_score` is calculated as the sum of `severity_breakdown` values (45) plus the `composition_score` (10):
+
 ```json
 {
-  "total_score": 45,
+  "total_score": 55,
   "risk_level": "Critical",
   "severity_breakdown": {
     "Critical": 30,

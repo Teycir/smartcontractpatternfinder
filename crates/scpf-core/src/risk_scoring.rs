@@ -87,6 +87,15 @@ impl RiskScorer {
         Self::new(RiskConfig::default())
     }
 
+    /// Get the base score for a given severity level
+    pub fn score_for_severity(&self, severity: Severity) -> u32 {
+        self.config
+            .severity_weights
+            .get(&severity)
+            .copied()
+            .unwrap_or(1)
+    }
+
     /// Calculate risk assessment for scan results
     pub fn assess(&self, result: &ScanResult) -> RiskAssessment {
         let mut severity_breakdown = HashMap::new();
@@ -108,13 +117,19 @@ impl RiskScorer {
                 .unwrap_or(1.0);
             let score = (base_score as f32 * multiplier) as u32;
 
-            total_score += score;
-            *severity_breakdown.entry(m.severity).or_insert(0) += score;
-            *pattern_breakdown.entry(m.pattern_id.clone()).or_insert(0) += score;
+            total_score = total_score.saturating_add(score);
+            severity_breakdown
+                .entry(m.severity)
+                .and_modify(|v: &mut u32| *v = v.saturating_add(score))
+                .or_insert(score);
+            pattern_breakdown
+                .entry(m.pattern_id.clone())
+                .and_modify(|v: &mut u32| *v = v.saturating_add(score))
+                .or_insert(score);
         }
 
         let composition_score = self.calculate_composition_bonus(&result.matches);
-        total_score += composition_score;
+        total_score = total_score.saturating_add(composition_score);
 
         let risk_level = self.determine_risk_level(total_score);
         let recommendations =
@@ -149,8 +164,16 @@ impl RiskScorer {
         bonus
     }
 
+    /// Check if a pattern exists by exact ID match.
+    /// Returns true only if pattern_id exactly equals m.pattern_id.
     fn has_pattern(&self, matches: &[Match], pattern_id: &str) -> bool {
-        matches.iter().any(|m| m.pattern_id.contains(pattern_id))
+        matches.iter().any(|m| m.pattern_id == pattern_id)
+    }
+
+    /// Check if a pattern exists in the pattern breakdown by substring matching.
+    /// Used for recommendation generation to match patterns by family.
+    fn has_pattern_in_map(&self, patterns: &HashMap<String, u32>, pattern_id: &str) -> bool {
+        patterns.keys().any(|p| p.contains(pattern_id))
     }
 
     fn determine_risk_level(&self, score: u32) -> RiskLevel {
@@ -161,6 +184,8 @@ impl RiskScorer {
         } else if score < self.config.thresholds.medium {
             RiskLevel::Medium
         } else if score < self.config.thresholds.high {
+            RiskLevel::High
+        } else if score < self.config.thresholds.critical {
             RiskLevel::High
         } else {
             RiskLevel::Critical
@@ -182,11 +207,11 @@ impl RiskScorer {
             recs.push("High severity issues require immediate attention.".to_string());
         }
 
-        if patterns.contains_key("reentrancy") {
+        if self.has_pattern_in_map(patterns, "reentrancy") {
             recs.push("Implement checks-effects-interactions pattern.".to_string());
         }
 
-        if patterns.contains_key("access-control") {
+        if self.has_pattern_in_map(patterns, "access-control") {
             recs.push("Add proper access control modifiers.".to_string());
         }
 
