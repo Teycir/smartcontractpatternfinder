@@ -1,6 +1,10 @@
 # Smart Contract Pattern Finder (SCPF)
 
-<img src="assets/scpf_banner.png" width="60%" alt="Smart Contract Pattern Finder Banner" />
+<!-- markdownlint-disable MD033 -->
+<div align="center">
+  <img src="assets/scpf_banner.png" width="60%" alt="Smart Contract Pattern Finder Banner" style="border-radius: 10px; box-shadow: 0 0 20px rgba(0, 255, 255, 0.2);" />
+</div>
+<!-- markdownlint-enable MD033 -->
 
 🔍 High-performance tool for detecting security vulnerabilities and patterns in smart contracts across multiple blockchains.
 
@@ -18,21 +22,39 @@
 
 ## 📑 Table of Contents
 
-- [Features](#-features)
-- [Use Cases](#-use-cases)
-- [Quick Start](#-quick-start)
-- [Template Example](#-template-example)
-- [Architecture](#️-architecture)
-- [CLI Commands](#️-cli-commands)
-- [Supported Chains](#-supported-chains)
-- [Configuration](#-configuration)
-- [Output Formats](#-output-formats)
-- [Development](#-development)
-- [Creating Templates](#-creating-templates)
-- [Contributing](#-contributing)
-- [License](#-license)
-- [Author](#-author)
-- [Links](#-links)
+- [Smart Contract Pattern Finder (SCPF)](#smart-contract-pattern-finder-scpf)
+  - [📑 Table of Contents](#-table-of-contents)
+  - [✨ Features](#-features)
+  - [💡 Use Cases](#-use-cases)
+    - [Security Auditing](#security-auditing)
+    - [DeFi Research](#defi-research)
+    - [Bug Bounty Hunting](#bug-bounty-hunting)
+    - [Development \& CI/CD](#development--cicd)
+    - [Education \& Training](#education--training)
+  - [🚀 Quick Start](#-quick-start)
+    - [How It Works](#how-it-works)
+    - [Installation](#installation)
+    - [Initialize Project](#initialize-project)
+    - [Scan a Contract](#scan-a-contract)
+  - [📋 Template Example](#-template-example)
+  - [🏗️ Architecture](#️-architecture)
+    - [Module Overview](#module-overview)
+  - [🛠️ CLI Commands](#️-cli-commands)
+    - [`scpf scan`](#scpf-scan)
+    - [`scpf init`](#scpf-init)
+  - [🎯 Supported Chains](#-supported-chains)
+  - [🔧 Configuration](#-configuration)
+    - [Getting API Keys](#getting-api-keys)
+  - [📊 Output Formats](#-output-formats)
+  - [🧪 Development](#-development)
+  - [📝 Creating Templates](#-creating-templates)
+    - [How Templates Work](#how-templates-work)
+    - [Creating a Template](#creating-a-template)
+  - [🤝 Contributing](#-contributing)
+    - [Contribution Guidelines](#contribution-guidelines)
+  - [📄 License](#-license)
+  - [👤 Author](#-author)
+  - [🔗 Links](#-links)
 
 ---
 
