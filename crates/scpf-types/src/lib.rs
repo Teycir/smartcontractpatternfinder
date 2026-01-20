@@ -22,6 +22,16 @@ pub struct Pattern {
     pub id: String,
     pub pattern: String,
     pub message: String,
+    #[serde(default)]
+    pub kind: PatternKind,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum PatternKind {
+    #[default]
+    Regex,
+    Semantic,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
@@ -45,6 +55,10 @@ pub struct Match {
     pub context: String,
     pub severity: Severity,
     pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start_byte: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end_byte: Option<usize>,
 }
 
 #[derive(Debug, Clone, Serialize)]

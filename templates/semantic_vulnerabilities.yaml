@@ -1,0 +1,48 @@
+id: semantic-vulnerabilities
+name: Semantic Vulnerability Detection
+description: AST-based detection of smart contract vulnerabilities using tree-sitter
+severity: high
+tags:
+  - security
+  - semantic
+  - ast-analysis
+patterns:
+  - id: external-call-detection
+    kind: semantic
+    pattern: |
+      (call_expression
+        function: (member_expression
+          property: (identifier) @call (#eq? @call "call")))
+    message: External call detected - potential reentrancy risk
+
+  - id: delegatecall-usage
+    kind: semantic
+    pattern: |
+      (call_expression
+        function: (member_expression
+          property: (identifier) @delegatecall (#eq? @delegatecall "delegatecall")))
+    message: Delegatecall usage detected - verify target contract safety
+
+  - id: tx-origin-auth
+    kind: semantic
+    pattern: |
+      (member_expression
+        object: (identifier) @tx (#eq? @tx "tx")
+        property: (identifier) @origin (#eq? @origin "origin"))
+    message: tx.origin used for authentication - use msg.sender instead
+
+  - id: selfdestruct-usage
+    kind: semantic
+    pattern: |
+      (call_expression
+        function: (identifier) @selfdestruct (#eq? @selfdestruct "selfdestruct"))
+    message: selfdestruct usage detected - ensure proper access control
+
+  - id: unchecked-low-level-call
+    kind: semantic
+    pattern: |
+      (expression_statement
+        (call_expression
+          function: (member_expression
+            property: (identifier) @call (#match? @call "^(call|delegatecall|staticcall)$"))))
+    message: Unchecked low-level call - verify return value is checked

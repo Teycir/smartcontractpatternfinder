@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
-pub async fn run(mut args: ScanArgs) -> Result<()> {
+pub async fn run(args: ScanArgs) -> Result<()> {
     // Auto-detect if no addresses provided
     if args.addresses.is_empty() {
         println!("{}  No addresses provided, checking for local contracts...", "🔍".cyan());
@@ -38,7 +38,7 @@ pub async fn run(mut args: ScanArgs) -> Result<()> {
         println!("{}  Cache enabled", "📦".cyan());
     }
 
-    let scanner = Arc::new(Scanner::new(templates)?);
+    let scanner = Arc::new(tokio::sync::Mutex::new(Scanner::new(templates)?));
     let api_keys = ApiKeyConfig::from_env();
     let fetcher = Arc::new(ContractFetcher::new(api_keys)?);
 
@@ -90,7 +90,7 @@ pub async fn run(mut args: ScanArgs) -> Result<()> {
                     }
                 };
 
-                let matches = scanner.scan(&source, PathBuf::from(&address))?;
+                let matches = scanner.lock().await.scan(&source, PathBuf::from(&address))?;
                 let scan_time_ms = start.elapsed().as_millis() as u64;
                 pb.inc(1);
 

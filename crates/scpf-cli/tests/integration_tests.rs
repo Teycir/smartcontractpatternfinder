@@ -68,7 +68,7 @@ patterns:
         .arg(&templates_dir)
         .assert()
         .success()
-        .stdout(predicate::str::contains("Scanning"));
+        .stdout(predicate::str::contains("Loaded 1 templates"));
 }
 
 #[test]

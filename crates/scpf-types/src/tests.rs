@@ -58,6 +58,8 @@ fn test_match_creation() {
         context: "context".to_string(),
         severity: Severity::Medium,
         message: "Test message".to_string(),
+        start_byte: None,
+        end_byte: None,
     };
 
     assert_eq!(m.line_number, 42);

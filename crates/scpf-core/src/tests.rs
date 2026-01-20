@@ -1,7 +1,7 @@
 use super::*;
 use std::path::PathBuf;
 use tempfile::tempdir;
-use scpf_types::{ApiKeyConfig, Chain, Pattern, Template, Severity};
+use scpf_types::{ApiKeyConfig, Chain, Pattern, PatternKind, Template, Severity};
 use anyhow::Result;
 
 #[tokio::test]
@@ -44,11 +44,12 @@ fn test_scanner_basic_match() -> Result<()> {
             id: "test-pattern".to_string(),
             pattern: "eval\\(".to_string(),
             message: "Avoid eval".to_string(),
+            kind: PatternKind::Regex,
         }],
         severity: Severity::High,
     }];
     
-    let scanner = Scanner::new(templates)?;
+    let mut scanner = Scanner::new(templates)?;
     let source = "function test() { eval(input); }";
     let matches = scanner.scan(source, PathBuf::from("test.sol"))?;
     
@@ -70,11 +71,12 @@ fn test_scanner_multiline() -> Result<()> {
             id: "multi".to_string(),
             pattern: "A.*B".to_string(),
             message: "Multiline match".to_string(),
+            kind: PatternKind::Regex,
         }],
         severity: Severity::Medium,
     }];
     
-    let scanner = Scanner::new(templates)?;
+    let mut scanner = Scanner::new(templates)?;
     let source = "A\n\nB";
     let matches = scanner.scan(source, PathBuf::from("test.sol"))?;
     
@@ -94,11 +96,12 @@ fn test_scanner_line_numbers() -> Result<()> {
             id: "pattern".to_string(),
             pattern: "test".to_string(),
             message: "Found test".to_string(),
+            kind: PatternKind::Regex,
         }],
         severity: Severity::Low,
     }];
     
-    let scanner = Scanner::new(templates)?;
+    let mut scanner = Scanner::new(templates)?;
     let source = "line1\nline2 test\nline3 test";
     let matches = scanner.scan(source, PathBuf::from("test.sol"))?;
     
@@ -119,11 +122,12 @@ fn test_scanner_no_match() -> Result<()> {
             id: "pattern".to_string(),
             pattern: "nonexistent".to_string(),
             message: "Should not match".to_string(),
+            kind: PatternKind::Regex,
         }],
         severity: Severity::Low,
     }];
     
-    let scanner = Scanner::new(templates)?;
+    let mut scanner = Scanner::new(templates)?;
     let source = "function test() { return 42; }";
     let matches = scanner.scan(source, PathBuf::from("test.sol"))?;
     
@@ -142,6 +146,7 @@ fn test_scanner_invalid_regex() {
             id: "bad".to_string(),
             pattern: "[".to_string(),
             message: "Invalid".to_string(),
+            kind: PatternKind::Regex,
         }],
         severity: Severity::Low,
     }];
@@ -244,17 +249,19 @@ fn test_scanner_deduplication() -> Result<()> {
                 id: "pattern1".to_string(),
                 pattern: "test".to_string(),
                 message: "Found test".to_string(),
+                kind: PatternKind::Regex,
             },
             Pattern {
                 id: "pattern2".to_string(),
                 pattern: "test".to_string(),
                 message: "Found test again".to_string(),
+                kind: PatternKind::Regex,
             },
         ],
         severity: Severity::Low,
     }];
     
-    let scanner = Scanner::new(templates)?;
+    let mut scanner = Scanner::new(templates)?;
     let source = "test";
     let matches = scanner.scan(source, PathBuf::from("test.sol"))?;
     
@@ -277,11 +284,12 @@ fn test_scanner_large_match_context() -> Result<()> {
             id: "pattern".to_string(),
             pattern: "A+".to_string(),
             message: "Long match".to_string(),
+            kind: PatternKind::Regex,
         }],
         severity: Severity::Low,
     }];
     
-    let scanner = Scanner::new(templates)?;
+    let mut scanner = Scanner::new(templates)?;
     let long_match = "A".repeat(250);
     let source = format!("prefix {}suffix", long_match);
     let matches = scanner.scan(&source, PathBuf::from("test.sol"))?;

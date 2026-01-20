@@ -1,9 +1,10 @@
 use anyhow::Result;
 use regex::RegexBuilder;
-use scpf_types::{Match, Pattern, Template};
+use scpf_types::{Match, Pattern, PatternKind, Template};
 use std::path::PathBuf;
 use tracing::warn;
 use crate::regex_validator::RegexValidator;
+use crate::semantic::SemanticScanner;
 
 struct CompiledPattern {
     regex: regex::Regex,
@@ -18,18 +19,31 @@ struct CompiledTemplate {
 
 pub struct Scanner {
     templates: Vec<CompiledTemplate>,
+    semantic_scanner: Option<SemanticScanner>,
 }
 
 impl Scanner {
     pub fn new(templates: Vec<Template>) -> Result<Self> {
         let mut compiled_templates = Vec::with_capacity(templates.len());
         let mut pattern_index = 0u32;
+        let mut needs_semantic = false;
         
         for template in templates {
             let pattern_count = template.patterns.len();
             let mut compiled_patterns = Vec::with_capacity(pattern_count);
             
             for pattern in &template.patterns {
+                if pattern.kind == PatternKind::Semantic {
+                    needs_semantic = true;
+                    compiled_patterns.push(CompiledPattern {
+                        regex: RegexBuilder::new(".*").build().unwrap(),
+                        pattern: pattern.clone(),
+                        index: pattern_index,
+                    });
+                    pattern_index += 1;
+                    continue;
+                }
+
                 // Validate pattern for DoS vulnerabilities
                 if let Err(e) = RegexValidator::validate_pattern(&pattern.pattern) {
                     warn!(
@@ -76,10 +90,19 @@ impl Scanner {
             }
         }
         
-        Ok(Self { templates: compiled_templates })
+        let semantic_scanner = if needs_semantic {
+            Some(SemanticScanner::new()?)
+        } else {
+            None
+        };
+        
+        Ok(Self { 
+            templates: compiled_templates,
+            semantic_scanner,
+        })
     }
 
-    pub fn scan(&self, source: &str, file_path: PathBuf) -> Result<Vec<Match>> {
+    pub fn scan(&mut self, source: &str, file_path: PathBuf) -> Result<Vec<Match>> {
         let newlines: Vec<usize> = source.match_indices('\n').map(|(i, _)| i).collect();
         
         let mut matches = Vec::new();
@@ -87,6 +110,22 @@ impl Scanner {
 
         for compiled_template in &self.templates {
             for compiled_pattern in &compiled_template.patterns {
+                // Dispatch based on pattern kind
+                if compiled_pattern.pattern.kind == PatternKind::Semantic {
+                    if let Some(ref mut semantic_scanner) = self.semantic_scanner {
+                        let semantic_matches = semantic_scanner.scan(
+                            source,
+                            &compiled_pattern.pattern,
+                            &compiled_template.template.id,
+                            compiled_template.template.severity,
+                            file_path.clone(),
+                        )?;
+                        matches.extend(semantic_matches);
+                    }
+                    continue;
+                }
+
+                // Regex pattern matching
                 for mat in compiled_pattern.regex.find_iter(source) {
                     let key = (mat.start(), mat.end(), compiled_pattern.index);
                     if !seen.insert(key) {
@@ -130,6 +169,8 @@ impl Scanner {
                         context,
                         severity: compiled_template.template.severity,
                         message: compiled_pattern.pattern.message.clone(),
+                        start_byte: None,
+                        end_byte: None,
                     });
                 }
             }
