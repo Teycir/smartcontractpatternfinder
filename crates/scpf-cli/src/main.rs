@@ -3,6 +3,7 @@ use clap::Parser;
 
 mod cli;
 mod commands;
+mod error_helper;
 
 use cli::{Cli, Commands};
 
@@ -19,8 +20,18 @@ async fn main() -> Result<()> {
         })
         .init();
 
-    match cli.command {
+    let result = match cli.command {
         Commands::Scan(args) => commands::scan::run(args).await,
         Commands::Init(args) => commands::init::run(args).await,
+        Commands::Templates(args) => match args.command {
+            cli::TemplatesCommand::List { templates } => commands::templates::list(templates).await,
+            cli::TemplatesCommand::Show { id, templates } => commands::templates::show(&id, templates).await,
+        },
+    };
+
+    if let Err(e) = &result {
+        eprintln!("{}", error_helper::format_error_with_help(e));
     }
+
+    result
 }

@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use backon::{ExponentialBuilder, Retryable};
 use reqwest::Client;
 use serde_json::Value;
 use std::sync::Arc;
@@ -31,40 +32,49 @@ impl ContractFetcher {
             anyhow::bail!("Invalid address format: {}", address);
         }
 
-        let _permit = self.rate_limiter.acquire().await
-            .context("Failed to acquire rate limit permit")?;
-        
-        let url = self.build_url(address, chain)?;
-        
-        let response = self
-            .client
-            .get(&url)
-            .send()
+        let fetch_fn = || async {
+            let _permit = self.rate_limiter.acquire().await
+                .context("Failed to acquire rate limit permit")?;
+            
+            let url = self.build_url(address, chain)?;
+            
+            let response = self
+                .client
+                .get(&url)
+                .send()
+                .await
+                .context("Failed to fetch contract source")?;
+
+            let json: Value = response
+                .json()
+                .await
+                .context("Failed to parse response")?;
+
+            if json["status"].as_str() != Some("1") {
+                let error_msg = json["message"].as_str()
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| format!("Unknown API error. Response: {:?}", json));
+                anyhow::bail!("API error: {}", error_msg);
+            }
+
+            let result = json["result"]
+                .as_array()
+                .and_then(|arr| arr.first())
+                .context("No result in API response")?;
+
+            let source_code = result["SourceCode"]
+                .as_str()
+                .context("Source code not found")?;
+
+            Ok(Self::parse_source_code(source_code))
+        };
+
+        fetch_fn
+            .retry(ExponentialBuilder::default()
+                .with_max_times(3)
+                .with_min_delay(Duration::from_millis(500))
+                .with_max_delay(Duration::from_secs(5)))
             .await
-            .context("Failed to fetch contract source")?;
-
-        let json: Value = response
-            .json()
-            .await
-            .context("Failed to parse response")?;
-
-        if json["status"].as_str() != Some("1") {
-            let error_msg = json["message"].as_str()
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| format!("Unknown API error. Response: {:?}", json));
-            anyhow::bail!("API error: {}", error_msg);
-        }
-
-        let result = json["result"]
-            .as_array()
-            .and_then(|arr| arr.first())
-            .context("No result in API response")?;
-
-        let source_code = result["SourceCode"]
-            .as_str()
-            .context("Source code not found")?;
-
-        Ok(Self::parse_source_code(source_code))
     }
 
     pub fn parse_source_code(source_code: &str) -> String {

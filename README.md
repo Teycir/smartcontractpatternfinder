@@ -155,7 +155,7 @@ tags:
   - security
   - reentrancy
 patterns:
-  - id: external-call-before-state
+  - id: external-call-with-value
     pattern: '\.call\{value:'
     message: External call with value transfer detected
   - id: delegatecall-usage
