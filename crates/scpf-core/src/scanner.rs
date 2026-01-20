@@ -31,68 +31,8 @@ impl Scanner {
         let mut needs_semantic = false;
 
         for template in templates {
-            let pattern_count = template.patterns.len();
-            let mut compiled_patterns = Vec::with_capacity(pattern_count);
-
-            for pattern in &template.patterns {
-                if pattern.kind == PatternKind::Semantic {
-                    needs_semantic = true;
-                    compiled_patterns.push(CompiledPattern {
-                        regex: RegexBuilder::new(".*").build().unwrap(),
-                        pattern: pattern.clone(),
-                        index: pattern_index,
-                    });
-                    pattern_index += 1;
-                    continue;
-                }
-
-                // Validate pattern for DoS vulnerabilities
-                if let Err(e) = RegexValidator::validate_pattern(&pattern.pattern) {
-                    warn!(
-                        "Unsafe regex pattern in template '{}', pattern '{}': {}",
-                        template.id, pattern.id, e
-                    );
-                    anyhow::bail!(
-                        "Unsafe regex pattern in template '{}', pattern '{}': {}",
-                        template.id,
-                        pattern.id,
-                        e
-                    );
-                }
-
-                match RegexBuilder::new(&pattern.pattern)
-                    .multi_line(true)
-                    .dot_matches_new_line(true)
-                    .build()
-                {
-                    Ok(regex) => {
-                        compiled_patterns.push(CompiledPattern {
-                            regex,
-                            pattern: pattern.clone(),
-                            index: pattern_index,
-                        });
-                        pattern_index += 1;
-                    }
-                    Err(e) => {
-                        warn!(
-                            "Invalid regex in template '{}', pattern '{}': {}",
-                            template.id, pattern.id, e
-                        );
-                        anyhow::bail!(
-                            "Invalid regex in template '{}', pattern '{}': {}",
-                            template.id,
-                            pattern.id,
-                            e
-                        );
-                    }
-                }
-            }
-
-            if !compiled_patterns.is_empty() {
-                compiled_templates.push(CompiledTemplate {
-                    template,
-                    patterns: compiled_patterns,
-                });
+            if let Some(compiled) = compile_template(template, &mut pattern_index, &mut needs_semantic)? {
+                compiled_templates.push(compiled);
             }
         }
 
@@ -213,26 +153,7 @@ impl Scanner {
                         0
                     };
 
-                    const MAX_CONTEXT_CHARS: usize = 200;
-                    const CONTEXT_PADDING: usize = 50;
-
-                    let match_len = mat.end() - mat.start();
-                    let context = if match_len > MAX_CONTEXT_CHARS {
-                        let start = mat.start().saturating_sub(CONTEXT_PADDING);
-                        let end = (mat.end() + CONTEXT_PADDING).min(source.len());
-                        source[start..end].to_string()
-                    } else {
-                        let context_start = if line_number > 1 {
-                            newlines[line_number - 2] + 1
-                        } else {
-                            0
-                        };
-                        let context_end = newlines
-                            .get(line_number - 1)
-                            .copied()
-                            .unwrap_or(source.len());
-                        source[context_start..context_end].to_string()
-                    };
+                    let context = get_match_context(source, &newlines, mat.start(), mat.end(), line_number);
 
                     matches.push(Match {
                         template_id: compiled_template.template.id.clone(),
@@ -252,5 +173,95 @@ impl Scanner {
         }
 
         Ok(matches)
+    }
+}
+
+fn compile_pattern(
+    pattern: &Pattern,
+    template_id: &str,
+    index: u32,
+) -> Result<CompiledPattern> {
+    if pattern.kind == PatternKind::Semantic {
+        return Ok(CompiledPattern {
+            regex: RegexBuilder::new(".*").build().unwrap(),
+            pattern: pattern.clone(),
+            index,
+        });
+    }
+
+    RegexValidator::validate_pattern(&pattern.pattern).map_err(|e| {
+        warn!("Unsafe regex pattern in template '{}', pattern '{}': {}", template_id, pattern.id, e);
+        anyhow::anyhow!("Unsafe regex pattern in template '{}', pattern '{}': {}", template_id, pattern.id, e)
+    })?;
+
+    let regex = RegexBuilder::new(&pattern.pattern)
+        .multi_line(true)
+        .dot_matches_new_line(true)
+        .build()
+        .map_err(|e| {
+            warn!("Invalid regex in template '{}', pattern '{}': {}", template_id, pattern.id, e);
+            anyhow::anyhow!("Invalid regex in template '{}', pattern '{}': {}", template_id, pattern.id, e)
+        })?;
+
+    Ok(CompiledPattern {
+        regex,
+        pattern: pattern.clone(),
+        index,
+    })
+}
+
+fn compile_template(
+    template: Template,
+    pattern_index: &mut u32,
+    needs_semantic: &mut bool,
+) -> Result<Option<CompiledTemplate>> {
+    let mut compiled_patterns = Vec::with_capacity(template.patterns.len());
+
+    for pattern in &template.patterns {
+        if pattern.kind == PatternKind::Semantic {
+            *needs_semantic = true;
+        }
+        let compiled = compile_pattern(pattern, &template.id, *pattern_index)?;
+        compiled_patterns.push(compiled);
+        *pattern_index += 1;
+    }
+
+    if compiled_patterns.is_empty() {
+        return Ok(None);
+    }
+
+    Ok(Some(CompiledTemplate {
+        template,
+        patterns: compiled_patterns,
+    }))
+}
+
+fn get_match_context(
+    source: &str,
+    newlines: &[usize],
+    match_start: usize,
+    match_end: usize,
+    line_number: usize,
+) -> String {
+    const MAX_CONTEXT_CHARS: usize = 200;
+    const CONTEXT_PADDING: usize = 50;
+
+    let match_len = match_end - match_start;
+
+    if match_len > MAX_CONTEXT_CHARS {
+        let start = match_start.saturating_sub(CONTEXT_PADDING);
+        let end = (match_end + CONTEXT_PADDING).min(source.len());
+        source[start..end].to_string()
+    } else {
+        let context_start = if line_number > 1 {
+            newlines[line_number - 2] + 1
+        } else {
+            0
+        };
+        let context_end = newlines
+            .get(line_number - 1)
+            .copied()
+            .unwrap_or(source.len());
+        source[context_start..context_end].to_string()
     }
 }

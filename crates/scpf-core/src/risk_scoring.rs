@@ -1,6 +1,15 @@
 use scpf_types::{Match, ScanResult, Severity};
 use std::collections::HashMap;
 
+mod pattern_ids {
+    pub const EXTERNAL_CALL: &str = "external-call";
+    pub const STATE_MUTATION: &str = "state-mutation";
+    pub const CRITICAL_FUNCTION: &str = "critical-function";
+    pub const ACCESS_MODIFIER: &str = "access-modifier";
+    pub const REENTRANCY: &str = "reentrancy";
+    pub const ACCESS_CONTROL: &str = "access-control";
+}
+
 /// Risk scoring weights and thresholds
 #[derive(Debug, Clone)]
 pub struct RiskConfig {
@@ -149,14 +158,14 @@ impl RiskScorer {
         let mut bonus = 0u32;
 
         // Reentrancy composition: external call + state change
-        if self.has_pattern(matches, "external-call") && self.has_pattern(matches, "state-mutation")
+        if self.has_pattern(matches, pattern_ids::EXTERNAL_CALL)
+            && self.has_pattern(matches, pattern_ids::STATE_MUTATION)
         {
             bonus += self.config.composition_bonus;
         }
 
-        // Access control: critical function without modifier
-        if self.has_pattern(matches, "critical-function")
-            && !self.has_pattern(matches, "access-modifier")
+        if self.has_pattern(matches, pattern_ids::CRITICAL_FUNCTION)
+            && !self.has_pattern(matches, pattern_ids::ACCESS_MODIFIER)
         {
             bonus += self.config.composition_bonus;
         }
@@ -207,11 +216,11 @@ impl RiskScorer {
             recs.push("High severity issues require immediate attention.".to_string());
         }
 
-        if self.has_pattern_in_map(patterns, "reentrancy") {
+        if self.has_pattern_in_map(patterns, pattern_ids::REENTRANCY) {
             recs.push("Implement checks-effects-interactions pattern.".to_string());
         }
 
-        if self.has_pattern_in_map(patterns, "access-control") {
+        if self.has_pattern_in_map(patterns, pattern_ids::ACCESS_CONTROL) {
             recs.push("Add proper access control modifiers.".to_string());
         }
 
