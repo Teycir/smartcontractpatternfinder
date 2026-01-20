@@ -1,0 +1,30 @@
+id: front-running-v2
+name: Front Running (Semantic)
+description: |
+  Certain patterns like revealing secrets or making distinct state changes based on
+  public data can be front-run.
+severity: medium
+tags:
+  - security
+  - front-running
+  - SWC-114
+patterns:
+  - id: reveal-secret
+    kind: semantic
+    pattern: |
+      (function_body
+        (statement
+          (if_statement
+            condition: (expression
+              (binary_expression
+                left: (expression (call_expression
+                   function: (expression (identifier) @_hash (#match? @_hash "^(keccak256|sha3|sha256)$"))))
+                "==" @op))
+            body: (statement
+              (expression_statement
+                (expression
+                  (call_expression
+                    function: (expression 
+                      (member_expression
+                         property: (identifier) @_transfer (#match? @_transfer "^(transfer|send|call)$"))))))))))
+    message: "Potential front-running: reveal secret and transfer in same transaction."

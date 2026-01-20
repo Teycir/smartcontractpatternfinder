@@ -1,0 +1,83 @@
+name: 'SCPF Security Scanner'
+description: 'Scan smart contracts for security vulnerabilities using SCPF'
+author: 'Teycir Ben Soltane'
+
+branding:
+  icon: 'shield'
+  color: 'blue'
+
+inputs:
+  severity:
+    description: 'Minimum severity to fail the build (info, low, medium, high, critical)'
+    required: false
+    default: 'high'
+  templates:
+    description: 'Path to custom templates directory'
+    required: false
+    default: 'templates'
+  output-format:
+    description: 'Output format (console, json, sarif)'
+    required: false
+    default: 'sarif'
+  fail-on-findings:
+    description: 'Fail the build if vulnerabilities are found'
+    required: false
+    default: 'true'
+
+outputs:
+  findings-count:
+    description: 'Number of vulnerabilities found'
+    value: ${{ steps.scan.outputs.findings }}
+  sarif-file:
+    description: 'Path to SARIF output file'
+    value: ${{ steps.scan.outputs.sarif }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      
+    - name: Cache SCPF
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/bin/scpf
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+        key: ${{ runner.os }}-scpf-${{ hashFiles('**/Cargo.lock') }}
+        
+    - name: Install SCPF
+      shell: bash
+      run: |
+        if ! command -v scpf &> /dev/null; then
+          cargo install --git https://github.com/Teycir/smartcontractpatternfinder scpf-cli
+        fi
+        
+    - name: Run SCPF Scan
+      id: scan
+      shell: bash
+      run: |
+        set +e
+        scpf scan --output ${{ inputs.output-format }} --templates ${{ inputs.templates }} > scpf-results.sarif
+        EXIT_CODE=$?
+        
+        if [ -f scpf-results.sarif ]; then
+          FINDINGS=$(jq '[.runs[].results | length] | add' scpf-results.sarif 2>/dev/null || echo "0")
+          echo "findings=$FINDINGS" >> $GITHUB_OUTPUT
+          echo "sarif=scpf-results.sarif" >> $GITHUB_OUTPUT
+          echo "Found $FINDINGS vulnerabilities"
+        fi
+        
+        if [ "${{ inputs.fail-on-findings }}" = "true" ] && [ $EXIT_CODE -ne 0 ]; then
+          echo "::error::Security vulnerabilities found!"
+          exit 1
+        fi
+        
+    - name: Upload SARIF
+      if: inputs.output-format == 'sarif'
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: scpf-results.sarif
+        category: scpf-security

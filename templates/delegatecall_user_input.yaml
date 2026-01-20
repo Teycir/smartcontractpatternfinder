@@ -1,0 +1,21 @@
+id: delegatecall-user-input
+name: Delegatecall to User-Controlled Address
+description: |
+  Using delegatecall with a user-supplied address can allow the attacker to execute 
+  arbitrary code in the context of the contract (including selfdestruct).
+severity: critical
+tags:
+  - security
+  - delegatecall
+  - SWC-112
+patterns:
+  - id: delegatecall-to-input
+    kind: semantic
+    pattern: |
+      (call_expression
+        function: (expression (member_expression
+           object: (expression (identifier))
+           property: (identifier) @_method (#eq? @_method "delegatecall")))
+        (call_argument (expression (function_call_expression)))) 
+        ; Note: function_call_expression is usually abi.encodeWithSignature(...)
+    message: "Delegatecall to address. Ensure the address is trusted."

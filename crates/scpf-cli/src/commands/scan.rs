@@ -8,24 +8,12 @@ use scpf_types::{ApiKeyConfig, ScanResult};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
+use walkdir::WalkDir;
 
 pub async fn run(args: ScanArgs) -> Result<()> {
-    // Auto-detect if no addresses provided
+    // Auto-detect local files if no addresses provided
     if args.addresses.is_empty() {
-        println!(
-            "{}  No addresses provided, checking for local contracts...",
-            "🔍".cyan()
-        );
-
-        for path in ["contracts", "src/contracts", "src"] {
-            if std::path::Path::new(path).exists() {
-                println!("{}  Found contracts directory: {}", "✓".green(), path);
-                println!("{}  Note: Auto-detect only works with local files. For blockchain scanning, provide addresses.", "!".yellow());
-                anyhow::bail!("Auto-detect for local files not yet implemented. Please provide contract addresses.");
-            }
-        }
-
-        anyhow::bail!("No contract addresses provided and no local contracts found.\n\n{}\n   1. Provide addresses: scpf scan 0x...\n   2. Or create contracts/ directory with Solidity files", "Fix:".yellow().bold());
+        return scan_local_project(args).await;
     }
 
     let templates_dir = args.templates.unwrap_or_else(|| PathBuf::from("templates"));
@@ -256,6 +244,21 @@ fn print_console(results: &[ScanResult], failed: usize) {
     }
     println!("   Total issues: {}", total_matches);
 
+    // Display risk scores
+    if !results.is_empty() {
+        let total_risk: u32 = results.iter().map(|r| r.total_risk_score()).sum();
+        let avg_risk = total_risk / results.len() as u32;
+        let max_risk = results
+            .iter()
+            .map(|r| r.total_risk_score())
+            .max()
+            .unwrap_or(0);
+        println!(
+            "   Risk Score: {} (avg: {}, max: {})",
+            total_risk, avg_risk, max_risk
+        );
+    }
+
     if total_matches == 0 && failed == 0 {
         println!(
             "\n{} {}",
@@ -334,4 +337,142 @@ fn print_sarif(results: &[ScanResult]) -> Result<()> {
 
     println!("{}", serde_json::to_string_pretty(&sarif)?);
     Ok(())
+}
+
+async fn scan_local_project(args: ScanArgs) -> Result<()> {
+    println!("{}  Scanning local project...", "🔍".cyan());
+
+    let sol_files = if let Some(ref diff_spec) = args.diff {
+        discover_diff_files(diff_spec)?
+    } else {
+        discover_solidity_files(&args)?
+    };
+
+    if sol_files.is_empty() {
+        if args.diff.is_some() {
+            println!("{}  No .sol files changed in diff", "✓".green());
+            return Ok(());
+        }
+        anyhow::bail!("No .sol files found. Use 'scpf scan 0x...' for blockchain scanning.");
+    }
+
+    println!("{}  Found {} Solidity files", "✓".green(), sol_files.len());
+
+    let templates_dir = args.templates.unwrap_or_else(|| PathBuf::from("templates"));
+    let templates = TemplateLoader::load_from_dir(&templates_dir).await?;
+    if templates.is_empty() {
+        anyhow::bail!("No templates found in {:?}", templates_dir);
+    }
+    println!("{}  Loaded {} templates", "✓".green(), templates.len());
+
+    let mut scanner = Scanner::new(templates)?;
+    let pb = ProgressBar::new(sol_files.len() as u64);
+    pb.set_style(
+        ProgressStyle::default_bar()
+            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg}")
+            .unwrap()
+            .progress_chars("#>-"),
+    );
+
+    let mut scan_results = Vec::new();
+    for file_path in sol_files {
+        let start = Instant::now();
+        pb.set_message(format!("Scanning {}", file_path.display()));
+
+        let source = tokio::fs::read_to_string(&file_path).await?;
+        let matches = scanner.scan(&source, file_path.clone())?;
+        let scan_time_ms = start.elapsed().as_millis() as u64;
+
+        scan_results.push(ScanResult {
+            address: file_path.display().to_string(),
+            chain: "local".to_string(),
+            matches,
+            scan_time_ms,
+        });
+        pb.inc(1);
+    }
+
+    pb.finish_with_message("Scan complete");
+    println!();
+
+    match args.output {
+        crate::cli::OutputFormat::Json => print_json(&scan_results)?,
+        crate::cli::OutputFormat::Sarif => print_sarif(&scan_results)?,
+        crate::cli::OutputFormat::Console => print_console(&scan_results, 0),
+    }
+
+    // Exit with error code if high/critical issues found
+    let has_critical = scan_results.iter().any(|r| {
+        r.matches.iter().any(|m| {
+            matches!(
+                m.severity,
+                scpf_types::Severity::Critical | scpf_types::Severity::High
+            )
+        })
+    });
+    if has_critical {
+        std::process::exit(1);
+    }
+
+    Ok(())
+}
+
+fn discover_solidity_files(_args: &ScanArgs) -> Result<Vec<PathBuf>> {
+    let search_paths = vec![".", "contracts", "src"];
+    let mut sol_files = Vec::new();
+
+    for base_path in search_paths {
+        if !std::path::Path::new(base_path).exists() {
+            continue;
+        }
+
+        for entry in WalkDir::new(base_path)
+            .follow_links(true)
+            .into_iter()
+            .filter_map(|e| e.ok())
+        {
+            let path = entry.path();
+            if path.extension().and_then(|s| s.to_str()) == Some("sol") {
+                // Skip node_modules, build artifacts
+                let path_str = path.to_string_lossy();
+                if path_str.contains("node_modules")
+                    || path_str.contains("/build/")
+                    || path_str.contains("/out/")
+                    || path_str.contains("/artifacts/")
+                {
+                    continue;
+                }
+                sol_files.push(path.to_path_buf());
+            }
+        }
+    }
+
+    sol_files.sort();
+    sol_files.dedup();
+    Ok(sol_files)
+}
+
+fn discover_diff_files(diff_spec: &str) -> Result<Vec<PathBuf>> {
+    use std::process::Command;
+
+    let output = Command::new("git")
+        .args(["diff", "--name-only", diff_spec])
+        .output()?;
+
+    if !output.status.success() {
+        anyhow::bail!(
+            "git diff failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    let files = String::from_utf8(output.stdout)?;
+    let sol_files: Vec<PathBuf> = files
+        .lines()
+        .filter(|line| line.ends_with(".sol"))
+        .map(PathBuf::from)
+        .filter(|p| p.exists())
+        .collect();
+
+    Ok(sol_files)
 }

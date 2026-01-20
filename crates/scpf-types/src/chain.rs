@@ -6,6 +6,9 @@ pub enum Chain {
     Ethereum,
     Bsc,
     Polygon,
+    Arbitrum,
+    Optimism,
+    Base,
 }
 
 impl Chain {
@@ -14,6 +17,9 @@ impl Chain {
             Chain::Ethereum => "https://api.etherscan.io/api",
             Chain::Bsc => "https://api.bscscan.com/api",
             Chain::Polygon => "https://api.polygonscan.com/api",
+            Chain::Arbitrum => "https://api.arbiscan.io/api",
+            Chain::Optimism => "https://api-optimistic.etherscan.io/api",
+            Chain::Base => "https://api.basescan.org/api",
         }
     }
 
@@ -22,6 +28,9 @@ impl Chain {
             Chain::Ethereum => "ethereum",
             Chain::Bsc => "bsc",
             Chain::Polygon => "polygon",
+            Chain::Arbitrum => "arbitrum",
+            Chain::Optimism => "optimism",
+            Chain::Base => "base",
         }
     }
 }
@@ -40,6 +49,9 @@ impl FromStr for Chain {
             "ethereum" | "eth" => Ok(Chain::Ethereum),
             "bsc" | "binance" => Ok(Chain::Bsc),
             "polygon" | "matic" => Ok(Chain::Polygon),
+            "arbitrum" | "arb" => Ok(Chain::Arbitrum),
+            "optimism" | "op" => Ok(Chain::Optimism),
+            "base" => Ok(Chain::Base),
             _ => Err(format!("Unsupported chain: {}", s)),
         }
     }

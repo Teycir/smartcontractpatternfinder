@@ -42,7 +42,7 @@ patterns:
     kind: semantic
     pattern: |
       (for_statement
-        body: (block
+        body: (function_body
           (expression_statement
             (member_expression))))
     message: Storage variable accessed in loop - cache in memory to save gas
@@ -117,7 +117,7 @@ patterns:
           (parameter
             type: (type_name) @type (#match? @type "^(uint|uint256)$")
             name: (identifier) @name (#match? @name "^(amount|value|quantity)$")))
-        body: (block
+        body: (function_body
           (expression_statement
             (call_expression))))
     message: Amount parameter without zero check - validate inputs to prevent waste
@@ -143,7 +143,7 @@ patterns:
     kind: semantic
     pattern: |
       (for_statement
-        body: (block
+        body: (function_body
           (emit_statement)))
     message: Event emission in loop - expensive gas cost, consider batching
 

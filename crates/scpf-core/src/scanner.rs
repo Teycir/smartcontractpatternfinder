@@ -95,7 +95,16 @@ impl Scanner {
         }
 
         let semantic_scanner = if needs_semantic {
-            Some(SemanticScanner::new()?)
+            match SemanticScanner::new() {
+                Ok(scanner) => {
+                    warn!("Semantic scanning enabled but may have compatibility issues with current tree-sitter-solidity grammar.");
+                    Some(scanner)
+                },
+                Err(e) => {
+                    warn!("Failed to initialize semantic scanner: {}. Only regex patterns will be used.", e);
+                    None
+                }
+            }
         } else {
             None
         };
@@ -117,14 +126,19 @@ impl Scanner {
                 // Dispatch based on pattern kind
                 if compiled_pattern.pattern.kind == PatternKind::Semantic {
                     if let Some(ref mut semantic_scanner) = self.semantic_scanner {
-                        let semantic_matches = semantic_scanner.scan(
+                        match semantic_scanner.scan(
                             source,
                             &compiled_pattern.pattern,
                             &compiled_template.template.id,
                             compiled_template.template.severity,
                             file_path.clone(),
-                        )?;
-                        matches.extend(semantic_matches);
+                        ) {
+                            Ok(semantic_matches) => matches.extend(semantic_matches),
+                            Err(e) => {
+                                warn!("Skipping semantic pattern '{}' in template '{}': {}", 
+                                    compiled_pattern.pattern.id, compiled_template.template.id, e);
+                            }
+                        }
                     }
                     continue;
                 }

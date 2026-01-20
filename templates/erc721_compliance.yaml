@@ -1,0 +1,34 @@
+id: erc721-compliance
+name: ERC-721 NFT Standard Compliance
+description: Checks for ERC-721 standard function implementations
+severity: info
+tags:
+  - compliance
+  - erc721
+  - nft
+  - standards
+patterns:
+  - id: safetransferfrom-function
+    pattern: 'function\s+safeTransferFrom\s*\(\s*address\s+\w+\s*,\s*address\s+\w+\s*,\s*uint256\s+\w+\s*\)'
+    message: ERC-721 safeTransferFrom function found
+  - id: transferfrom-function
+    pattern: 'function\s+transferFrom\s*\(\s*address\s+\w+\s*,\s*address\s+\w+\s*,\s*uint256\s+\w+\s*\)'
+    message: ERC-721 transferFrom function found
+  - id: approve-function
+    pattern: 'function\s+approve\s*\(\s*address\s+\w+\s*,\s*uint256\s+\w+\s*\)'
+    message: ERC-721 approve function found
+  - id: setapprovalforall-function
+    pattern: 'function\s+setApprovalForAll\s*\(\s*address\s+\w+\s*,\s*bool\s+\w+\s*\)'
+    message: ERC-721 setApprovalForAll function found
+  - id: getapproved-function
+    pattern: 'function\s+getApproved\s*\(\s*uint256\s+\w+\s*\)'
+    message: ERC-721 getApproved function found
+  - id: isapprovedforall-function
+    pattern: 'function\s+isApprovedForAll\s*\(\s*address\s+\w+\s*,\s*address\s+\w+\s*\)'
+    message: ERC-721 isApprovedForAll function found
+  - id: balanceof-function
+    pattern: 'function\s+balanceOf\s*\(\s*address\s+\w+\s*\)'
+    message: ERC-721 balanceOf function found
+  - id: ownerof-function
+    pattern: 'function\s+ownerOf\s*\(\s*uint256\s+\w+\s*\)'
+    message: ERC-721 ownerOf function found

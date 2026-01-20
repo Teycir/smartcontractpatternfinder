@@ -1,0 +1,70 @@
+# SCPF Plugin Configuration
+# Define custom plugins for proprietary or team-specific rules
+
+version: "1.0"
+
+# Plugin sources
+plugins:
+  # Example: Custom company rules
+  # - name: "mycompany-rules"
+  #   type: "crate"
+  #   source: "path/to/mycompany_scpf_rules"
+  #   enabled: true
+  
+  # Example: WASM plugin (future)
+  # - name: "custom-wasm"
+  #   type: "wasm"
+  #   source: "plugins/custom.wasm"
+  #   enabled: true
+
+# Plugin settings
+settings:
+  # Enable plugin system
+  enabled: false
+  
+  # Plugin search paths
+  search_paths:
+    - "./plugins"
+    - "~/.scpf/plugins"
+  
+  # Plugin timeout (seconds)
+  timeout: 30
+  
+  # Allow unsafe plugins (use with caution)
+  allow_unsafe: false
+
+# Plugin hooks
+hooks:
+  # Pre-scan hooks
+  pre_scan: []
+  
+  # Post-scan hooks
+  post_scan: []
+  
+  # Custom pattern matchers
+  pattern_matchers: []
+
+# Example plugin interface (for documentation)
+# 
+# Rust Plugin Example:
+# ```rust
+# use scpf_types::{Template, Match};
+# 
+# #[no_mangle]
+# pub extern "C" fn scpf_plugin_init() -> *const PluginInfo {
+#     // Initialize plugin
+# }
+# 
+# #[no_mangle]
+# pub extern "C" fn scpf_plugin_scan(source: &str) -> Vec<Match> {
+#     // Custom scanning logic
+# }
+# ```
+#
+# WASM Plugin Example (future):
+# ```javascript
+# export function scan(source) {
+#     // Custom scanning logic
+#     return matches;
+# }
+# ```

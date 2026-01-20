@@ -1,0 +1,66 @@
+# Bitbucket Pipelines Configuration for SCPF
+# Add this to your bitbucket-pipelines.yml file
+
+image: rust:latest
+
+definitions:
+  caches:
+    cargo: ~/.cargo
+    scpf: target/
+
+pipelines:
+  default:
+    - step:
+        name: SCPF Security Scan
+        caches:
+          - cargo
+          - scpf
+        script:
+          - cargo install scpf-cli || echo "Using cached scpf-cli"
+          - scpf scan --output json > scpf-results.json
+          - scpf scan --output sarif > scpf-results.sarif
+        artifacts:
+          - scpf-results.json
+          - scpf-results.sarif
+
+  pull-requests:
+    '**':
+      - step:
+          name: SCPF Diff Scan
+          caches:
+            - cargo
+          script:
+            - cargo install scpf-cli || echo "Using cached scpf-cli"
+            - scpf scan --diff origin/$BITBUCKET_PR_DESTINATION_BRANCH..HEAD
+            - scpf scan --output sarif > scpf-results.sarif
+          artifacts:
+            - scpf-results.sarif
+
+  branches:
+    main:
+      - step:
+          name: SCPF Full Scan
+          caches:
+            - cargo
+            - scpf
+          script:
+            - cargo install scpf-cli || echo "Using cached scpf-cli"
+            - scpf scan --output json > scpf-results.json
+            - scpf scan --output sarif > scpf-results.sarif
+          artifacts:
+            - scpf-results.json
+            - scpf-results.sarif
+
+  custom:
+    blockchain-scan:
+      - variables:
+          - name: CONTRACT_ADDRESS
+          - name: CHAIN
+            default: ethereum
+      - step:
+          name: Scan Blockchain Contract
+          caches:
+            - cargo
+          script:
+            - cargo install scpf-cli || echo "Using cached scpf-cli"
+            - scpf scan $CONTRACT_ADDRESS --chain $CHAIN --output json

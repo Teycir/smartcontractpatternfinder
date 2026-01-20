@@ -26,6 +26,9 @@ async fn main() -> Result<()> {
         Commands::Templates(args) => match args.command {
             cli::TemplatesCommand::List { templates } => commands::templates::list(templates).await,
             cli::TemplatesCommand::Show { id, templates } => commands::templates::show(&id, templates).await,
+            cli::TemplatesCommand::Install { collection, templates } => commands::templates::install(&collection, templates).await,
+            cli::TemplatesCommand::Update { templates } => commands::templates::update(templates).await,
+            cli::TemplatesCommand::Registry => commands::templates::registry().await,
         },
         Commands::FetchZeroDay(args) => commands::fetch_zeroday::run(args).await,
     };

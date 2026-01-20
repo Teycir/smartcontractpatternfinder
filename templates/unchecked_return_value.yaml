@@ -1,0 +1,34 @@
+id: unchecked-low-level-call
+name: Unchecked Return Value of Low-Level Call
+description: |
+  Low-level calls (call/delegatecall/staticcall/send) return a boolean 
+  indicating success. Ignoring this can lead to silent failures.
+severity: high
+tags:
+  - security
+  - unchecked-call
+  - SWC-104
+patterns:
+  - id: unchecked-call-expression
+    kind: semantic
+    pattern: |
+      (expression_statement
+        (expression
+          (call_expression
+            function: (expression (member_expression
+              property: (identifier) @_method (#match? @_method "^(call|delegatecall|staticcall|send)$")))
+            (call_argument))) @_call)
+    message: "Return value of low-level call not checked. Wrap in require() or check the boolean return value."
+
+  - id: unchecked-call-no-assignment
+    kind: semantic
+    pattern: |
+      (expression_statement
+        (expression
+          (call_expression
+            function: (expression (member_expression
+              object: (expression (identifier) @_target)
+              property: (identifier) @_method (#eq? @_method "call")))
+            (call_argument
+              (expression (string_literal))))))
+    message: "Low-level call without return value check. Use: (bool success, ) = target.call(...); require(success);"

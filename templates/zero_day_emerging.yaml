@@ -15,7 +15,7 @@ patterns:
       (function_definition
         (modifier_invocation
           (identifier) @mod (#match? @mod "^(view|pure)$"))
-        body: (block
+        body: (function_body
           (expression_statement
             (call_expression
               function: (member_expression)))))
@@ -27,7 +27,7 @@ patterns:
     pattern: |
       (function_definition
         name: (identifier) @name (#match? @name "^(deposit|mint)$")
-        body: (block
+        body: (function_body
           (expression_statement
             (binary_expression
               operator: "*"
@@ -44,7 +44,7 @@ patterns:
         parameters: (parameter_list
           (parameter
             name: (identifier) @sig (#match? @sig "^(v|r|s|signature|permit)$")))
-        body: (block
+        body: (function_body
           (expression_statement
             (call_expression
               function: (member_expression
@@ -56,7 +56,7 @@ patterns:
     kind: semantic
     pattern: |
       (function_definition
-        body: (block
+        body: (function_body
           (expression_statement
             (call_expression
               function: (member_expression
@@ -70,7 +70,7 @@ patterns:
     kind: semantic
     pattern: |
       (function_definition
-        body: (block
+        body: (function_body
           (expression_statement
             (call_expression
               function: (member_expression
@@ -84,7 +84,7 @@ patterns:
     kind: semantic
     pattern: |
       (function_definition
-        body: (block
+        body: (function_body
           (expression_statement
             (call_expression
               function: (member_expression
@@ -107,7 +107,7 @@ patterns:
     kind: semantic
     pattern: |
       (function_definition
-        body: (block
+        body: (function_body
           (expression_statement
             (call_expression
               function: (member_expression
@@ -131,7 +131,7 @@ patterns:
     pattern: |
       (function_definition
         name: (identifier) @name (#match? @name "^(validateUserOp|validatePaymasterUserOp)$")
-        body: (block
+        body: (function_body
           (return_statement)))
     message: AA validation without proper checks - can bypass signature verification
 
@@ -141,9 +141,9 @@ patterns:
     pattern: |
       (function_definition
         name: (identifier) @name (#eq? @name "multicall")
-        body: (block
+        body: (function_body
           (for_statement
-            body: (block
+            body: (function_body
               (expression_statement
                 (call_expression
                   function: (member_expression
@@ -156,7 +156,7 @@ patterns:
     pattern: |
       (function_definition
         name: (identifier) @name (#match? @name "^(beforeSwap|afterSwap|beforeModifyPosition|afterModifyPosition)$")
-        body: (block
+        body: (function_body
           (expression_statement
             (call_expression))))
     message: Uniswap V4 hook with external call - can manipulate pool state
@@ -167,7 +167,7 @@ patterns:
     pattern: |
       (function_definition
         name: (identifier) @name (#match? @name "^(stake|delegate|restake)$")
-        body: (block
+        body: (function_body
           (expression_statement
             (call_expression
               function: (member_expression
@@ -179,7 +179,7 @@ patterns:
     kind: semantic
     pattern: |
       (function_definition
-        body: (block
+        body: (function_body
           (expression_statement
             (call_expression
               function: (member_expression
@@ -192,7 +192,7 @@ patterns:
     pattern: |
       (function_definition
         name: (identifier) @name (#match? @name "^(onJoinPool|onExitPool)$")
-        body: (block
+        body: (function_body
           (expression_statement
             (call_expression
               function: (member_expression)))))
@@ -204,7 +204,7 @@ patterns:
     pattern: |
       (function_definition
         name: (identifier) @name (#match? @name "^(setUserEMode|borrow)$")
-        body: (block
+        body: (function_body
           (expression_statement
             (call_expression))))
     message: Aave e-mode operation - verify category manipulation protection
@@ -215,7 +215,7 @@ patterns:
     pattern: |
       (function_definition
         name: (identifier) @name (#eq? @name "absorb")
-        body: (block
+        body: (function_body
           (expression_statement
             (call_expression))))
     message: Compound V3 absorb without validation - liquidation manipulation risk
@@ -226,7 +226,7 @@ patterns:
     pattern: |
       (function_definition
         name: (identifier) @name (#match? @name "^(createOrder|executeOrder)$")
-        body: (block
+        body: (function_body
           (expression_statement
             (binary_expression
               operator: "/"))))
@@ -238,7 +238,7 @@ patterns:
     pattern: |
       (function_definition
         name: (identifier) @name (#match? @name "^(supply|borrow)$")
-        body: (block
+        body: (function_body
           (expression_statement
             (call_expression
               function: (member_expression

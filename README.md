@@ -60,8 +60,13 @@
 
 ## ✨ Features
 
-- 🌐 **Multi-chain Support** - Ethereum, BSC, Polygon
+- 🌐 **Multi-chain Support** - Ethereum, BSC, Polygon, Arbitrum, Optimism, Base
+- 📁 **Local Project Scanning** - Scan .sol files in your workspace
+- 🔄 **Git Diff Scanning** - Only scan changed files in PRs
+- 🤖 **CI/CD Integration** - GitHub Actions, GitLab CI, Bitbucket Pipelines
 - 📝 **YAML Templates** - Easy-to-write pattern definitions
+- ✅ **ERC Compliance** - Detect ERC-20/721/1155 implementations
+- 📊 **Risk Scoring** - Weighted vulnerability assessment
 - ⚡ **Fast Scanning** - Regex-based pattern matching
 - 💾 **Smart Caching** - Avoid redundant API calls
 - 🎯 **Modular Architecture** - Clean, testable code
@@ -127,17 +132,24 @@ scpf init
 ### Scan a Contract
 
 ```bash
-# Scan single contract
+# Scan blockchain contract
 scpf scan 0x1234567890abcdef --chain ethereum
 
+# Scan local project (auto-detects .sol files)
+scpf scan
+
+# Scan only changed files (for PRs)
+scpf scan --diff main..HEAD
+
 # Scan with custom templates
-scpf scan 0x1234567890abcdef --templates ./my-templates
+scpf scan --templates ./my-templates
 
 # Scan multiple contracts
 scpf scan 0xabc... 0xdef... 0x123... --chain bsc
 
-# Increase verbosity
-scpf scan 0x1234567890abcdef -vv
+# Export to JSON/SARIF
+scpf scan --output json > results.json
+scpf scan --output sarif > results.sarif
 ```
 
 ---
@@ -205,6 +217,7 @@ Options:
   -t, --templates <TEMPLATES>      Templates directory
   -o, --output <OUTPUT>            Output format [default: console]
       --concurrency <CONCURRENCY>  Concurrent requests [default: 10]
+      --diff <DIFF>                Only scan changed files (e.g., main..HEAD)
   -v, --verbose                    Increase verbosity (-v, -vv, -vvv)
   -h, --help                       Print help
 ```
@@ -212,20 +225,20 @@ Options:
 **Examples:**
 
 ```bash
-# Basic scan
-scpf scan 0x1234567890abcdef
+# Scan local project
+scpf scan
 
-# Scan on BSC
-scpf scan 0x1234567890abcdef --chain bsc
+# Scan blockchain contract
+scpf scan 0x1234567890abcdef --chain ethereum
+
+# Scan only changed files
+scpf scan --diff main..HEAD
 
 # Scan with custom templates
-scpf scan 0x1234567890abcdef --templates ./custom-templates
+scpf scan --templates ./custom-templates
 
-# Scan multiple contracts
-scpf scan 0xabc... 0xdef... 0x123...
-
-# High concurrency
-scpf scan 0x1234567890abcdef --concurrency 20
+# Export to SARIF for CI/CD
+scpf scan --output sarif > results.sarif
 ```
 
 ### `scpf init`
@@ -262,6 +275,9 @@ scpf init --yes
 | **Ethereum** | Mainnet | Etherscan API |
 | **BSC** | Binance Smart Chain | BscScan API |
 | **Polygon** | Polygon PoS | PolygonScan API |
+| **Arbitrum** | Arbitrum One | Arbiscan API |
+| **Optimism** | Optimism Mainnet | Optimistic Etherscan API |
+| **Base** | Base Mainnet | Basescan API |
 
 ---
 
@@ -273,6 +289,9 @@ Set API keys via environment variables:
 export ETHERSCAN_API_KEY="your-key"
 export BSCSCAN_API_KEY="your-key"
 export POLYGONSCAN_API_KEY="your-key"
+export ARBISCAN_API_KEY="your-key"
+export OPTIMISTIC_ETHERSCAN_API_KEY="your-key"
+export BASESCAN_API_KEY="your-key"
 ```
 
 ### Getting API Keys
@@ -280,6 +299,9 @@ export POLYGONSCAN_API_KEY="your-key"
 - **Etherscan**: https://etherscan.io/apis
 - **BscScan**: https://bscscan.com/apis
 - **PolygonScan**: https://polygonscan.com/apis
+- **Arbiscan**: https://arbiscan.io/apis
+- **Optimistic Etherscan**: https://optimistic.etherscan.io/apis
+- **Basescan**: https://basescan.org/apis
 
 ---
 
@@ -288,6 +310,63 @@ export POLYGONSCAN_API_KEY="your-key"
 - **console** - Human-readable terminal output (default)
 - **json** - Machine-readable JSON
 - **sarif** - SARIF format for CI/CD integration
+
+---
+
+## 🤖 CI/CD Integration
+
+### GitHub Actions
+
+Add to `.github/workflows/security.yml`:
+
+```yaml
+name: Security Scan
+
+on: [push, pull_request]
+
+jobs:
+  scpf:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: teycir/smartcontractpatternfinder@v1
+        with:
+          severity: high
+          fail-on-findings: true
+```
+
+**Features:**
+- ✅ Zero configuration
+- ✅ SARIF integration (results in Security tab)
+- ✅ Cached installation
+- ✅ Customizable severity thresholds
+
+[📖 Full GitHub Action Documentation](docs/GITHUB_ACTION.md)
+
+### GitLab CI
+
+```yaml
+scpf-scan:
+  image: rust:latest
+  script:
+    - cargo install scpf-cli
+    - scpf scan --output sarif > results.sarif
+  artifacts:
+    reports:
+      sast: results.sarif
+```
+
+[📖 Full GitLab/Bitbucket Documentation](docs/QUICK_WINS.md#4-gitlabbitbucket-ci-integration-)
+
+### Pre-commit Hook
+
+```bash
+#!/bin/bash
+# .git/hooks/pre-commit
+scpf scan --diff HEAD || exit 1
+```
 
 ---
 
@@ -386,6 +465,10 @@ MIT License - see [LICENSE](LICENSE) file for details
 ## 🔗 Links
 
 - [GitHub Repository](https://github.com/Teycir/smartcontractpatternfinder)
+- [Quick Wins Features](docs/QUICK_WINS.md) - ERC Compliance, L2 Support, Risk Scoring
+- [Ecosystem & Extensibility](docs/ECOSYSTEM.md) - Template Registry, Plugin System
+- [Template Changelog](docs/TEMPLATE_CHANGELOG.md) - Template version history
+- [GitHub Action Documentation](docs/GITHUB_ACTION.md)
 - [Issue Tracker](https://github.com/Teycir/smartcontractpatternfinder/issues)
 - [Author Website](https://teycirbensoltane.tn)
 

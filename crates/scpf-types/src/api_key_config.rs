@@ -27,6 +27,15 @@ impl ApiKeyConfig {
         if let Ok(key) = std::env::var("POLYGONSCAN_API_KEY") {
             config.keys.insert(Chain::Polygon, key);
         }
+        if let Ok(key) = std::env::var("ARBISCAN_API_KEY") {
+            config.keys.insert(Chain::Arbitrum, key);
+        }
+        if let Ok(key) = std::env::var("OPTIMISTIC_ETHERSCAN_API_KEY") {
+            config.keys.insert(Chain::Optimism, key);
+        }
+        if let Ok(key) = std::env::var("BASESCAN_API_KEY") {
+            config.keys.insert(Chain::Base, key);
+        }
         config
     }
 

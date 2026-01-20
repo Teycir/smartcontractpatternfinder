@@ -1,0 +1,17 @@
+id: unprotected-selfdestruct-v2
+name: Unprotected Selfdestruct (Semantic)
+description: |
+  selfdestruct (or suicide) can destroy the contract and send funds to a target.
+  If not protected by access control, anyone can kill the contract.
+severity: high
+tags:
+  - security
+  - selfdestruct
+  - SWC-106
+patterns:
+  - id: selfdestruct-usage
+    kind: semantic
+    pattern: |
+      (call_expression
+        function: (expression (identifier) @_sd (#match? @_sd "^(selfdestruct|suicide)$")))
+    message: "Usage of selfdestruct detected. Verify access controls are strictly enforced."

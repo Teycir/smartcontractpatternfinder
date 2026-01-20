@@ -316,3 +316,29 @@ fn test_scanner_large_match_context() -> Result<()> {
     );
     Ok(())
 }
+
+#[test]
+fn debug_dump_ast() {
+    let code = r#"
+    contract Test {
+        uint public lastTime;
+        function withdraw(uint amount) public {
+            msg.sender.call.value(amount)("");
+            lastTime += 10;
+        }
+        function check() public {
+            if (block.timestamp > lastTime) {
+                lastTime = now;
+            }
+            if (tx.origin == msg.sender) {
+                // ok
+            }
+            uint bal = address(this).balance;
+        }
+    }
+    "#;
+    let mut parser = tree_sitter::Parser::new();
+    parser.set_language(&tree_sitter_solidity::LANGUAGE.into()).unwrap();
+    let tree = parser.parse(code, None).unwrap();
+    println!("AST: {}", tree.root_node().to_sexp());
+}

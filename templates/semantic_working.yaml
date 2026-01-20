@@ -1,0 +1,70 @@
+id: semantic-vulnerabilities-working
+name: Semantic Vulnerability Detection (Working)
+description: Tree-sitter based semantic analysis with verified patterns
+severity: high
+tags:
+  - security
+  - semantic
+  - verified
+patterns:
+  # Simple call detection
+  - id: call-expression
+    kind: semantic
+    pattern: '(call_expression) @call'
+    message: External call detected - verify reentrancy protection
+
+  # Delegatecall detection
+  - id: delegatecall-usage
+    kind: semantic
+    pattern: '(identifier) @dc (#eq? @dc "delegatecall")'
+    message: Delegatecall usage detected - verify input validation
+
+  # tx.origin usage
+  - id: tx-origin
+    kind: semantic
+    pattern: |
+      (member_expression
+        object: (identifier) @tx (#eq? @tx "tx")
+        property: (identifier) @origin (#eq? @origin "origin")) @usage
+    message: tx.origin usage detected - use msg.sender instead
+
+  # selfdestruct usage
+  - id: selfdestruct-usage
+    kind: semantic
+    pattern: '(identifier) @sd (#eq? @sd "selfdestruct")'
+    message: Selfdestruct detected - verify access control
+
+  # block.timestamp usage
+  - id: block-timestamp
+    kind: semantic
+    pattern: |
+      (member_expression
+        object: (identifier) @block (#eq? @block "block")
+        property: (identifier) @prop (#eq? @prop "timestamp")) @usage
+    message: Block timestamp used - miners can manipulate
+
+  # Assignment expression (state changes)
+  - id: assignment-expression
+    kind: semantic
+    pattern: '(assignment_expression) @assign'
+    message: State change detected - verify ordering with external calls
+
+  # Binary expression with ==
+  - id: strict-equality
+    kind: semantic
+    pattern: |
+      (binary_expression
+        operator: "==") @eq
+    message: Strict equality - verify not used with balance
+
+  # For loops
+  - id: for-loop
+    kind: semantic
+    pattern: '(for_statement) @loop'
+    message: Loop detected - verify no unbounded iterations
+
+  # Function definition
+  - id: function-def
+    kind: semantic
+    pattern: '(function_definition) @func'
+    message: Function detected - verify access control on critical functions

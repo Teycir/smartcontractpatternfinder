@@ -1,7 +1,7 @@
 use crate::cli::FetchZeroDayArgs;
 use anyhow::Result;
 use colored::Colorize;
-use scpf_core::{ZeroDayFetcher, zeroday::ExploitType};
+use scpf_core::{zeroday::ExploitType, ZeroDayFetcher};
 use std::path::PathBuf;
 
 pub async fn run(args: FetchZeroDayArgs) -> Result<()> {

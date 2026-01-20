@@ -1,0 +1,33 @@
+id: erc20-compliance
+name: ERC-20 Token Standard Compliance
+description: Checks for ERC-20 standard function implementations
+severity: info
+tags:
+  - compliance
+  - erc20
+  - standards
+patterns:
+  - id: transfer-function
+    pattern: 'function\s+transfer\s*\(\s*address\s+\w+\s*,\s*uint256\s+\w+\s*\)'
+    message: ERC-20 transfer function found
+  - id: transferfrom-function
+    pattern: 'function\s+transferFrom\s*\(\s*address\s+\w+\s*,\s*address\s+\w+\s*,\s*uint256\s+\w+\s*\)'
+    message: ERC-20 transferFrom function found
+  - id: approve-function
+    pattern: 'function\s+approve\s*\(\s*address\s+\w+\s*,\s*uint256\s+\w+\s*\)'
+    message: ERC-20 approve function found
+  - id: allowance-function
+    pattern: 'function\s+allowance\s*\(\s*address\s+\w+\s*,\s*address\s+\w+\s*\)'
+    message: ERC-20 allowance function found
+  - id: balanceof-function
+    pattern: 'function\s+balanceOf\s*\(\s*address\s+\w+\s*\)'
+    message: ERC-20 balanceOf function found
+  - id: totalsupply-function
+    pattern: 'function\s+totalSupply\s*\(\s*\)'
+    message: ERC-20 totalSupply function found
+  # - id: missing-return-transfer
+  #   pattern: 'function\s+transfer\s*\([^)]+\)\s+(?!.*returns\s*\(\s*bool\s*\))'
+  #   message: Warning - transfer should return bool
+  # - id: missing-return-approve
+  #   pattern: 'function\s+approve\s*\([^)]+\)\s+(?!.*returns\s*\(\s*bool\s*\))'
+  #   message: Warning - approve should return bool

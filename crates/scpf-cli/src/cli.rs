@@ -71,6 +71,9 @@ pub struct ScanArgs {
 
     #[arg(long, help = "Bypass cache and fetch fresh data")]
     pub no_cache: bool,
+
+    #[arg(long, help = "Only scan files changed in git diff (e.g., main..HEAD)")]
+    pub diff: Option<String>,
 }
 
 fn parse_chain(s: &str) -> Result<Chain, String> {
@@ -123,4 +126,18 @@ pub enum TemplatesCommand {
         #[arg(short, long, help = "Path to templates directory")]
         templates: Option<PathBuf>,
     },
+    #[command(about = "Install template collection from registry")]
+    Install {
+        #[arg(help = "Collection name (e.g., defi, erc, mev)")]
+        collection: String,
+        #[arg(short, long, help = "Path to templates directory")]
+        templates: Option<PathBuf>,
+    },
+    #[command(about = "Update all installed templates")]
+    Update {
+        #[arg(short, long, help = "Path to templates directory")]
+        templates: Option<PathBuf>,
+    },
+    #[command(about = "List available template collections")]
+    Registry,
 }

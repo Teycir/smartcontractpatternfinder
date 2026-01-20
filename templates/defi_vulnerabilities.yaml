@@ -36,7 +36,7 @@ patterns:
     pattern: |
       (function_definition
         name: (identifier) @name (#match? @name "^(swap|buy|sell)$")
-        body: (block
+        body: (function_body
           (expression_statement
             (assignment_expression))))
     message: Trade function without price impact calculation - large trades can be exploited
@@ -47,7 +47,7 @@ patterns:
     pattern: |
       (function_definition
         name: (identifier) @name (#match? @name "^(mint|burn|addLiquidity|removeLiquidity)$")
-        body: (block
+        body: (function_body
           (expression_statement
             (call_expression
               function: (member_expression
@@ -79,7 +79,7 @@ patterns:
     pattern: |
       (function_definition
         name: (identifier) @name (#match? @name "^(liquidate|seize)$")
-        body: (block
+        body: (function_body
           (expression_statement
             (call_expression
               function: (member_expression
@@ -92,7 +92,7 @@ patterns:
     pattern: |
       (function_definition
         name: (identifier) @name (#match? @name "^(borrow|withdraw)$")
-        body: (block
+        body: (function_body
           (expression_statement
             (binary_expression
               operator: "*"
@@ -105,7 +105,7 @@ patterns:
     pattern: |
       (function_definition
         name: (identifier) @name (#match? @name "^(getReward|claimReward|harvest)$")
-        body: (block
+        body: (function_body
           (expression_statement
             (binary_expression
               operator: "*"))))
@@ -117,7 +117,7 @@ patterns:
     pattern: |
       (function_definition
         name: (identifier) @name (#match? @name "^(withdraw|unstake)$")
-        body: (block
+        body: (function_body
           (expression_statement
             (call_expression
               function: (member_expression
@@ -130,7 +130,7 @@ patterns:
     pattern: |
       (function_definition
         name: (identifier) @name (#match? @name "^(vote|castVote)$")
-        body: (block
+        body: (function_body
           (expression_statement
             (call_expression
               function: (member_expression
@@ -170,7 +170,7 @@ patterns:
       (function_definition
         name: (identifier) @name (#match? @name "^(swap|buy|sell)$")
         visibility: (visibility) @vis (#eq? @vis "public")
-        body: (block
+        body: (function_body
           (expression_statement
             (call_expression
               function: (member_expression
@@ -183,7 +183,7 @@ patterns:
     pattern: |
       (function_definition
         name: (identifier) @name (#match? @name "^(stake|deposit)$")
-        body: (block
+        body: (function_body
           (expression_statement
             (assignment_expression
               left: (member_expression
@@ -207,7 +207,7 @@ patterns:
     pattern: |
       (function_definition
         name: (identifier) @name (#match? @name "^(safeTransferFrom|transferFrom)$")
-        body: (block
+        body: (function_body
           (expression_statement
             (call_expression))))
     message: NFT transfer with external call - verify reentrancy protection (CEI pattern)
@@ -218,7 +218,7 @@ patterns:
     pattern: |
       (function_definition
         name: (identifier) @name (#match? @name "^(deposit|mint)$")
-        body: (block
+        body: (function_body
           (expression_statement
             (binary_expression
               operator: "/"

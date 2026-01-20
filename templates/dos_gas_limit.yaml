@@ -1,0 +1,39 @@
+id: dos-gas-limit
+name: DoS with Block Gas Limit
+description: |
+  Calls inside unbounded loops can exceed the block gas limit, causing the 
+  transaction to fail and potentially locking checks or funds.
+severity: medium
+tags:
+  - security
+  - dos
+  - gas
+  - SWC-113
+patterns:
+  - id: external-call-in-loop
+    kind: semantic
+    pattern: |
+      (for_statement
+        body: (statement
+          (block_statement
+            (statement
+               (expression_statement
+                 (expression
+                   (call_expression
+                     function: (expression (member_expression
+                        property: (identifier) @_method (#match? @_method "^(transfer|send|call)$"))))))))))
+    message: "External call inside a loop. This may cause DoS if the loop is unbounded."
+
+  - id: array-push-in-loop
+    kind: semantic
+    pattern: |
+      (for_statement
+        body: (statement
+          (block_statement
+            (statement
+               (expression_statement
+                 (expression
+                   (call_expression
+                     function: (expression (member_expression
+                        property: (identifier) @_push (#eq? @_push "push"))))))))))
+    message: "Array push inside a loop. Verify the loop is bounded to prevent gas limit DoS."

@@ -1,0 +1,46 @@
+id: reentrancy-state-change-after-external-call
+name: Reentrancy - State Change After External Call
+description: |
+  External call (call/send/transfer) followed by state modification enables 
+  reentrancy attacks. Attacker can recursively call back before state updates.
+severity: critical
+tags:
+  - security
+  - reentrancy
+  - SWC-107
+patterns:
+  - id: call-then-state-change
+    kind: semantic
+    pattern: |
+      (function_body
+        (statement
+          (expression_statement
+            (expression
+              (call_expression
+                function: (expression (member_expression
+                  property: (identifier) @_method (#match? @_method "^(call|send|transfer)$")))))))
+        (statement
+          (expression_statement
+            (expression
+              (assignment_expression
+                left: (expression) @_state_var)))))
+    message: "Reentrancy risk: state change after external call. Apply checks-effects-interactions pattern or use ReentrancyGuard."
+
+  - id: call-then-mapping-update
+    kind: semantic
+    pattern: |
+      (function_body
+        (statement
+          (expression_statement
+            (expression
+              (call_expression
+                function: (expression (member_expression
+                  property: (identifier) @_method (#match? @_method "^(call|send|transfer)$")))))))
+        (statement
+          (expression_statement
+            (expression
+              (assignment_expression
+                left: (expression 
+                  (subscript_expression
+                    object: (expression (identifier) @_mapping))))))))
+    message: "Reentrancy risk: mapping update after external call. Update balances before transfers."

@@ -61,12 +61,40 @@ pub struct Match {
     pub end_byte: Option<usize>,
 }
 
+impl Match {
+    pub fn risk_score(&self) -> u32 {
+        match self.severity {
+            Severity::Critical => 10,
+            Severity::High => 7,
+            Severity::Medium => 4,
+            Severity::Low => 2,
+            Severity::Info => 1,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct ScanResult {
     pub address: String,
     pub chain: String,
     pub matches: Vec<Match>,
     pub scan_time_ms: u64,
+}
+
+impl ScanResult {
+    pub fn total_risk_score(&self) -> u32 {
+        self.matches.iter().map(|m| m.risk_score()).sum()
+    }
+
+    pub fn risk_level(&self) -> &'static str {
+        match self.total_risk_score() {
+            0 => "None",
+            1..=5 => "Low",
+            6..=15 => "Medium",
+            16..=30 => "High",
+            _ => "Critical",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -1,0 +1,34 @@
+name: Smart Contract Security Scan
+
+on:
+  pull_request:
+    paths:
+      - '**.sol'
+  push:
+    branches:
+      - main
+      - develop
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Run SCPF Security Scanner
+        uses: teycir/smartcontractpatternfinder@v1
+        with:
+          severity: high
+          output-format: sarif
+          fail-on-findings: true
+          
+      - name: Upload Results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: scpf-results
+          path: scpf-results.sarif

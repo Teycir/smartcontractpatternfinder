@@ -1,0 +1,64 @@
+# GitLab CI/CD Configuration for SCPF
+# Add this to your .gitlab-ci.yml file
+
+scpf-security-scan:
+  stage: test
+  image: rust:latest
+  variables:
+    CARGO_HOME: $CI_PROJECT_DIR/.cargo
+  cache:
+    paths:
+      - .cargo/
+      - target/
+  before_script:
+    - cargo install scpf-cli || echo "Using cached scpf-cli"
+  script:
+    - scpf scan --output json > scpf-results.json
+    - scpf scan --output sarif > scpf-results.sarif
+  artifacts:
+    reports:
+      sast: scpf-results.sarif
+    paths:
+      - scpf-results.json
+      - scpf-results.sarif
+    expire_in: 1 week
+  allow_failure: false
+  only:
+    - merge_requests
+    - main
+    - develop
+
+# Optional: Scan only changed files in MRs
+scpf-diff-scan:
+  stage: test
+  image: rust:latest
+  variables:
+    CARGO_HOME: $CI_PROJECT_DIR/.cargo
+  cache:
+    paths:
+      - .cargo/
+  before_script:
+    - cargo install scpf-cli || echo "Using cached scpf-cli"
+  script:
+    - scpf scan --diff origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME..HEAD
+  only:
+    - merge_requests
+  allow_failure: true
+
+# Optional: Scan blockchain contracts
+scpf-blockchain-scan:
+  stage: test
+  image: rust:latest
+  variables:
+    CARGO_HOME: $CI_PROJECT_DIR/.cargo
+  cache:
+    paths:
+      - .cargo/
+  before_script:
+    - cargo install scpf-cli || echo "Using cached scpf-cli"
+  script:
+    - scpf scan $CONTRACT_ADDRESS --chain ethereum --output json
+  only:
+    variables:
+      - $CONTRACT_ADDRESS
+  allow_failure: true

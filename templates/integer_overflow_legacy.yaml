@@ -1,0 +1,41 @@
+id: integer-overflow-risk
+name: Integer Overflow/Underflow Risk
+description: |
+  Arithmetic operations without validation (before Solidity 0.8.x) can overflow.
+severity: high
+tags:
+  - security
+  - overflow
+  - SWC-101
+patterns:
+  - id: multiply-before-divide
+    kind: semantic
+    pattern: |
+      (binary_expression
+        left: (expression (binary_expression "/" @op_div))
+        "*" @op_mul)
+    message: "Division before multiplication often leads to precision loss."
+
+  - id: unchecked-addition-assignment
+    kind: semantic
+    pattern: |
+      (augmented_assignment_expression
+        left: (expression)
+        "+=" @op
+        right: (expression))
+    message: "Unchecked addition (+=). Ensure SafeMath is used or compiler version >= 0.8.0."
+
+  - id: unchecked-subtraction
+    kind: semantic
+    pattern: |
+      (binary_expression
+        "-" @op)
+    message: "Subtraction operation check. Verify underflow protection."
+
+  - id: array-length-decrement
+    kind: semantic
+    pattern: |
+      (update_expression
+        argument: (expression (member_expression property: (identifier) @len (#eq? @len "length")))
+        "--" @op)
+    message: "Dangerous array length decrement."

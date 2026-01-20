@@ -1,0 +1,87 @@
+# SCPF Template Registry
+# Official and community-maintained template collections
+
+version: "1.0"
+
+registries:
+  # Official SCPF templates
+  official:
+    url: "https://github.com/Teycir/scpf-templates"
+    description: "Official SCPF security templates"
+    maintainer: "Teycir Ben Soltane"
+    
+  # Community templates
+  community:
+    url: "https://github.com/scpf-community/templates"
+    description: "Community-contributed templates"
+    maintainer: "SCPF Community"
+
+# Template collections
+collections:
+  # Core security patterns
+  core:
+    registry: official
+    path: "core"
+    description: "Essential security patterns (reentrancy, access control, etc.)"
+    templates:
+      - reentrancy.yaml
+      - delegatecall_user_input.yaml
+      - tx_origin_auth.yaml
+      - unprotected_selfdestruct_v2.yaml
+      - unchecked_return_value.yaml
+      - missing_access_control.yaml
+    
+  # DeFi-specific patterns
+  defi:
+    registry: official
+    path: "defi"
+    description: "DeFi protocol vulnerabilities"
+    templates:
+      - defi_vulnerabilities.yaml
+      - front_running_v2.yaml
+      - strict_balance_equality_v2.yaml
+      - timestamp_dependence_v2.yaml
+    
+  # ERC token standards
+  erc:
+    registry: official
+    path: "erc"
+    description: "ERC standard compliance checks"
+    templates:
+      - erc20_compliance.yaml
+      - erc721_compliance.yaml
+      - erc1155_compliance.yaml
+  
+  # Gas optimization
+  gas:
+    registry: official
+    path: "gas"
+    description: "Gas optimization and logic bugs"
+    templates:
+      - logic_bugs_gas.yaml
+      - dos_gas_limit.yaml
+  
+  # Advanced auditing
+  audit:
+    registry: official
+    path: "audit"
+    description: "Advanced audit patterns"
+    templates:
+      - advanced_audit.yaml
+      - semantic_vulnerabilities.yaml
+  
+  # Zero-day and emerging threats
+  zeroday:
+    registry: official
+    path: "zeroday"
+    description: "Emerging vulnerability patterns"
+    templates:
+      - zero_day_emerging.yaml
+
+# Aliases for quick install
+aliases:
+  all: ["core", "defi", "erc", "gas", "audit"]
+  essential: ["core", "defi", "erc"]
+  security: ["core", "audit", "zeroday"]
+  compliance: ["erc"]
+  mev: ["defi"]
