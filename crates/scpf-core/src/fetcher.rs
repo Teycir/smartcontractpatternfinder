@@ -32,52 +32,68 @@ impl ContractFetcher {
             anyhow::bail!("Invalid address format: {}", address);
         }
 
-        let fetch_fn = || async {
-            let _permit = self
-                .rate_limiter
-                .acquire()
-                .await
-                .context("Failed to acquire rate limit permit")?;
+        let keys = self.api_keys.get(chain).unwrap_or(&[]);
+        let mut last_error = None;
 
-            let url = self.build_url(address, chain)?;
+        for (idx, key) in keys.iter().enumerate() {
+            let fetch_fn = || async {
+                let _permit = self
+                    .rate_limiter
+                    .acquire()
+                    .await
+                    .context("Failed to acquire rate limit permit")?;
 
-            let response = self
-                .client
-                .get(&url)
-                .send()
-                .await
-                .context("Failed to fetch contract source")?;
+                let url = self.build_url_with_key(address, chain, key)?;
 
-            let json: Value = response.json().await.context("Failed to parse response")?;
+                let response = self
+                    .client
+                    .get(&url)
+                    .send()
+                    .await
+                    .context("Failed to fetch contract source")?;
 
-            if json["status"].as_str() != Some("1") {
-                let error_msg = json["message"]
+                let json: Value = response.json().await.context("Failed to parse response")?;
+
+                if json["status"].as_str() != Some("1") {
+                    let error_msg = json["message"]
+                        .as_str()
+                        .map(|s| s.to_string())
+                        .unwrap_or_else(|| format!("Unknown API error. Response: {:?}", json));
+                    anyhow::bail!("API error: {}", error_msg);
+                }
+
+                let result = json["result"]
+                    .as_array()
+                    .and_then(|arr| arr.first())
+                    .context("No result in API response")?;
+
+                let source_code = result["SourceCode"]
                     .as_str()
-                    .map(|s| s.to_string())
-                    .unwrap_or_else(|| format!("Unknown API error. Response: {:?}", json));
-                anyhow::bail!("API error: {}", error_msg);
+                    .context("Source code not found")?;
+
+                Ok(Self::parse_source_code(source_code))
+            };
+
+            match fetch_fn
+                .retry(
+                    ExponentialBuilder::default()
+                        .with_max_times(3)
+                        .with_min_delay(Duration::from_millis(500))
+                        .with_max_delay(Duration::from_secs(5)),
+                )
+                .await
+            {
+                Ok(result) => return Ok(result),
+                Err(e) => {
+                    last_error = Some(e);
+                    if idx < keys.len() - 1 {
+                        tracing::warn!("API key {} failed, trying next key", idx + 1);
+                    }
+                }
             }
+        }
 
-            let result = json["result"]
-                .as_array()
-                .and_then(|arr| arr.first())
-                .context("No result in API response")?;
-
-            let source_code = result["SourceCode"]
-                .as_str()
-                .context("Source code not found")?;
-
-            Ok(Self::parse_source_code(source_code))
-        };
-
-        fetch_fn
-            .retry(
-                ExponentialBuilder::default()
-                    .with_max_times(3)
-                    .with_min_delay(Duration::from_millis(500))
-                    .with_max_delay(Duration::from_secs(5)),
-            )
-            .await
+        Err(last_error.unwrap_or_else(|| anyhow::anyhow!("No API keys available")))
     }
 
     pub fn parse_source_code(source_code: &str) -> String {
@@ -125,17 +141,12 @@ impl ContractFetcher {
         source_code.to_string()
     }
 
-    fn build_url(&self, address: &str, chain: Chain) -> Result<String> {
-        let mut url = format!(
-            "{}?module=contract&action=getsourcecode&address={}",
+    fn build_url_with_key(&self, address: &str, chain: Chain, key: &str) -> Result<String> {
+        Ok(format!(
+            "{}?module=contract&action=getsourcecode&address={}&apikey={}",
             chain.api_base_url(),
-            address
-        );
-
-        if let Some(key) = self.api_keys.get(chain) {
-            url.push_str(&format!("&apikey={}", key));
-        }
-
-        Ok(url)
+            address,
+            key
+        ))
     }
 }

@@ -28,3 +28,8 @@ templates/zero_day_live.yaml
 
 # Cargo
 Cargo.lock
+
+# Environment variables (API keys)
+.env
+.env.local
+.env.*.local
