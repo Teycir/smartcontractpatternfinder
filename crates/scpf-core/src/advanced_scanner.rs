@@ -1,6 +1,7 @@
 use crate::dependency_analyzer::DependencyAnalyzer;
 use crate::exploit_gen::{ExploitGenerator, ExploitTemplate, VulnerabilityInfo};
 use crate::invariant_gen::{GeneratedInvariant, InvariantGenerator};
+use crate::poc_stager::{PocCandidate, PocStager};
 use crate::risk_scorer::{RiskScore, RiskScorer};
 use crate::state_analysis::{StateAnalyzer, StateViolation};
 use crate::taint::{TaintAnalyzer, TaintFlow};
@@ -16,6 +17,7 @@ pub struct AdvancedReport {
     pub value_flow_summary: ValueFlowSummary,
     pub state_violations: Vec<StateViolation>,
     pub invariants: Vec<GeneratedInvariant>,
+    pub poc_candidates: Vec<PocCandidate>,
 }
 
 #[derive(Debug, Clone)]
@@ -49,6 +51,7 @@ pub struct AdvancedScanner {
     exploit_generator: ExploitGenerator,
     risk_scorer: RiskScorer,
     dependency_analyzer: DependencyAnalyzer,
+    poc_stager: PocStager,
 }
 
 impl AdvancedScanner {
@@ -60,6 +63,7 @@ impl AdvancedScanner {
             exploit_generator: ExploitGenerator::new(),
             risk_scorer: RiskScorer::new(),
             dependency_analyzer: DependencyAnalyzer::new(),
+            poc_stager: PocStager::new(),
         }
     }
 
@@ -77,17 +81,19 @@ impl AdvancedScanner {
             InvariantGenerator::new(source_code.to_string(), contract_name.to_string());
         let invariants = invariant_gen.generate();
 
+        let poc_candidates = self.poc_stager.stage_for_poc(findings, source_code, contract_name);
+
         let vulnerabilities = self.combine_findings(findings, &taint_flows, &value_paths);
 
-        let exploits: Vec<_> = vulnerabilities
+        let exploits: Vec<_> = poc_candidates
             .iter()
-            .filter(|v| v.confidence > 0.7)
-            .map(|v| {
+            .filter(|c| c.priority as u8 >= 3)
+            .map(|c| {
                 self.exploit_generator.generate(&VulnerabilityInfo {
-                    pattern_id: v.id.clone(),
-                    contract: "Target".to_string(),
-                    function: "vulnerable".to_string(),
-                    vuln_type: v.severity.clone(),
+                    pattern_id: c.pattern_id.clone(),
+                    contract: c.context.contract_name.clone(),
+                    function: c.context.vulnerable_function.clone(),
+                    vuln_type: c.pattern_id.clone(),
                 })
             })
             .collect();
@@ -102,6 +108,7 @@ impl AdvancedScanner {
             value_flow_summary: self.summarize_value_flow(&value_paths),
             state_violations,
             invariants,
+            poc_candidates,
         }
     }
 
@@ -278,6 +285,16 @@ impl AdvancedScanner {
                 inv.category
             ));
         }
+
+        output.push_str(&format!(
+            "\n## PoC Candidates Staged: {}\n",
+            report.poc_candidates.len()
+        ));
+        let critical = report.poc_candidates.iter().filter(|c| c.priority as u8 == 4).count();
+        let high = report.poc_candidates.iter().filter(|c| c.priority as u8 == 3).count();
+        output.push_str(&format!("- Critical: {}\n", critical));
+        output.push_str(&format!("- High: {}\n", high));
+        output.push_str("\nReady for AI PoC generation.\n");
 
         output.push_str("\n## Recommendations\n");
         for rec in &report.risk_score.recommendations {
