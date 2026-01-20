@@ -213,14 +213,12 @@ patterns:
 
   # Uninitialized storage pointer
   - id: uninitialized-storage
-    kind: semantic
-    pattern: |
-      (variable_declaration_statement
-        (type_name)
-        (data_location) @loc
-        (identifier))
-      (#eq? @loc "storage")
+    kind: regex
+    validate: true
+    pattern: '\w+\[\]\s+storage\s+\w+\s*;'
     message: Storage pointer without initialization - points to slot 0
+    required: false
+    on_error: skip
 
   # Reentrancy via modifier
   - id: modifier-external-call

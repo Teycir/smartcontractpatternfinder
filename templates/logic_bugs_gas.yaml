@@ -9,16 +9,23 @@ tags:
   - semantic
 
 patterns:
+  # ============================================
+  # FIXED PATTERNS (7 that were failing)
+  # ============================================
+
   # Logic: Off-by-one errors
   - id: off-by-one-loop
     kind: semantic
     pattern: |
       (for_statement
-        (binary_expression
-          (identifier)
-          (member_expression
-            (identifier)
-            (identifier) @length)))
+        (expression
+          (binary_expression
+            (expression
+              (identifier))
+            (expression
+              (member_expression
+                (identifier)
+                (identifier) @length)))))
       (#eq? @length "length")
     message: Loop with <= length - off-by-one error, arrays are 0-indexed
 
@@ -27,11 +34,14 @@ patterns:
     kind: semantic
     pattern: |
       (for_statement
-        (binary_expression
-          (identifier)
-          (member_expression
-            (identifier)
-            (identifier) @length)))
+        (expression
+          (binary_expression
+            (expression
+              (identifier))
+            (expression
+              (member_expression
+                (identifier)
+                (identifier) @length)))))
       (#eq? @length "length")
     message: Array length read every iteration - cache in variable to save gas
 
@@ -41,20 +51,19 @@ patterns:
     pattern: |
       (variable_declaration_statement
         (variable_declaration
+          (type_name)
           (identifier) @name))
       (#match? @name "^(now|assert|require|revert)$")
     message: Variable shadows built-in symbol - confusing and error-prone
 
   # Gas: Unnecessary initialization
   - id: unnecessary-zero-init
-    kind: semantic
-    pattern: |
-      (variable_declaration_statement
-        (variable_declaration
-          (identifier)
-          (number_literal) @zero))
-      (#eq? @zero "0")
+    kind: regex
+    validate: true
+    pattern: '(uint|int|bool)\s+\w+\s*=\s*0\s*;'
     message: Explicit zero initialization - unnecessary, default is zero
+    required: false
+    on_error: skip
 
   # Gas: Struct packing inefficient
   - id: struct-packing-inefficient
@@ -62,10 +71,14 @@ patterns:
     validate: true
     pattern: |
       (struct_declaration
-        (struct_member
-          (type_name) @type1)
-        (struct_member
-          (type_name) @type2))
+        (identifier)
+        (struct_body
+          (struct_member
+            (type_name) @type1
+            (identifier))
+          (struct_member
+            (type_name) @type2
+            (identifier))))
       (#eq? @type1 "uint256")
       (#match? @type2 "^(uint8|uint16|uint32|uint64|uint128|bool|address)$")
     message: Struct packing inefficient - group smaller types together to save storage slots
@@ -95,9 +108,11 @@ patterns:
     validate: true
     pattern: |
       (contract_declaration
+        (identifier)
         (contract_body
           (state_variable_declaration
-            (type_name) @type)))
+            (type_name) @type
+            (identifier))))
       (#match? @type "^[A-Z]")
     message: Contract reference without constructor initialization - verify proper setup
     required: false
@@ -113,8 +128,10 @@ patterns:
     kind: semantic
     pattern: |
       (binary_expression
-        (binary_expression)
-        (identifier))
+        (expression
+          (binary_expression))
+        (expression
+          (identifier)))
     message: Division before multiplication - precision loss, reorder operations
 
   # Logic: Incorrect comparison operator
@@ -122,7 +139,8 @@ patterns:
     kind: semantic
     pattern: |
       (if_statement
-        (assignment_expression))
+        (expression
+          (assignment_expression)))
     message: Assignment in condition instead of comparison - likely bug
 
   # Gas: Storage read in loop
@@ -130,9 +148,12 @@ patterns:
     kind: semantic
     pattern: |
       (for_statement
-        (block_statement
-          (expression_statement
-            (member_expression))))
+        (statement
+          (block_statement
+            (statement
+              (expression_statement
+                (expression
+                  (member_expression)))))))
     message: Storage variable accessed in loop - cache in memory to save gas
 
   # Gas: Redundant storage writes
@@ -140,9 +161,12 @@ patterns:
     kind: semantic
     pattern: |
       (expression_statement
-        (assignment_expression
-          (member_expression)
-          (member_expression)))
+        (expression
+          (assignment_expression
+            (expression
+              (member_expression))
+            (expression
+              (member_expression)))))
     message: Storage-to-storage assignment - verify not redundant write
 
   # Gas: String comparison
@@ -150,10 +174,14 @@ patterns:
     kind: semantic
     pattern: |
       (binary_expression
-        (call_expression
-          (identifier) @func1)
-        (call_expression
-          (identifier) @func2))
+        (expression
+          (call_expression
+            (expression
+              (identifier) @func1)))
+        (expression
+          (call_expression
+            (expression
+              (identifier) @func2))))
       (#eq? @func1 "keccak256")
       (#eq? @func2 "keccak256")
     message: String comparison via keccak256 - consider using bytes32 for gas savings
@@ -163,9 +191,10 @@ patterns:
     kind: semantic
     pattern: |
       (call_expression
-        (member_expression
-          (identifier)
-          (identifier) @method))
+        (expression
+          (member_expression
+            (identifier)
+            (identifier) @method)))
       (#match? @method "^(add|sub|mul|div)$")
     message: SafeMath usage detected - unnecessary in Solidity 0.8+, use native operators
 
@@ -183,10 +212,12 @@ patterns:
     kind: semantic
     pattern: |
       (expression_statement
-        (call_expression
-          (member_expression
-            (identifier)
-            (identifier) @method)))
+        (expression
+          (call_expression
+            (expression
+              (member_expression
+                (identifier)
+                (identifier) @method)))))
       (#match? @method "^(approve|transfer|transferFrom)$")
     message: ERC20 return value ignored - some tokens return false instead of reverting
 
@@ -199,8 +230,10 @@ patterns:
           (type_name) @type
           (identifier) @name)
         (function_body
-          (expression_statement
-            (call_expression))))
+          (statement
+            (expression_statement
+              (expression
+                (call_expression))))))
       (#match? @type "^(uint|uint256)$")
       (#match? @name "^(amount|value|quantity)$")
     message: Amount parameter without zero check - validate inputs to prevent waste
@@ -210,8 +243,10 @@ patterns:
     kind: semantic
     pattern: |
       (event_definition
+        (identifier)
         (event_parameter
-          (type_name) @type))
+          (type_name) @type
+          (identifier)))
       (#match? @type "^(string|bytes)$")
     message: String/bytes in event - cannot be indexed, use bytes32 hash instead
 
@@ -229,8 +264,10 @@ patterns:
     kind: semantic
     pattern: |
       (for_statement
-        (block_statement
-          (emit_statement)))
+        (statement
+          (block_statement
+            (statement
+              (emit_statement)))))
     message: Event emission in loop - expensive gas cost, consider batching
 
   # Logic: Incorrect inheritance order
@@ -238,6 +275,7 @@ patterns:
     kind: semantic
     pattern: |
       (contract_declaration
+        (identifier)
         (inheritance_specifier)
         (inheritance_specifier))
     message: Multiple inheritance - verify C3 linearization order is correct
