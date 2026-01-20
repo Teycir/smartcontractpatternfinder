@@ -17,12 +17,18 @@ pub async fn run(args: ScanArgs) -> Result<()> {
     // Update templates if requested
     if let Some(days) = args.update_templates {
         if days > 0 {
-            println!("{}  Updating templates with 0-day exploits from last {} days...", "📡".cyan(), days);
+            println!(
+                "{}  Updating templates with 0-day exploits from last {} days...",
+                "📡".cyan(),
+                days
+            );
             let zeroday_fetcher = scpf_core::ZeroDayFetcher::new()?;
             let exploits = zeroday_fetcher.fetch_recent_exploits(days).await?;
             if !exploits.is_empty() {
                 let zeroday_path = PathBuf::from("templates/zero_day_live.yaml");
-                zeroday_fetcher.generate_template(exploits.clone(), &zeroday_path).await?;
+                zeroday_fetcher
+                    .generate_template(exploits.clone(), &zeroday_path)
+                    .await?;
                 println!("   ✓ Updated with {} recent exploits\n", exploits.len());
             } else {
                 println!("   ℹ No new exploits found\n");
@@ -149,7 +155,9 @@ pub async fn run(args: ScanArgs) -> Result<()> {
     match args.output {
         crate::cli::OutputFormat::Json => println!("{}", output::format_json(&scan_results)?),
         crate::cli::OutputFormat::Sarif => println!("{}", output::format_sarif(&scan_results)?),
-        crate::cli::OutputFormat::Console => print_console(&scan_results, failed, args.sort_by_exploitability),
+        crate::cli::OutputFormat::Console => {
+            print_console(&scan_results, failed, args.sort_by_exploitability)
+        }
     }
 
     Ok(())
@@ -193,14 +201,17 @@ fn print_console(results: &[ScanResult], failed: usize, sort_by_exploitability: 
     // Show vulnerability groups first
     if !pattern_groups.is_empty() {
         if sort_by_exploitability {
-            println!("{}  Vulnerability Groups (Sorted by PoC Success Probability):", "🎯".cyan());
+            println!(
+                "{}  Vulnerability Groups (Sorted by PoC Success Probability):",
+                "🎯".cyan()
+            );
         } else {
             println!("{}  Vulnerability Groups (Sorted by Count):", "🎯".cyan());
         }
         println!();
 
         let mut sorted_groups: Vec<_> = pattern_groups.iter().collect();
-        
+
         if sort_by_exploitability {
             // Sort by exploitability score (highest first)
             sorted_groups.sort_by(|a, b| {
@@ -271,9 +282,18 @@ fn print_console(results: &[ScanResult], failed: usize, sort_by_exploitability: 
                     if !snippet.before.is_empty() {
                         println!("     {} | {}", snippet.line_start, snippet.before.dimmed());
                     }
-                    println!("   {} {} | {}", "→".red(), first_match.line_number, snippet.vulnerable_line);
+                    println!(
+                        "   {} {} | {}",
+                        "→".red(),
+                        first_match.line_number,
+                        snippet.vulnerable_line
+                    );
                     if !snippet.after.is_empty() {
-                        println!("     {} | {}", first_match.line_number + 1, snippet.after.dimmed());
+                        println!(
+                            "     {} | {}",
+                            first_match.line_number + 1,
+                            snippet.after.dimmed()
+                        );
                     }
                     println!();
                 }
@@ -375,7 +395,7 @@ fn print_console(results: &[ScanResult], failed: usize, sort_by_exploitability: 
             .map(|r| r.total_risk_score())
             .max()
             .unwrap_or(0);
-        
+
         // Get risk level emoji
         let risk_emoji = match total_risk {
             0 => "✅",
@@ -384,7 +404,7 @@ fn print_console(results: &[ScanResult], failed: usize, sort_by_exploitability: 
             501..=2000 => "🔴",
             _ => "🚨",
         };
-        
+
         let risk_level = match total_risk {
             0 => "None",
             1..=100 => "Low",
@@ -392,12 +412,12 @@ fn print_console(results: &[ScanResult], failed: usize, sort_by_exploitability: 
             501..=2000 => "High",
             _ => "Critical",
         };
-        
+
         println!(
             "   Risk Score: {} {} {} (avg: {}, max: {})",
             total_risk, risk_emoji, risk_level, avg_risk, max_risk
         );
-        
+
         // Show calculation formula (CRITICAL, HIGH, MEDIUM only)
         println!("\n   Risk Calculation:");
         println!("     {} CRITICAL × 100 = {}", critical, critical * 100);
@@ -416,16 +436,19 @@ fn print_console(results: &[ScanResult], failed: usize, sort_by_exploitability: 
         );
     } else if total_matches > 0 {
         println!("\n{} Priority Actions:", "→".cyan().bold());
-        
+
         // Prioritize files by risk score
         let mut file_risks: Vec<_> = results
             .iter()
             .map(|r| (r.address.clone(), r.total_risk_score()))
             .collect();
         file_risks.sort_by(|a, b| b.1.cmp(&a.1));
-        
+
         if critical > 0 {
-            println!("  1. 🚨 CRITICAL: Fix {} critical issues immediately", critical);
+            println!(
+                "  1. 🚨 CRITICAL: Fix {} critical issues immediately",
+                critical
+            );
         }
         if high > 0 {
             println!("  2. 🔴 HIGH: Address {} high-severity issues", high);
@@ -433,7 +456,7 @@ fn print_console(results: &[ScanResult], failed: usize, sort_by_exploitability: 
         if medium > 0 {
             println!("  3. ⚠️  MEDIUM: Review {} medium-severity issues", medium);
         }
-        
+
         println!("\n{} Files by Priority:", "📋".cyan());
         for (i, (file, risk)) in file_risks.iter().take(3).enumerate() {
             let emoji = match *risk {
@@ -444,7 +467,7 @@ fn print_console(results: &[ScanResult], failed: usize, sort_by_exploitability: 
             };
             println!("  {}. {} {} (Risk: {})", i + 1, emoji, file, risk);
         }
-        
+
         println!("\n{} Export Options:", "💾".cyan());
         println!("  • JSON: scpf scan ... --output json > results.json");
         println!("  • SARIF: scpf scan ... --output sarif > results.sarif");
@@ -501,7 +524,9 @@ async fn scan_local_project(args: ScanArgs) -> Result<()> {
     match args.output {
         crate::cli::OutputFormat::Json => println!("{}", output::format_json(&scan_results)?),
         crate::cli::OutputFormat::Sarif => println!("{}", output::format_sarif(&scan_results)?),
-        crate::cli::OutputFormat::Console => print_console(&scan_results, 0, args.sort_by_exploitability),
+        crate::cli::OutputFormat::Console => {
+            print_console(&scan_results, 0, args.sort_by_exploitability)
+        }
     }
 
     // Exit with error code if high/critical issues found
@@ -618,12 +643,19 @@ fn discover_diff_files(diff_spec: &str) -> Result<Vec<PathBuf>> {
 }
 
 async fn scan_recent_contracts(args: ScanArgs) -> Result<()> {
-    println!("{}  Scanning contracts updated in last {} days...", "🔍".cyan(), args.days);
-    println!("   Severity filter: {} and above", args.min_severity.to_uppercase());
-    
+    println!(
+        "{}  Scanning contracts updated in last {} days...",
+        "🔍".cyan(),
+        args.days
+    );
+    println!(
+        "   Severity filter: {} and above",
+        args.min_severity.to_uppercase()
+    );
+
     let api_keys = ApiKeyConfig::from_env();
     let fetcher = Arc::new(ContractFetcher::new(api_keys)?);
-    
+
     let chains = if args.all_chains {
         vec![
             scpf_types::Chain::Ethereum,
@@ -659,9 +691,13 @@ async fn scan_recent_contracts(args: ScanArgs) -> Result<()> {
     }
 
     println!();
-    println!("{}  Scanning {} contracts...", "🔎".cyan(), all_contracts.len());
+    println!(
+        "{}  Scanning {} contracts...",
+        "🔎".cyan(),
+        all_contracts.len()
+    );
     println!();
-    
+
     let templates = load_templates(&args.templates).await?;
     let scanner = Arc::new(tokio::sync::Mutex::new(Scanner::new(templates)?));
     let cache_dir = dirs::cache_dir()
@@ -688,18 +724,27 @@ async fn scan_recent_contracts(args: ScanArgs) -> Result<()> {
                 }
             }
         };
-        
+
         let start = Instant::now();
-        let matches = scanner.lock().await.scan(&source, PathBuf::from(&address))?;
+        let matches = scanner
+            .lock()
+            .await
+            .scan(&source, PathBuf::from(&address))?;
         let scan_time_ms = start.elapsed().as_millis() as u64;
-        
+
         let filtered_matches: Vec<_> = matches
             .into_iter()
             .filter(|m| m.severity >= min_severity)
             .collect();
-        
+
         if !filtered_matches.is_empty() {
-            println!("{}  {} ({}) - {} issues", "⚠️".yellow(), &address[..10], chain.as_str(), filtered_matches.len());
+            println!(
+                "{}  {} ({}) - {} issues",
+                "⚠️".yellow(),
+                &address[..10],
+                chain.as_str(),
+                filtered_matches.len()
+            );
             scan_results.push(ScanResult {
                 address,
                 chain: chain.to_string(),
@@ -707,17 +752,24 @@ async fn scan_recent_contracts(args: ScanArgs) -> Result<()> {
                 scan_time_ms,
             });
         } else {
-            println!("{}  {} ({}) - Clean", "✓".green(), &address[..10], chain.as_str());
+            println!(
+                "{}  {} ({}) - Clean",
+                "✓".green(),
+                &address[..10],
+                chain.as_str()
+            );
         }
     }
-    
+
     println!();
     match args.output {
         crate::cli::OutputFormat::Json => println!("{}", output::format_json(&scan_results)?),
         crate::cli::OutputFormat::Sarif => println!("{}", output::format_sarif(&scan_results)?),
-        crate::cli::OutputFormat::Console => print_console(&scan_results, 0, args.sort_by_exploitability),
+        crate::cli::OutputFormat::Console => {
+            print_console(&scan_results, 0, args.sort_by_exploitability)
+        }
     }
-    
+
     Ok(())
 }
 

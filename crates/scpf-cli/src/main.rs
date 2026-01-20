@@ -5,6 +5,7 @@ mod cli;
 mod commands;
 mod error_helper;
 mod output;
+mod pattern_builder;
 
 use cli::{Cli, Commands};
 

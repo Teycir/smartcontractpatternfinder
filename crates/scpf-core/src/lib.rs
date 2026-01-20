@@ -10,6 +10,11 @@ pub mod composition;
 pub mod risk_scoring;
 pub mod risk_scorer;
 pub mod dependency_analyzer;
+pub mod taint;
+pub mod value_flow;
+pub mod state_analysis;
+pub mod exploit_gen;
+pub mod advanced_scanner;
 pub mod pattern_validator;
 
 pub use scanner::Scanner;
@@ -24,6 +29,11 @@ pub use composition::TemplateComposer;
 pub use risk_scoring::{RiskScorer as OldRiskScorer, RiskAssessment, RiskLevel as OldRiskLevel, RiskConfig};
 pub use risk_scorer::{RiskScorer, RiskScore, RiskLevel, SeverityBreakdown, RiskFactor};
 pub use dependency_analyzer::{DependencyAnalyzer, DependencyGraph, AttackSurface};
+pub use taint::{TaintAnalyzer, TaintFlow, TaintSource, TaintSink, Exploitability};
+pub use value_flow::{ValueFlowAnalyzer, ValueExtractionPath, ExtractionType};
+pub use state_analysis::{StateAnalyzer, StateViolation, Invariant};
+pub use exploit_gen::{ExploitGenerator, ExploitTemplate, VulnerabilityInfo};
+pub use advanced_scanner::{AdvancedScanner, AdvancedReport, CombinedVulnerability};
 pub use pattern_validator::PatternValidator;
 
 #[cfg(test)]

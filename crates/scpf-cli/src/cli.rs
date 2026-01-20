@@ -77,7 +77,10 @@ pub struct ScanArgs {
     #[arg(long, help = "Only scan files changed in git diff (e.g., main..HEAD)")]
     pub diff: Option<String>,
 
-    #[arg(long, help = "Update templates with 0-day exploits from last N days (0 = no update)")]
+    #[arg(
+        long,
+        help = "Update templates with 0-day exploits from last N days (0 = no update)"
+    )]
     pub update_templates: Option<i64>,
 
     // Filtering options
