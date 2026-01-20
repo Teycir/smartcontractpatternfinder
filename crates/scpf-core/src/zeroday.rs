@@ -54,15 +54,29 @@ impl ZeroDayFetcher {
         Ok(exploits)
     }
 
+    async fn fetch_json<T: serde::de::DeserializeOwned>(
+        &self,
+        url: &str,
+    ) -> Result<Option<T>> {
+        match self.client.get(url).send().await {
+            Ok(resp) => Ok(resp.json::<T>().await.ok()),
+            Err(e) => {
+                warn!("Failed to fetch {}: {}", url, e);
+                Ok(None)
+            }
+        }
+    }
+
     async fn fetch_defillama_hacks(&self, cutoff: &DateTime<Utc>) -> Result<Vec<Exploit>> {
         info!("Fetching from DeFiLlama Hacks API...");
 
-        match self.client.get("https://api.llama.fi/hacks").send().await {
-            Ok(resp) => {
-                if let Ok(hacks) = resp.json::<Vec<serde_json::Value>>().await {
-                    let exploits: Vec<Exploit> = hacks
-                        .into_iter()
-                        .filter_map(|hack| {
+        if let Some(hacks) = self
+            .fetch_json::<Vec<serde_json::Value>>("https://api.llama.fi/hacks")
+            .await?
+        {
+            let exploits: Vec<Exploit> = hacks
+                .into_iter()
+                .filter_map(|hack| {
                             // Date is Unix timestamp
                             let timestamp = hack.get("date")?.as_i64()?;
                             let date = DateTime::from_timestamp(timestamp, 0)?.with_timezone(&Utc);
@@ -90,27 +104,22 @@ impl ZeroDayFetcher {
                                 .and_then(|l| l.as_f64())
                                 .map(|l| (l * 1_000_000.0) as u64);
 
-                            Some(Exploit {
-                                source: "defillama".to_string(),
-                                title: name,
-                                date,
-                                loss_usd: loss,
-                                exploit_type: classify_technique(technique),
-                                description: format!(
-                                    "Technique: {} | Language: {}",
-                                    technique, language
-                                ),
-                            })
-                        })
-                        .collect();
+                    Some(Exploit {
+                        source: "defillama".to_string(),
+                        title: name,
+                        date,
+                        loss_usd: loss,
+                        exploit_type: classify_by_text(technique),
+                        description: format!("Technique: {} | Language: {}", technique, language),
+                    })
+                })
+                .collect();
 
-                    info!("  Found {} from DeFiLlama", exploits.len());
-                    return Ok(exploits);
-                }
-            }
-            Err(e) => warn!("Failed to fetch DeFiLlama: {}", e),
+            info!("  Found {} from DeFiLlama", exploits.len());
+            Ok(exploits)
+        } else {
+            Ok(Vec::new())
         }
-        Ok(Vec::new())
     }
 
     async fn fetch_defihacklabs(&self, cutoff: &DateTime<Utc>) -> Result<Vec<Exploit>> {
@@ -118,18 +127,10 @@ impl ZeroDayFetcher {
 
         let url = "https://api.github.com/repos/SunWeb3Sec/DeFiHackLabs/commits?per_page=30";
 
-        match self
-            .client
-            .get(url)
-            .header("Accept", "application/vnd.github+json")
-            .send()
-            .await
-        {
-            Ok(resp) => {
-                if let Ok(commits) = resp.json::<Vec<serde_json::Value>>().await {
-                    let exploits: Vec<Exploit> = commits
-                        .into_iter()
-                        .filter_map(|commit| {
+        if let Some(commits) = self.fetch_json::<Vec<serde_json::Value>>(url).await? {
+            let exploits: Vec<Exploit> = commits
+                .into_iter()
+                .filter_map(|commit| {
                             let commit_data = commit.get("commit")?;
                             let author = commit_data.get("author")?;
                             let date_str = author.get("date")?.as_str()?;
@@ -144,24 +145,22 @@ impl ZeroDayFetcher {
                             let message = commit_data.get("message")?.as_str()?;
                             let title = message.lines().next()?.to_string();
 
-                            Some(Exploit {
-                                source: "defihacklabs".to_string(),
-                                title: title.clone(),
-                                date,
-                                loss_usd: extract_loss(&title),
-                                exploit_type: classify_exploit(&title),
-                                description: message.to_string(),
-                            })
-                        })
-                        .collect();
+                    Some(Exploit {
+                        source: "defihacklabs".to_string(),
+                        title: title.clone(),
+                        date,
+                        loss_usd: extract_loss(&title),
+                        exploit_type: classify_by_text(&title),
+                        description: message.to_string(),
+                    })
+                })
+                .collect();
 
-                    info!("  Found {} from DeFiHackLabs", exploits.len());
-                    return Ok(exploits);
-                }
-            }
-            Err(e) => warn!("Failed to fetch DeFiHackLabs: {}", e),
+            info!("  Found {} from DeFiHackLabs", exploits.len());
+            Ok(exploits)
+        } else {
+            Ok(Vec::new())
         }
-        Ok(Vec::new())
     }
 
     async fn fetch_github_solidity_advisories(
@@ -172,18 +171,10 @@ impl ZeroDayFetcher {
 
         let url = "https://api.github.com/repos/ethereum/solidity/security/advisories";
 
-        match self
-            .client
-            .get(url)
-            .header("Accept", "application/vnd.github+json")
-            .send()
-            .await
-        {
-            Ok(resp) => {
-                if let Ok(advisories) = resp.json::<Vec<serde_json::Value>>().await {
-                    let exploits: Vec<Exploit> = advisories
-                        .into_iter()
-                        .filter_map(|adv| {
+        if let Some(advisories) = self.fetch_json::<Vec<serde_json::Value>>(url).await? {
+            let exploits: Vec<Exploit> = advisories
+                .into_iter()
+                .filter_map(|adv| {
                             let date_str = adv.get("published_at")?.as_str()?;
                             let date = DateTime::parse_from_rfc3339(date_str)
                                 .ok()?
@@ -193,24 +184,22 @@ impl ZeroDayFetcher {
                                 return None;
                             }
 
-                            Some(Exploit {
-                                source: "github_solidity".to_string(),
-                                title: adv.get("summary")?.as_str()?.to_string(),
-                                date,
-                                loss_usd: None,
-                                exploit_type: ExploitType::Unknown,
-                                description: adv.get("description")?.as_str()?.to_string(),
-                            })
-                        })
-                        .collect();
+                    Some(Exploit {
+                        source: "github_solidity".to_string(),
+                        title: adv.get("summary")?.as_str()?.to_string(),
+                        date,
+                        loss_usd: None,
+                        exploit_type: ExploitType::Unknown,
+                        description: adv.get("description")?.as_str()?.to_string(),
+                    })
+                })
+                .collect();
 
-                    info!("  Found {} from GitHub Solidity", exploits.len());
-                    return Ok(exploits);
-                }
-            }
-            Err(e) => warn!("Failed to fetch GitHub Solidity: {}", e),
+            info!("  Found {} from GitHub Solidity", exploits.len());
+            Ok(exploits)
+        } else {
+            Ok(Vec::new())
         }
-        Ok(Vec::new())
     }
 
     async fn fetch_rss_feeds(&self, cutoff: &DateTime<Utc>) -> Result<Vec<Exploit>> {
@@ -235,7 +224,7 @@ impl ZeroDayFetcher {
             match self.client.get(url).send().await {
                 Ok(resp) => {
                     if let Ok(text) = resp.text().await {
-                        let exploits = parse_rss_simple(&text, cutoff, source);
+                        let exploits = parse_rss(&text, cutoff, source);
                         if !exploits.is_empty() {
                             info!("  Found {} from {}", exploits.len(), source);
                         }
@@ -249,22 +238,7 @@ impl ZeroDayFetcher {
         Ok(all_exploits)
     }
 
-    #[allow(dead_code)]
-    async fn fetch_rekt_rss(&self, cutoff: &DateTime<Utc>) -> Result<Vec<Exploit>> {
-        info!("Fetching from Rekt News RSS...");
 
-        match self.client.get("https://rekt.news/feed.xml").send().await {
-            Ok(resp) => {
-                if let Ok(text) = resp.text().await {
-                    let exploits = parse_rss_simple(&text, cutoff, "rekt");
-                    info!("  Found {} from Rekt News", exploits.len());
-                    return Ok(exploits);
-                }
-            }
-            Err(e) => warn!("Failed to fetch Rekt RSS: {}", e),
-        }
-        Ok(Vec::new())
-    }
 
     pub async fn generate_template(
         &self,
@@ -325,7 +299,7 @@ impl ZeroDayFetcher {
     }
 }
 
-fn parse_rss_simple(xml: &str, cutoff: &DateTime<Utc>, source: &str) -> Vec<Exploit> {
+fn parse_rss(xml: &str, cutoff: &DateTime<Utc>, source: &str) -> Vec<Exploit> {
     let mut exploits = Vec::new();
 
     // Simple XML parsing for RSS items
@@ -346,7 +320,7 @@ fn parse_rss_simple(xml: &str, cutoff: &DateTime<Utc>, source: &str) -> Vec<Expl
                             title: title.clone(),
                             date: date_utc,
                             loss_usd: extract_loss(&title),
-                            exploit_type: classify_exploit(&title),
+                            exploit_type: classify_by_text(&title),
                             description: description.unwrap_or_default(),
                         });
                     }
@@ -358,8 +332,6 @@ fn parse_rss_simple(xml: &str, cutoff: &DateTime<Utc>, source: &str) -> Vec<Expl
     exploits
 }
 
-#[allow(dead_code)]
-#[allow(dead_code)]
 fn extract_xml_tag(content: &str, tag: &str) -> Option<String> {
     let start_tag = format!("<{}>", tag);
     let end_tag = format!("</{}>", tag);
@@ -393,34 +365,17 @@ fn extract_loss(text: &str) -> Option<u64> {
     None
 }
 
-fn classify_technique(technique: &str) -> ExploitType {
-    let technique_lower = technique.to_lowercase();
+fn classify_by_text(text: &str) -> ExploitType {
+    let text_lower = text.to_lowercase();
 
-    if technique_lower.contains("reentrancy") || technique_lower.contains("reentrant") {
+    if text_lower.contains("reentrancy") || text_lower.contains("reentrant") {
         ExploitType::Reentrancy
-    } else if technique_lower.contains("flash loan") || technique_lower.contains("flashloan") {
+    } else if text_lower.contains("flash loan") || text_lower.contains("flashloan") {
         ExploitType::FlashLoan
-    } else if technique_lower.contains("oracle") || technique_lower.contains("price manipulation") {
+    } else if text_lower.contains("oracle") || text_lower.contains("price manipulation") {
         ExploitType::OracleManipulation
-    } else if technique_lower.contains("access control") || technique_lower.contains("unauthorized")
-    {
+    } else if text_lower.contains("access control") || text_lower.contains("unauthorized") {
         ExploitType::AccessControl
-    } else {
-        ExploitType::Unknown
-    }
-}
-
-fn classify_exploit(content: &str) -> ExploitType {
-    let content_lower = content.to_lowercase();
-
-    if content_lower.contains("reentrancy") || content_lower.contains("reentrant") {
-        ExploitType::Reentrancy
-    } else if content_lower.contains("oracle") || content_lower.contains("price manipulation") {
-        ExploitType::OracleManipulation
-    } else if content_lower.contains("access control") || content_lower.contains("unauthorized") {
-        ExploitType::AccessControl
-    } else if content_lower.contains("flash loan") || content_lower.contains("flashloan") {
-        ExploitType::FlashLoan
     } else {
         ExploitType::Unknown
     }

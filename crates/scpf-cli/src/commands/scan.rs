@@ -1,4 +1,5 @@
 use crate::cli::ScanArgs;
+use crate::output;
 use anyhow::Result;
 use colored::Colorize;
 use futures::stream::{self, StreamExt};
@@ -6,29 +7,18 @@ use indicatif::{ProgressBar, ProgressStyle};
 use scpf_core::{Cache, ContractFetcher, Scanner, TemplateLoader};
 use scpf_types::{ApiKeyConfig, ScanResult};
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use walkdir::WalkDir;
 
+static TEMPLATE_CACHE: Mutex<Option<Vec<scpf_types::Template>>> = Mutex::new(None);
+
 pub async fn run(args: ScanArgs) -> Result<()> {
-    // Auto-detect local files if no addresses provided
     if args.addresses.is_empty() {
         return scan_local_project(args).await;
     }
 
-    let templates_dir = args.templates.unwrap_or_else(|| PathBuf::from("templates"));
-    let templates = TemplateLoader::load_from_dir(&templates_dir).await?;
-
-    if templates.is_empty() {
-        anyhow::bail!("No templates found in {:?}", templates_dir);
-    }
-
-    println!("{}  Loaded {} templates", "✓".green(), templates.len());
-
-    if !args.no_cache {
-        println!("{}  Cache enabled", "📦".cyan());
-    }
-
+    let templates = load_templates(&args.templates).await?;
     let scanner = Arc::new(tokio::sync::Mutex::new(Scanner::new(templates)?));
     let api_keys = ApiKeyConfig::from_env();
     let fetcher = Arc::new(ContractFetcher::new(api_keys)?);
@@ -39,13 +29,7 @@ pub async fn run(args: ScanArgs) -> Result<()> {
     let cache = Arc::new(Cache::new(cache_dir).await?);
     let chain = args.chain;
 
-    let pb = ProgressBar::new(args.addresses.len() as u64);
-    pb.set_style(
-        ProgressStyle::default_bar()
-            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg}")
-            .unwrap()
-            .progress_chars("#>-"),
-    );
+    let pb = create_progress_bar(args.addresses.len() as u64);
 
     let results = stream::iter(args.addresses.iter())
         .map(|address| {
@@ -126,8 +110,8 @@ pub async fn run(args: ScanArgs) -> Result<()> {
     }
 
     match args.output {
-        crate::cli::OutputFormat::Json => print_json(&scan_results)?,
-        crate::cli::OutputFormat::Sarif => print_sarif(&scan_results)?,
+        crate::cli::OutputFormat::Json => println!("{}", output::format_json(&scan_results)?),
+        crate::cli::OutputFormat::Sarif => println!("{}", output::format_sarif(&scan_results)?),
         crate::cli::OutputFormat::Console => print_console(&scan_results, failed),
     }
 
@@ -281,64 +265,6 @@ fn print_console(results: &[ScanResult], failed: usize) {
     println!("{}", "═".repeat(60).cyan());
 }
 
-fn print_json(results: &[ScanResult]) -> Result<()> {
-    let json = serde_json::to_string_pretty(results)?;
-    println!("{}", json);
-    Ok(())
-}
-
-fn print_sarif(results: &[ScanResult]) -> Result<()> {
-    let mut runs = Vec::new();
-
-    for result in results {
-        let mut sarif_results = Vec::new();
-
-        for m in &result.matches {
-            sarif_results.push(serde_json::json!({
-                "ruleId": m.template_id,
-                "level": match m.severity {
-                    scpf_types::Severity::Critical | scpf_types::Severity::High => "error",
-                    scpf_types::Severity::Medium => "warning",
-                    _ => "note",
-                },
-                "message": {
-                    "text": m.message
-                },
-                "locations": [{
-                    "physicalLocation": {
-                        "artifactLocation": {
-                            "uri": result.address
-                        },
-                        "region": {
-                            "startLine": m.line_number,
-                            "startColumn": m.column
-                        }
-                    }
-                }]
-            }));
-        }
-
-        runs.push(serde_json::json!({
-            "tool": {
-                "driver": {
-                    "name": "SCPF",
-                    "version": "0.1.0"
-                }
-            },
-            "results": sarif_results
-        }));
-    }
-
-    let sarif = serde_json::json!({
-        "version": "2.1.0",
-        "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
-        "runs": runs
-    });
-
-    println!("{}", serde_json::to_string_pretty(&sarif)?);
-    Ok(())
-}
-
 async fn scan_local_project(args: ScanArgs) -> Result<()> {
     println!("{}  Scanning local project...", "🔍".cyan());
 
@@ -358,21 +284,9 @@ async fn scan_local_project(args: ScanArgs) -> Result<()> {
 
     println!("{}  Found {} Solidity files", "✓".green(), sol_files.len());
 
-    let templates_dir = args.templates.unwrap_or_else(|| PathBuf::from("templates"));
-    let templates = TemplateLoader::load_from_dir(&templates_dir).await?;
-    if templates.is_empty() {
-        anyhow::bail!("No templates found in {:?}", templates_dir);
-    }
-    println!("{}  Loaded {} templates", "✓".green(), templates.len());
-
+    let templates = load_templates(&args.templates).await?;
     let mut scanner = Scanner::new(templates)?;
-    let pb = ProgressBar::new(sol_files.len() as u64);
-    pb.set_style(
-        ProgressStyle::default_bar()
-            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg}")
-            .unwrap()
-            .progress_chars("#>-"),
-    );
+    let pb = create_progress_bar(sol_files.len() as u64);
 
     let mut scan_results = Vec::new();
     for file_path in sol_files {
@@ -396,8 +310,8 @@ async fn scan_local_project(args: ScanArgs) -> Result<()> {
     println!();
 
     match args.output {
-        crate::cli::OutputFormat::Json => print_json(&scan_results)?,
-        crate::cli::OutputFormat::Sarif => print_sarif(&scan_results)?,
+        crate::cli::OutputFormat::Json => println!("{}", output::format_json(&scan_results)?),
+        crate::cli::OutputFormat::Sarif => println!("{}", output::format_sarif(&scan_results)?),
         crate::cli::OutputFormat::Console => print_console(&scan_results, 0),
     }
 
@@ -450,6 +364,43 @@ fn discover_solidity_files(_args: &ScanArgs) -> Result<Vec<PathBuf>> {
     sol_files.sort();
     sol_files.dedup();
     Ok(sol_files)
+}
+
+async fn load_templates(templates_path: &Option<PathBuf>) -> Result<Vec<scpf_types::Template>> {
+    let templates_dir = templates_path
+        .clone()
+        .unwrap_or_else(|| PathBuf::from("templates"));
+
+    if let Ok(cache) = TEMPLATE_CACHE.lock() {
+        if let Some(cached) = cache.as_ref() {
+            return Ok(cached.clone());
+        }
+    }
+
+    let templates = TemplateLoader::load_from_dir(&templates_dir).await?;
+
+    if templates.is_empty() {
+        anyhow::bail!("No templates found in {:?}", templates_dir);
+    }
+
+    println!("{}  Loaded {} templates", "✓".green(), templates.len());
+
+    if let Ok(mut cache) = TEMPLATE_CACHE.lock() {
+        *cache = Some(templates.clone());
+    }
+
+    Ok(templates)
+}
+
+fn create_progress_bar(len: u64) -> ProgressBar {
+    let pb = ProgressBar::new(len);
+    pb.set_style(
+        ProgressStyle::default_bar()
+            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg}")
+            .unwrap()
+            .progress_chars("#>-"),
+    );
+    pb
 }
 
 fn discover_diff_files(diff_spec: &str) -> Result<Vec<PathBuf>> {
