@@ -1,4 +1,4 @@
-use crate::analysis::{classify_modifiers, SymbolCollector};
+use crate::analysis::{classify_modifiers, is_vulnerable_reentrancy, SymbolCollector};
 use crate::dataflow::{DataFlowRegistry, DataFlowSeverity};
 use crate::regex_validator::RegexValidator;
 use crate::semantic::SemanticScanner;
@@ -214,13 +214,11 @@ impl Scanner {
 
         // Apply contextual filtering if enabled
         if self.contextual_enabled {
-            // Parse AST for contextual analysis if not already parsed
             let tree_for_context = if let Some(ref tree) = parsed_tree {
                 Some(tree.clone())
             } else if let Some(ref mut scanner) = self.semantic_scanner {
                 scanner.parse(source).ok()
             } else {
-                // Initialize semantic scanner just for contextual analysis
                 SemanticScanner::new()
                     .ok()
                     .and_then(|mut s| s.parse(source).ok())
@@ -228,8 +226,17 @@ impl Scanner {
 
             if let Some(ref tree) = tree_for_context {
                 let ctx = self.build_context(source, tree);
+                
+                // Apply CFG analysis for reentrancy
+                matches = matches.into_iter().filter(|m| {
+                    if self.is_reentrancy_pattern(&m.template_id) {
+                        is_vulnerable_reentrancy(tree, source, m.line_number)
+                    } else {
+                        true
+                    }
+                }).collect();
+                
                 matches = self.filter_findings(matches, &ctx);
-                // Enrich matches with function context for Opus
                 matches = self.enrich_with_context(matches, &ctx);
             }
         }
@@ -283,7 +290,6 @@ impl Scanner {
         
         if let Some(func) = func {
             // Filter reentrancy findings if function has reentrancy guard OR access control
-            // (access-controlled functions are safe from untrusted reentrancy)
             if self.is_reentrancy_pattern(&finding.template_id) {
                 if func.protections.has_reentrancy_guard || func.protections.has_access_control {
                     return false;
