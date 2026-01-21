@@ -134,6 +134,14 @@ pub async fn scan_recent_contracts(
         .collect();
 
     with_poc_scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+    
+    // Debug: Print PoC scores
+    eprintln!("\n🎯 Top 10 by PoC Score:");
+    for (i, (r, score)) in with_poc_scores.iter().take(10).enumerate() {
+        eprintln!("  {}. {} - PoC: {:.1} (Risk: {})", i+1, &r.address[..12], score, r.total_risk_score());
+    }
+    eprintln!();
+    
     let scan_results: Vec<_> = with_poc_scores
         .into_iter()
         .take(40)

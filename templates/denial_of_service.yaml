@@ -30,20 +30,14 @@ patterns:
   # External call in loop
   - id: loop-external-call
     kind: regex
-    validate: true
     pattern: 'for\s*\([^)]{1,200}\)[^{]{0,100}\{[^}]{0,500}(call|transfer|send|delegatecall)\s*\('
     message: "External call in loop - single failure can DoS entire function"
-    required: false
-    on_error: skip
 
   # Revert in loop
   - id: revert-in-loop
     kind: regex
-    validate: true
     pattern: 'for\s*\([^)]{1,200}\)[^{]{0,100}\{[^}]{0,500}(require|revert|assert)\s*\('
     message: "Revert inside loop - consider try/catch or continue on failure"
-    required: false
-    on_error: skip
 
   # Ether transfer to contract
   - id: dos-ether-transfer
@@ -51,41 +45,17 @@ patterns:
     pattern: '\.\s*(transfer|send)\s*\('
     message: "Ether transfer to address - receiving contract can revert and DoS sender"
 
-  # Block gas limit in constructor
-  - id: constructor-gas-limit
+  # Return bomb attack
+  - id: return-bomb
     kind: regex
-    validate: true
-    pattern: 'constructor\s*\([^)]{0,200}\)[^{]{0,100}\{[^}]{0,1000}for\s*\('
-    message: "Loop in constructor - deployment may fail if array too large"
-    required: false
-    on_error: skip
+    pattern: '\.call\s*\{[^}]*\}\s*\([^)]*\)'
+    message: "Low-level call - verify return data handling and size limits"
 
   # Griefing via selfdestruct
   - id: griefing-selfdestruct
     kind: regex
     pattern: 'require\s*\([^)]*\.balance\s*[=!<>]'
     message: "Balance check can be griefed via selfdestruct - attacker can force-send ETH"
-
-  # Return bomb attack
-  - id: return-bomb
-    kind: regex
-    pattern: '\.call\s*\{[^}]*\}\s*\([^)]*\)'
-    message: "Low-level call with unbounded return data - vulnerable to return bomb DoS"
-
-  # Delete from mapping in loop
-  - id: delete-mapping-loop
-    kind: regex
-    validate: true
-    pattern: 'for\s*\([^)]{1,200}\)[^{]{0,100}\{[^}]{0,500}delete\s+'
-    message: "Deleting in loop - consider alternative data structure or lazy deletion"
-    required: false
-    on_error: skip
-
-  # Minimum balance check
-  - id: dos-minimum-balance
-    kind: regex
-    pattern: 'require\s*\([^)]*\.balance\s*[><=]'
-    message: "Balance requirement - user can be DoS'd if balance drops below threshold"
 
   # String concatenation in loop
   - id: string-concat-loop
