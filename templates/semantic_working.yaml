@@ -10,13 +10,21 @@ patterns:
   # Simple call detection
   - id: call-expression
     kind: semantic
-    pattern: '(call_expression) @call'
-    message: External call detected - verify reentrancy protection
+    pattern: |
+      (call_expression
+        function: (member_expression
+          property: (identifier) @method))
+      (#match? @method "^(call|delegatecall)$")
+    message: Low-level call detected - verify reentrancy protection and return value check
 
   # Delegatecall detection
   - id: delegatecall-usage
     kind: semantic
-    pattern: '(identifier) @dc (#eq? @dc "delegatecall")'
+    pattern: |
+      (call_expression
+        function: (member_expression
+          property: (identifier) @method))
+      (#eq? @method "delegatecall")
     message: Delegatecall usage detected - verify input validation
 
   # tx.origin usage
@@ -31,7 +39,10 @@ patterns:
   # selfdestruct usage
   - id: selfdestruct-usage
     kind: semantic
-    pattern: '(identifier) @sd (#eq? @sd "selfdestruct")'
+    pattern: |
+      (call_expression
+        function: (identifier) @func)
+      (#eq? @func "selfdestruct")
     message: Selfdestruct detected - verify access control
 
   # block.timestamp usage

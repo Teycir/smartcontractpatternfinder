@@ -6,7 +6,8 @@ export ETHERSCAN_API_KEY="test_key"
 export BSCSCAN_API_KEY="test_key"
 
 echo "2. Testing with 3 contracts (USDT, USDC, DAI)..."
-cd /home/teycir/Repos/SmartContractPatternFinder || { echo "Error: Failed to change directory" >&2; exit 1; }
+# Navigate to project root relative to this script
+cd "$(dirname "$0")/.." || { echo "Error: Failed to change directory to project root" >&2; exit 1; }
 if ! cargo run --release -- scan \
   0xdac17f958d2ee523a2206206994597c13d831ec7 \
   0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48 \

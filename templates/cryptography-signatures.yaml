@@ -20,7 +20,9 @@ patterns:
   - id: signature-malleability
     kind: semantic
     pattern: |
-      (identifier) @func
+      (call_expression
+        function: (identifier) @func
+        arguments: (call_argument_list))
       (#eq? @func "ecrecover")
     message: "Raw ecrecover usage - vulnerable to signature malleability, use OpenZeppelin ECDSA"
 
@@ -60,7 +62,9 @@ patterns:
   - id: weak-randomness-blockhash
     kind: semantic
     pattern: |
-      (identifier) @func
+      (call_expression
+        function: (identifier) @func
+        arguments: (call_argument_list))
       (#eq? @func "blockhash")
     message: "blockhash for randomness - only available for last 256 blocks, predictable"
 

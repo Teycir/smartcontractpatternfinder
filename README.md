@@ -192,6 +192,9 @@ smartcontractpatternfinder/
 │   ├── scpf-core/      # Scanning, fetching, caching logic
 │   └── scpf-cli/       # Command-line interface
 ├── templates/          # Pattern detection templates
+├── scripts/            # Utility scripts (.sh, .py)
+├── docs/               # Project documentation
+├── sol/                # Solidity test files
 └── .amazonq/rules/     # Code quality rules
 ```
 
@@ -467,6 +470,7 @@ MIT License - see [LICENSE](LICENSE) file for details
 - [GitHub Repository](https://github.com/Teycir/smartcontractpatternfinder)
 - [Quick Wins Features](docs/QUICK_WINS.md) - ERC Compliance, L2 Support, Risk Scoring
 - [Ecosystem & Extensibility](docs/ECOSYSTEM.md) - Template Registry, Plugin System
+- [Project Roadmap](docs/ROADMAP.md) - Future plans and status
 - [Template Changelog](docs/TEMPLATE_CHANGELOG.md) - Template version history
 - [GitHub Action Documentation](docs/GITHUB_ACTION.md)
 - [Issue Tracker](https://github.com/Teycir/smartcontractpatternfinder/issues)

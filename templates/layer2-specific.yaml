@@ -30,12 +30,13 @@ patterns:
   - id: arbitrum-block-number
     kind: semantic
     pattern: |
-      (member_expression
-        object: (identifier) @obj
-        property: (identifier) @prop)
+      (binary_expression
+        left: (member_expression
+          object: (identifier) @obj
+          property: (identifier) @prop))
       (#eq? @obj "block")
       (#eq? @prop "number")
-    message: "block.number on Arbitrum - updates faster than L1, verify timing assumptions"
+    message: "block.number comparison on Arbitrum - updates faster than L1, verify timing assumptions"
 
   # Optimism: L1 block number
   - id: optimism-l1-block
@@ -105,12 +106,13 @@ patterns:
   - id: l2-gas-price
     kind: semantic
     pattern: |
-      (member_expression
-        object: (identifier) @obj
-        property: (identifier) @prop)
+      (binary_expression
+        left: (member_expression
+          object: (identifier) @obj
+          property: (identifier) @prop))
       (#eq? @obj "tx")
       (#eq? @prop "gasprice")
-    message: "tx.gasprice on L2 - behavior differs from L1, may be 0 or L2-specific"
+    message: "tx.gasprice comparison on L2 - behavior differs from L1, may be 0 or L2-specific"
 
   # L2: Forced transactions
   - id: l2-forced-inclusion
@@ -131,9 +133,10 @@ patterns:
   - id: l2-timestamp-reliability
     kind: semantic
     pattern: |
-      (member_expression
-        object: (identifier) @block
-        property: (identifier) @prop)
+      (binary_expression
+        left: (member_expression
+          object: (identifier) @block
+          property: (identifier) @prop))
       (#eq? @block "block")
       (#eq? @prop "timestamp")
-    message: "block.timestamp on L2 - may update differently than L1, verify timing logic"
+    message: "block.timestamp comparison on L2 - may update differently than L1, verify timing logic"

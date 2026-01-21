@@ -37,11 +37,17 @@ patterns:
     validate: true
     pattern: |
       (function_definition
-        (identifier) @name
+        name: (identifier) @name
         (parameter
-          (identifier) @amount))
+          name: (identifier) @param)
+        body: (function_body
+          (statement
+            (expression_statement
+              (expression
+                (call_expression))))))
       (#match? @name "^(swap|exchange|trade)$")
-    message: Swap function without visible slippage parameter - users vulnerable to sandwich attacks
+      (#match? @param "^(amount|amountIn)$")
+    message: Swap function - verify minAmountOut parameter exists for slippage protection
     required: true
     fallback: regex
     on_error: skip
@@ -93,11 +99,12 @@ patterns:
     validate: true
     pattern: |
       (function_definition
-        (identifier) @name
-        (visibility) @vis)
+        name: (identifier) @name
+        (visibility) @vis
+        (modifier_invocation))
       (#match? @name "^(onFlashLoan|executeOperation|flashLoanCallback)$")
       (#eq? @vis "external")
-    message: Flash loan callback without sender validation - anyone can trigger
+    message: Flash loan callback - verify msg.sender is trusted lender
     required: true
     fallback: regex
     on_error: skip
@@ -230,11 +237,20 @@ patterns:
     validate: true
     pattern: |
       (function_definition
-        (identifier) @name
-        (visibility) @vis)
+        name: (identifier) @name
+        (visibility) @vis
+        body: (function_body
+          (statement
+            (expression_statement
+              (expression
+                (call_expression
+                  (expression
+                    (member_expression
+                      property: (identifier) @method))))))))
       (#match? @name "^(execute|executeProposal)$")
       (#match? @vis "^(public|external)$")
-    message: Proposal execution without visible timelock - users cannot react to malicious proposals
+      (#match? @method "^(call|delegatecall)$")
+    message: Proposal execution with low-level call - verify timelock protection
     required: false
     fallback: regex
     on_error: skip
@@ -322,11 +338,13 @@ patterns:
     validate: true
     pattern: |
       (function_definition
-        (identifier) @name
+        name: (identifier) @name
         (parameter
-          (type_name) @type))
+          type: (type_name) @type)
+        (visibility) @vis)
       (#match? @name "^(bridge|mint|unlock)$")
       (#eq? @type "bytes")
+      (#match? @vis "^(public|external)$")
     message: Bridge function with bytes parameter - verify signature and merkle proof validation
     required: true
     fallback: regex
@@ -378,11 +396,13 @@ patterns:
     validate: true
     pattern: |
       (function_definition
-        (identifier) @name
-        (visibility) @vis)
+        name: (identifier) @name
+        (visibility) @vis
+        (state_mutability) @mut)
       (#match? @name "^(bid|placeBid)$")
       (#eq? @vis "public")
-    message: Public bid function - vulnerable to front-running, consider commit-reveal scheme
+      (#eq? @mut "payable")
+    message: Public payable bid function - vulnerable to front-running, consider commit-reveal
     required: false
     fallback: regex
     on_error: skip

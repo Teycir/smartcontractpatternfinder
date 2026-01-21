@@ -15,6 +15,9 @@ echo "  • Min Severity: $MIN_SEVERITY"
 echo "  • Template Update: Disabled (0 days)"
 echo ""
 
+# Navigate to project root relative to this script
+cd "$(dirname "$0")/.." || { echo "Error: Failed to change directory to project root" >&2; exit 1; }
+
 cargo run --release -- scan \
   --days "$DAYS" \
   --all-chains \

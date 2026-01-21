@@ -65,7 +65,9 @@ patterns:
   - id: erc721-safe-mint-check
     kind: semantic
     pattern: |
-      (identifier) @mint
+      (call_expression
+        function: (identifier) @mint
+        arguments: (call_argument_list))
       (#eq? @mint "_mint")
     message: "Using _mint instead of _safeMint - receiver contract may not handle NFT"
 
@@ -117,20 +119,16 @@ patterns:
   - id: rebasing-token-balance
     kind: regex
     validate: true
-    pattern: '(uint256|uint)\s+(balance|amount|deposit|stake)'
-    message: "Stored balance variable - may desync if token is rebasing (stETH, AMPL)"
+    pattern: 'balances\[.*\]\s*=.*balanceOf\(|mapping\(.*=>\s*uint\).*balances.*\n.*\.call\{'
+    message: "Stored balance with external call - may desync if token is rebasing (stETH, AMPL)"
     required: false
     on_error: skip
 
   # Missing totalSupply check
   - id: token-supply-overflow
-    kind: semantic
-    pattern: |
-      (function_definition
-        name: (identifier) @name
-        (function_body))
-      (#match? @name "^(mint|_mint)$")
-    message: "Minting without supply cap check - verify totalSupply cannot overflow"
+    kind: regex
+    pattern: 'function\s+(mint|_mint)\s*\([^)]*\)\s*[^{]*\{[^}]{0,300}\+=.*totalSupply'
+    message: "Minting function - verify totalSupply has cap check to prevent overflow"
 
   # Non-standard decimals - hardcoded 18 decimals breaks with tokens using different precision
   - id: token-decimals-assumption

@@ -204,8 +204,14 @@ patterns:
     pattern: |
       (function_definition
         (parameter
-          (identifier) @param))
-    message: Parameter may shadow state variable - verify no naming conflicts
+          name: (identifier) @param)
+        body: (function_body
+          (statement
+            (variable_declaration
+              (variable_declaration_statement
+                (identifier) @local)))))
+      (#eq? @param @local)
+    message: Parameter shadows local variable - verify no naming conflicts
     required: false
     fallback: regex
     on_error: skip
@@ -256,11 +262,21 @@ patterns:
     kind: semantic
     pattern: |
       (function_definition
-        (identifier) @name
-        (visibility) @vis)
-      (#match? @name "^(withdraw|transfer|mint|burn|destroy|kill|pause|unpause|upgrade)$")
+        name: (identifier) @name
+        (visibility) @vis
+        body: (function_body
+          (statement
+            (expression_statement
+              (expression
+                (call_expression
+                  (expression
+                    (member_expression
+                      property: (identifier) @method))))))))
+      (#match? @name "^(withdraw|mint|burn|destroy|kill|pause|unpause|upgrade)$")
       (#match? @vis "^(public|external)$")
-    message: Critical function without visible access control modifier
+      (#match? @method "^(transfer|call|delegatecall)$")
+    message: Critical function with external call - verify access control modifier exists
+    on_error: skip
 
   # Signature replay attacks
   - id: missing-nonce
@@ -268,11 +284,20 @@ patterns:
     pattern: |
       (function_definition
         (parameter
-          (type_name) @type
-          (identifier) @name))
+          type: (type_name) @type
+          name: (identifier) @name)
+        body: (function_body
+          (statement
+            (expression_statement
+              (expression
+                (call_expression
+                  (expression
+                    (identifier) @func)))))))
       (#match? @type "^(bytes|bytes32)$")
       (#match? @name "^(sig|signature)$")
-    message: Signature parameter without nonce - vulnerable to replay attacks
+      (#eq? @func "ecrecover")
+    message: Signature verification with ecrecover - verify nonce tracking to prevent replay
+    on_error: skip
 
   # Price oracle manipulation
   - id: single-source-price
