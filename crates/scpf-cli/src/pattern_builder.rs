@@ -104,7 +104,7 @@ impl PatternBuilder {
 
         let filename = format!("templates/{}.yaml", id);
         let path = std::path::Path::new(&filename);
-        
+
         let mut template = if path.exists() {
             let content = fs::read_to_string(path)?;
             serde_yaml::from_str::<scpf_types::Template>(&content)
@@ -144,8 +144,7 @@ impl PatternBuilder {
 
         template.patterns.push(new_pattern);
 
-        let yaml = serde_yaml::to_string(&template)
-            .map_err(io::Error::other)?;
+        let yaml = serde_yaml::to_string(&template).map_err(io::Error::other)?;
 
         println!("\n📝 Pattern YAML:\n{}", yaml);
         println!("\nSave to {}? (y/n): ", filename);
