@@ -1,0 +1,24 @@
+id: delegatecall-user-input
+name: Delegatecall to User-Controlled Address
+description: |
+  Using delegatecall with a user-supplied address can allow the attacker to execute 
+  arbitrary code in the context of the contract (including selfdestruct).
+severity: critical
+tags:
+  - security
+  - delegatecall
+  - SWC-112
+patterns:
+  - id: delegatecall-to-input
+    kind: semantic
+    validate: true
+    pattern: |
+      (call_expression
+        (expression
+          (member_expression
+            property: (identifier) @method)))
+      (#eq? @method "delegatecall")
+    message: "Delegatecall usage detected. Ensure the target address and data are trusted."
+    required: true
+    fallback: regex
+    on_error: skip
