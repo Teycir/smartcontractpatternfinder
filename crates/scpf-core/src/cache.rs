@@ -31,7 +31,7 @@ impl Cache {
 
     pub async fn get(&self, key: &str) -> Option<String> {
         let path = self.cache_path(key);
-        
+
         // Check if cache entry exists and is not expired
         if let Ok(metadata) = fs::metadata(&path).await {
             if let Ok(modified) = metadata.modified() {
@@ -44,7 +44,7 @@ impl Cache {
                 }
             }
         }
-        
+
         fs::read_to_string(path).await.ok()
     }
 

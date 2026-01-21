@@ -11,6 +11,9 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 chrono = { workspace = true }
 regex = { workspace = true }
+petgraph = "0.6"
+rustc-hash = "1.1"
+smallvec = "1.11"
 
 
 [dev-dependencies]

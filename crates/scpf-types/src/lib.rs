@@ -4,10 +4,12 @@ use std::path::PathBuf;
 mod chain;
 mod api_key_config;
 mod language;
+mod semantic;
 
 pub use chain::Chain;
 pub use api_key_config::ApiKeyConfig;
 pub use language::Language;
+pub use semantic::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Template {

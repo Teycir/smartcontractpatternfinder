@@ -18,6 +18,7 @@ pub mod advanced_scanner;
 pub mod pattern_validator;
 pub mod invariant_gen;
 pub mod poc_stager;
+pub mod analysis;
 
 pub use scanner::Scanner;
 pub use semantic::SemanticScanner;
@@ -39,6 +40,7 @@ pub use advanced_scanner::{AdvancedScanner, AdvancedReport, CombinedVulnerabilit
 pub use pattern_validator::PatternValidator;
 pub use invariant_gen::{InvariantGenerator, GeneratedInvariant, InvariantCategory};
 pub use poc_stager::{PocStager, PocCandidate, PocContext, PocPriority};
+pub use analysis::{SymbolCollector, classify_modifiers};
 
 #[cfg(test)]
 mod tests;

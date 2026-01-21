@@ -87,11 +87,7 @@ impl PatternError {
     fn from_query_error(e: &QueryError, pattern: &str) -> Self {
         let lines: Vec<&str> = pattern.lines().collect();
         let context = if e.row < lines.len() {
-            format!(
-                "{}\n{}^",
-                lines[e.row],
-                " ".repeat(e.column)
-            )
+            format!("{}\n{}^", lines[e.row], " ".repeat(e.column))
         } else {
             String::new()
         };

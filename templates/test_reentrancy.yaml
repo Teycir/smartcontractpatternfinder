@@ -1,0 +1,11 @@
+id: test-reentrancy-simple
+name: Simple Reentrancy Test
+description: Test template for contextual filtering validation
+severity: high
+tags:
+  - reentrancy
+  - test
+patterns:
+  - id: external-call-value
+    pattern: '\.call\{value:'
+    message: External call with value transfer detected

@@ -71,15 +71,13 @@ impl ZeroDayFetcher {
 
     async fn fetch_json<T: serde::de::DeserializeOwned>(&self, url: &str) -> Result<Option<T>> {
         match self.client.get(url).send().await {
-            Ok(resp) => {
-                match resp.json::<T>().await {
-                    Ok(data) => Ok(Some(data)),
-                    Err(e) => {
-                        eprintln!("Error: Failed to parse JSON from {}: {}", url, e);
-                        Err(anyhow::anyhow!("JSON parsing failed for {}: {}", url, e))
-                    }
+            Ok(resp) => match resp.json::<T>().await {
+                Ok(data) => Ok(Some(data)),
+                Err(e) => {
+                    eprintln!("Error: Failed to parse JSON from {}: {}", url, e);
+                    Err(anyhow::anyhow!("JSON parsing failed for {}: {}", url, e))
                 }
-            }
+            },
             Err(e) => {
                 eprintln!("Error: Failed to fetch {}: {}", url, e);
                 Err(anyhow::anyhow!("Network request failed for {}: {}", url, e))
@@ -355,11 +353,11 @@ fn extract_xml_tag(content: &str, tag: &str) -> Option<String> {
 
     let start_pos = content.find(&start_pattern)?;
     let content_after_tag = &content[start_pos..];
-    
+
     // Find the end of opening tag (could be <tag> or <tag attr="val">)
     let content_start = content_after_tag.find('>')? + 1;
     let full_start = start_pos + content_start;
-    
+
     let end = content[full_start..].find(&end_tag)? + full_start;
 
     Some(content[full_start..end].trim().to_string())
@@ -447,24 +445,40 @@ mod tests {
     #[test]
     fn test_xml_tag_extraction_simple() {
         let xml = r#"<item><title>Test Title</title><description>Test Desc</description></item>"#;
-        
-        assert_eq!(extract_xml_tag(xml, "title"), Some("Test Title".to_string()));
-        assert_eq!(extract_xml_tag(xml, "description"), Some("Test Desc".to_string()));
+
+        assert_eq!(
+            extract_xml_tag(xml, "title"),
+            Some("Test Title".to_string())
+        );
+        assert_eq!(
+            extract_xml_tag(xml, "description"),
+            Some("Test Desc".to_string())
+        );
     }
 
     #[test]
     fn test_xml_tag_extraction_with_attributes() {
         let xml = r#"<item><title type="text">Test Title</title><description type="html">Test Desc</description></item>"#;
-        
-        assert_eq!(extract_xml_tag(xml, "title"), Some("Test Title".to_string()));
-        assert_eq!(extract_xml_tag(xml, "description"), Some("Test Desc".to_string()));
+
+        assert_eq!(
+            extract_xml_tag(xml, "title"),
+            Some("Test Title".to_string())
+        );
+        assert_eq!(
+            extract_xml_tag(xml, "description"),
+            Some("Test Desc".to_string())
+        );
     }
 
     #[test]
     fn test_xml_tag_extraction_with_namespace() {
-        let xml = r#"<item><pubDate ns:attr="value">Mon, 01 Jan 2024 12:00:00 GMT</pubDate></item>"#;
-        
-        assert_eq!(extract_xml_tag(xml, "pubDate"), Some("Mon, 01 Jan 2024 12:00:00 GMT".to_string()));
+        let xml =
+            r#"<item><pubDate ns:attr="value">Mon, 01 Jan 2024 12:00:00 GMT</pubDate></item>"#;
+
+        assert_eq!(
+            extract_xml_tag(xml, "pubDate"),
+            Some("Mon, 01 Jan 2024 12:00:00 GMT".to_string())
+        );
     }
 
     #[test]
@@ -477,10 +491,25 @@ mod tests {
 
     #[test]
     fn test_classify_by_text() {
-        assert!(matches!(classify_by_text("Reentrancy attack"), ExploitType::Reentrancy));
-        assert!(matches!(classify_by_text("Flash loan exploit"), ExploitType::FlashLoan));
-        assert!(matches!(classify_by_text("Oracle manipulation"), ExploitType::OracleManipulation));
-        assert!(matches!(classify_by_text("Access control bypass"), ExploitType::AccessControl));
-        assert!(matches!(classify_by_text("Unknown issue"), ExploitType::Unknown));
+        assert!(matches!(
+            classify_by_text("Reentrancy attack"),
+            ExploitType::Reentrancy
+        ));
+        assert!(matches!(
+            classify_by_text("Flash loan exploit"),
+            ExploitType::FlashLoan
+        ));
+        assert!(matches!(
+            classify_by_text("Oracle manipulation"),
+            ExploitType::OracleManipulation
+        ));
+        assert!(matches!(
+            classify_by_text("Access control bypass"),
+            ExploitType::AccessControl
+        ));
+        assert!(matches!(
+            classify_by_text("Unknown issue"),
+            ExploitType::Unknown
+        ));
     }
 }

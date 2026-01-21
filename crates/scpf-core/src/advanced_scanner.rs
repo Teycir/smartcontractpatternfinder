@@ -81,7 +81,9 @@ impl AdvancedScanner {
             InvariantGenerator::new(source_code.to_string(), contract_name.to_string());
         let invariants = invariant_gen.generate();
 
-        let poc_candidates = self.poc_stager.stage_for_poc(findings, source_code, contract_name);
+        let poc_candidates = self
+            .poc_stager
+            .stage_for_poc(findings, source_code, contract_name);
 
         let vulnerabilities = self.combine_findings(findings, &taint_flows, &value_paths);
 
@@ -290,8 +292,16 @@ impl AdvancedScanner {
             "\n## PoC Candidates Staged: {}\n",
             report.poc_candidates.len()
         ));
-        let critical = report.poc_candidates.iter().filter(|c| c.priority as u8 == 4).count();
-        let high = report.poc_candidates.iter().filter(|c| c.priority as u8 == 3).count();
+        let critical = report
+            .poc_candidates
+            .iter()
+            .filter(|c| c.priority as u8 == 4)
+            .count();
+        let high = report
+            .poc_candidates
+            .iter()
+            .filter(|c| c.priority as u8 == 3)
+            .count();
         output.push_str(&format!("- Critical: {}\n", critical));
         output.push_str(&format!("- High: {}\n", high));
         output.push_str("\nReady for AI PoC generation.\n");

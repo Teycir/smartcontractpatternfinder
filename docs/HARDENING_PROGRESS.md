@@ -236,3 +236,33 @@ Focus areas:
 4. Prove scalability on large codebases
 
 **Next milestone**: First accuracy report with real metrics.
+
+
+---
+
+## 🎯 Architectural Solution (Day 3 Evening)
+
+### Solution Received from Claude Opus 4.5
+
+**Key Insight**: Pattern matching alone is insufficient. Need **Semantic Context Layer**.
+
+**Proposed Architecture**: Multi-pass analysis pipeline
+1. **Pass 1**: Symbol Collection (functions, modifiers, state variables)
+2. **Pass 2**: Modifier Classification (detect reentrancy guards, access control)
+3. **Pass 3**: CFG Construction (track external calls, state changes, order)
+4. **Pass 4**: Contextual Pattern Matching (filter by protections)
+5. **Pass 5**: Finding Validation (confidence scoring, evidence chains)
+
+**Expected Results**:
+- Week 1 MVP: 60% precision (from 0%)
+- Week 2 Enhanced: 85% precision, F1 ≥0.80
+
+**Implementation Plan**: Created comprehensive 2-week plan
+- Days 1-7: MVP (modifier detection, simple filtering)
+- Days 8-14: Enhanced (CFG, order analysis, full context)
+
+**Status**: Ready to implement
+
+---
+
+**Updated**: 2024-01-21 Evening - Architectural solution received and documented

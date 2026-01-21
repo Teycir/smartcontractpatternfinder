@@ -1,9 +1,10 @@
+use crate::analysis::{classify_modifiers, SymbolCollector};
 use crate::dataflow::{DataFlowRegistry, DataFlowSeverity};
 use crate::regex_validator::RegexValidator;
 use crate::semantic::SemanticScanner;
 use anyhow::Result;
 use regex::RegexBuilder;
-use scpf_types::{Match, Pattern, PatternKind, Template};
+use scpf_types::{ContractContext, Match, Pattern, PatternKind, Template};
 use std::path::PathBuf;
 use tracing::warn;
 
@@ -22,6 +23,7 @@ pub struct Scanner {
     templates: Vec<CompiledTemplate>,
     semantic_scanner: Option<SemanticScanner>,
     dataflow_registry: DataFlowRegistry,
+    pub contextual_enabled: bool,
 }
 
 impl Scanner {
@@ -57,6 +59,7 @@ impl Scanner {
             templates: compiled_templates,
             semantic_scanner,
             dataflow_registry: DataFlowRegistry::with_default_analyzers(),
+            contextual_enabled: true,
         })
     }
 
@@ -196,7 +199,130 @@ impl Scanner {
             dedup_set.insert(key)
         });
 
+        // Apply contextual filtering if enabled
+        if self.contextual_enabled {
+            // Parse AST for contextual analysis if not already parsed
+            let tree_for_context = if let Some(ref tree) = parsed_tree {
+                Some(tree.clone())
+            } else if let Some(ref mut scanner) = self.semantic_scanner {
+                scanner.parse(source).ok()
+            } else {
+                // Initialize semantic scanner just for contextual analysis
+                SemanticScanner::new()
+                    .ok()
+                    .and_then(|mut s| s.parse(source).ok())
+            };
+
+            if let Some(ref tree) = tree_for_context {
+                let ctx = self.build_context(source, tree);
+                matches = self.filter_findings(matches, &ctx);
+            }
+        }
+
         Ok(matches)
+    }
+
+    /// Build semantic context from AST
+    fn build_context(&self, source: &str, tree: &tree_sitter::Tree) -> ContractContext {
+        let collector = SymbolCollector::new(source, tree);
+        let mut ctx = collector.collect();
+        classify_modifiers(&mut ctx);
+        
+        let function_data: Vec<(String, Vec<String>)> = ctx.functions
+            .iter()
+            .map(|(name, func)| (name.clone(), func.modifiers.clone()))
+            .collect();
+        
+        let modifiers_map: std::collections::HashMap<_, _> = ctx.modifiers.clone().into_iter().collect();
+        
+        for (name, modifiers) in function_data {
+            if let Some(func) = ctx.functions.get_mut(&name) {
+                func.protections = Self::compute_protections_static(&modifiers, &modifiers_map);
+            }
+        }
+        
+        ctx
+    }
+
+    /// Filter findings based on semantic context
+    fn filter_findings(&self, matches: Vec<Match>, ctx: &ContractContext) -> Vec<Match> {
+        matches.into_iter().filter(|m| {
+            self.should_report_finding(m, ctx)
+        }).collect()
+    }
+
+    /// Determine if finding should be reported based on protections
+    fn should_report_finding(&self, finding: &Match, ctx: &ContractContext) -> bool {
+        let func = self.find_function_at_line(ctx, finding.line_number);
+        
+        if let Some(func) = func {
+            // Filter reentrancy findings if function has reentrancy guard OR access control
+            // (access-controlled functions are safe from untrusted reentrancy)
+            if self.is_reentrancy_pattern(&finding.template_id) {
+                if func.protections.has_reentrancy_guard || func.protections.has_access_control {
+                    return false;
+                }
+            }
+            
+            // Filter access control findings if function has access control
+            if self.is_access_control_pattern(&finding.template_id) && func.protections.has_access_control {
+                return false;
+            }
+            
+            // Filter if function is pausable
+            if func.protections.has_pausable {
+                return false;
+            }
+        }
+        
+        true
+    }
+
+    /// Find function containing the given line number
+    fn find_function_at_line<'a>(&self, ctx: &'a ContractContext, line: usize) -> Option<&'a scpf_types::FunctionContext> {
+        ctx.functions.values().find(|f| {
+            f.start_line <= line && line <= f.end_line
+        })
+    }
+
+    /// Check if template is reentrancy-related
+    fn is_reentrancy_pattern(&self, template_id: &str) -> bool {
+        template_id.contains("reentrancy") || 
+        template_id.contains("external-call") ||
+        template_id.contains("low-level-call")
+    }
+
+    /// Check if template is access-control-related
+    fn is_access_control_pattern(&self, template_id: &str) -> bool {
+        template_id.contains("access") || 
+        template_id.contains("authorization") ||
+        template_id.contains("permission")
+    }
+
+    fn compute_protections_static(
+        modifiers: &[String],
+        modifiers_map: &std::collections::HashMap<String, scpf_types::ModifierContext>,
+    ) -> scpf_types::ProtectionSet {
+        let mut protections = scpf_types::ProtectionSet::default();
+
+        for mod_name in modifiers {
+            if let Some(mod_ctx) = modifiers_map.get(mod_name) {
+                match mod_ctx.modifier_type {
+                    scpf_types::ModifierType::ReentrancyGuard => {
+                        protections.has_reentrancy_guard = true;
+                    }
+                    scpf_types::ModifierType::AccessControl => {
+                        protections.has_access_control = true;
+                    }
+                    scpf_types::ModifierType::Pausable => {
+                        protections.has_pausable = true;
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        protections
     }
 }
 
