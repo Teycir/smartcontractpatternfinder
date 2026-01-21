@@ -230,44 +230,71 @@ impl ContractFetcher {
             .as_secs()
             - (days * 24 * 60 * 60);
 
-        let url = if matches!(chain, Chain::ZkSync | Chain::Zora) {
+        // Get block number from N days ago
+        let block_url = if matches!(chain, Chain::ZkSync | Chain::Zora) {
             format!(
-                "{}?module=contract&action=listcontracts&page=1&offset=100&apikey={}",
+                "{}?module=block&action=getblocknobytime&timestamp={}&closest=before&apikey={}",
                 chain.api_base_url(),
+                cutoff_timestamp,
                 key
             )
         } else {
             format!(
-                "{}?chainid={}&module=contract&action=listcontracts&page=1&offset=100&apikey={}",
+                "{}?chainid={}&module=block&action=getblocknobytime&timestamp={}&closest=before&apikey={}",
                 chain.api_base_url(),
                 chain.chain_id(),
+                cutoff_timestamp,
                 key
             )
         };
 
-        let response = self.client.get(&url).send().await?;
+        let response = self.client.get(&block_url).send().await?;
         let json: Value = response.json().await?;
 
         if json["status"].as_str() != Some("1") {
-            anyhow::bail!("API error: {:?}", json["message"]);
+            anyhow::bail!("Failed to get block number: {:?}", json["message"]);
         }
 
-        let contracts = json["result"]
+        let from_block = json["result"]
+            .as_str()
+            .context("No block number in response")?;
+
+        // Fetch contract creation events (OwnershipTransferred topic0)
+        let logs_url = if matches!(chain, Chain::ZkSync | Chain::Zora) {
+            format!(
+                "{}?module=logs&action=getLogs&fromBlock={}&toBlock=latest&topic0=0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0&page=1&offset=100&apikey={}",
+                chain.api_base_url(),
+                from_block,
+                key
+            )
+        } else {
+            format!(
+                "{}?chainid={}&module=logs&action=getLogs&fromBlock={}&toBlock=latest&topic0=0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0&page=1&offset=100&apikey={}",
+                chain.api_base_url(),
+                chain.chain_id(),
+                from_block,
+                key
+            )
+        };
+
+        let response = self.client.get(&logs_url).send().await?;
+        let json: Value = response.json().await?;
+
+        if json["status"].as_str() != Some("1") {
+            anyhow::bail!("Failed to get logs: {:?}", json["message"]);
+        }
+
+        let logs = json["result"]
             .as_array()
-            .context("No contracts in response")?;
+            .context("No logs in response")?;
 
-        let addresses: Vec<String> = contracts
-            .iter()
-            .filter_map(|c| {
-                let timestamp = c["timestamp"].as_str()?.parse::<u64>().ok()?;
-                if timestamp >= cutoff_timestamp {
-                    c["contractAddress"].as_str().map(String::from)
-                } else {
-                    None
-                }
-            })
-            .collect();
+        let mut addresses = std::collections::HashSet::new();
+        for log in logs {
+            if let Some(addr) = log["address"].as_str() {
+                addresses.insert(addr.to_string());
+            }
+        }
 
-        Ok(addresses)
+        Ok(addresses.into_iter().collect())
     }
 }
