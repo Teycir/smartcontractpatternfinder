@@ -110,6 +110,8 @@ impl SemanticScanner {
                     message: pattern.message.clone(),
                     start_byte: Some(start_byte),
                     end_byte: Some(end_byte),
+                    function_context: None,
+                    protections: None,
                 });
             }
         }

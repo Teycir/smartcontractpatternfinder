@@ -102,6 +102,7 @@ pub async fn run(args: ScanArgs) -> Result<()> {
                                 chain: chain.to_string(),
                                 matches: Vec::new(),
                                 scan_time_ms: 0,
+                                solidity_version: None,
                             };
                             return Ok::<_, anyhow::Error>((dummy_result, Err(e)));
                         }
@@ -121,6 +122,7 @@ pub async fn run(args: ScanArgs) -> Result<()> {
                         chain: chain.to_string(),
                         matches,
                         scan_time_ms,
+                        solidity_version: extract_solidity_version(&source),
                     },
                     Ok(()),
                 ))
@@ -495,6 +497,7 @@ async fn scan_local_project(args: ScanArgs) -> Result<()> {
             chain: "local".to_string(),
             matches,
             scan_time_ms,
+            solidity_version: extract_solidity_version(&source),
         });
         pb.inc(1);
     }
@@ -731,6 +734,7 @@ async fn scan_recent_contracts(args: ScanArgs) -> Result<()> {
                 chain: chain.to_string(),
                 matches: filtered_matches,
                 scan_time_ms,
+                solidity_version: extract_solidity_version(&source),
             });
         } else {
             println!(
@@ -762,4 +766,12 @@ fn parse_severity(s: &str) -> scpf_types::Severity {
         "low" => scpf_types::Severity::Low,
         _ => scpf_types::Severity::Info,
     }
+}
+
+fn extract_solidity_version(source: &str) -> Option<String> {
+    let pragma_regex = regex::Regex::new(r"pragma\s+solidity\s+([^;]+);").ok()?;
+    pragma_regex
+        .captures(source)
+        .and_then(|cap| cap.get(1))
+        .map(|m| m.as_str().trim().to_string())
 }

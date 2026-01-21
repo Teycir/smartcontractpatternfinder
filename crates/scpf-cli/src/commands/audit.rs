@@ -139,6 +139,7 @@ pub async fn run_full_audit(_addresses: Vec<String>, args: ScanArgs) -> Result<(
             chain: chain.to_string(),
             matches,
             scan_time_ms: 0,
+            solidity_version: None,
         });
     }
     println!();

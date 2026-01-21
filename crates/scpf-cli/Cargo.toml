@@ -29,6 +29,7 @@ colored = { workspace = true }
 walkdir = "2.4"
 dotenvy = "0.15"
 rand = "0.8"
+regex = "1.10"
 
 [dev-dependencies]
 assert_cmd = "2.0"

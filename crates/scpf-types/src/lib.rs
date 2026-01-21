@@ -134,6 +134,10 @@ pub struct Match {
     pub start_byte: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub end_byte: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub function_context: Option<FunctionContext>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub protections: Option<ProtectionSet>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -183,6 +187,8 @@ pub struct ScanResult {
     pub chain: String,
     pub matches: Vec<Match>,
     pub scan_time_ms: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub solidity_version: Option<String>,
 }
 
 impl ScanResult {

@@ -66,6 +66,10 @@ impl Scanner {
     pub fn scan(&mut self, source: &str, file_path: PathBuf) -> Result<Vec<Match>> {
         let newlines: Vec<usize> = source.match_indices('\n').map(|(i, _)| i).collect();
 
+        // Extract Solidity version for filtering
+        let solidity_version = extract_solidity_version(source);
+        let is_modern_solidity = is_version_gte_0_8(&solidity_version);
+
         let mut matches = Vec::new();
         let mut seen = std::collections::HashSet::new();
         let mut dedup_set = std::collections::HashSet::new();
@@ -121,11 +125,18 @@ impl Scanner {
                     message: finding.message,
                     start_byte: None,
                     end_byte: None,
+                    function_context: None,
+                    protections: None,
                 });
             }
         }
 
         for compiled_template in &self.templates {
+            // Skip integer overflow template for Solidity >= 0.8.0
+            if is_modern_solidity && compiled_template.template.id.contains("integer_overflow") {
+                continue;
+            }
+
             for compiled_pattern in &compiled_template.patterns {
                 // Dispatch based on pattern kind
                 if compiled_pattern.pattern.kind == PatternKind::Semantic {
@@ -183,6 +194,8 @@ impl Scanner {
                         message: compiled_pattern.pattern.message.clone(),
                         start_byte: None,
                         end_byte: None,
+                        function_context: None,
+                        protections: None,
                     });
                 }
             }
@@ -216,6 +229,8 @@ impl Scanner {
             if let Some(ref tree) = tree_for_context {
                 let ctx = self.build_context(source, tree);
                 matches = self.filter_findings(matches, &ctx);
+                // Enrich matches with function context for Opus
+                matches = self.enrich_with_context(matches, &ctx);
             }
         }
 
@@ -249,6 +264,17 @@ impl Scanner {
         matches.into_iter().filter(|m| {
             self.should_report_finding(m, ctx)
         }).collect()
+    }
+
+    /// Enrich matches with function context for Opus analysis
+    fn enrich_with_context(&self, mut matches: Vec<Match>, ctx: &ContractContext) -> Vec<Match> {
+        for m in &mut matches {
+            if let Some(func) = self.find_function_at_line(ctx, m.line_number) {
+                m.function_context = Some(func.clone());
+                m.protections = Some(func.protections.clone());
+            }
+        }
+        matches
     }
 
     /// Determine if finding should be reported based on protections
@@ -459,4 +485,34 @@ fn extract_code_snippet(
         after,
         line_start: line_number.saturating_sub(1),
     })
+}
+
+/// Extract Solidity version from pragma statement
+fn extract_solidity_version(source: &str) -> Option<String> {
+    let pragma_regex = regex::Regex::new(r"pragma\s+solidity\s+([^;]+);").ok()?;
+    pragma_regex
+        .captures(source)
+        .and_then(|cap| cap.get(1))
+        .map(|m| m.as_str().trim().to_string())
+}
+
+/// Check if version is >= 0.8.0 (has built-in overflow protection)
+fn is_version_gte_0_8(version: &Option<String>) -> bool {
+    let version = match version {
+        Some(v) => v,
+        None => return false,
+    };
+
+    // Extract major.minor from version string (e.g., "^0.8.0" -> "0.8")
+    let version_regex = regex::Regex::new(r"(\d+)\.(\d+)").ok();
+    if let Some(regex) = version_regex {
+        if let Some(cap) = regex.captures(version) {
+            if let (Some(major), Some(minor)) = (cap.get(1), cap.get(2)) {
+                if let (Ok(maj), Ok(min)) = (major.as_str().parse::<u32>(), minor.as_str().parse::<u32>()) {
+                    return maj > 0 || (maj == 0 && min >= 8);
+                }
+            }
+        }
+    }
+    false
 }

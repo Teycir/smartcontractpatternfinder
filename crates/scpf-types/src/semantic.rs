@@ -11,13 +11,15 @@ pub struct ContractContext {
 }
 
 /// Context for a single function
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct FunctionContext {
     pub name: String,
     pub visibility: Visibility,
     pub mutability: Mutability,
     pub modifiers: Vec<String>,
+    #[serde(skip_serializing)]
     pub external_calls: Vec<ExternalCall>,
+    #[serde(skip_serializing)]
     pub state_changes: Vec<StateChange>,
     pub protections: ProtectionSet,
     pub start_line: usize,
@@ -44,7 +46,7 @@ pub struct ModifierContext {
     pub can_revert: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
 pub enum Visibility {
     Public,
     External,
@@ -52,7 +54,7 @@ pub enum Visibility {
     Private,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
 pub enum Mutability {
     Pure,
     View,
@@ -113,7 +115,7 @@ pub enum StateChangeType {
 }
 
 /// Protection mechanisms detected
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize)]
 pub struct ProtectionSet {
     pub has_reentrancy_guard: bool,
     pub has_access_control: bool,
