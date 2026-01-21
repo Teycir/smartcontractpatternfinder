@@ -220,8 +220,6 @@ fn print_console(results: &[ScanResult], failed: usize, sort_by_exploitability: 
             let severity_str = match severity {
                 scpf_types::Severity::Critical => "CRITICAL".red().bold(),
                 scpf_types::Severity::High => "HIGH".red(),
-                scpf_types::Severity::Medium => "MEDIUM".yellow(),
-                _ => continue,
             };
 
             // Count files affected
@@ -316,8 +314,6 @@ fn print_console(results: &[ScanResult], failed: usize, sort_by_exploitability: 
                 let severity_str = match m.severity {
                     scpf_types::Severity::Critical => "CRITICAL".red().bold(),
                     scpf_types::Severity::High => "HIGH".red(),
-                    scpf_types::Severity::Medium => "MEDIUM".yellow(),
-                    _ => continue,
                 };
                 println!(
                     "   [{}] Line {}: {}",
@@ -351,8 +347,6 @@ fn print_console(results: &[ScanResult], failed: usize, sort_by_exploitability: 
             match m.severity {
                 scpf_types::Severity::Critical => critical += 1,
                 scpf_types::Severity::High => high += 1,
-                scpf_types::Severity::Medium => medium += 1,
-                _ => {}
             }
         }
     }
@@ -387,17 +381,17 @@ fn print_console(results: &[ScanResult], failed: usize, sort_by_exploitability: 
         // Get risk level emoji
         let risk_emoji = match total_risk {
             0 => "✅",
-            1..=100 => "✅",
-            101..=500 => "⚠️",
-            501..=2000 => "🔴",
+            1..=50 => "✅",
+            51..=200 => "⚠️",
+            201..=500 => "🔴",
             _ => "🚨",
         };
 
         let risk_level = match total_risk {
             0 => "None",
-            1..=100 => "Low",
-            101..=500 => "Medium",
-            501..=2000 => "High",
+            1..=50 => "Low",
+            51..=200 => "Medium",
+            201..=500 => "High",
             _ => "Critical",
         };
 
@@ -406,14 +400,13 @@ fn print_console(results: &[ScanResult], failed: usize, sort_by_exploitability: 
             total_risk, risk_emoji, risk_level, avg_risk, max_risk
         );
 
-        // Show calculation formula (CRITICAL, HIGH, MEDIUM only)
+        // Show calculation formula (CRITICAL, HIGH only)
         println!("\n   Risk Calculation:");
         println!("     {} CRITICAL × 100 = {}", critical, critical * 100);
         println!("     {} HIGH × 10 = {}", high, high * 10);
-        println!("     {} MEDIUM × 3 = {}", medium, medium * 3);
         println!("     Total = {}", total_risk);
         println!("\n   Risk Thresholds:");
-        println!("     0-100: Low ✅ | 101-500: Medium ⚠️ | 501-2000: High 🔴 | 2000+: Critical 🚨");
+        println!("     0-50: Low ✅ | 51-200: Medium ⚠️ | 201-500: High 🔴 | 500+: Critical 🚨");
     }
 
     if total_matches == 0 && failed == 0 {
@@ -448,9 +441,9 @@ fn print_console(results: &[ScanResult], failed: usize, sort_by_exploitability: 
         println!("\n{} Files by Priority:", "📋".cyan());
         for (i, (file, risk)) in file_risks.iter().take(3).enumerate() {
             let emoji = match *risk {
-                0..=100 => "✅",
-                101..=500 => "⚠️",
-                501..=2000 => "🔴",
+                0..=50 => "✅",
+                51..=200 => "⚠️",
+                201..=500 => "🔴",
                 _ => "🚨",
             };
             println!("  {}. {} {} (Risk: {})", i + 1, emoji, file, risk);
@@ -629,16 +622,6 @@ fn discover_diff_files(diff_spec: &str) -> Result<Vec<PathBuf>> {
         .collect();
 
     Ok(sol_files)
-}
-
-fn parse_severity(s: &str) -> scpf_types::Severity {
-    match s.to_lowercase().as_str() {
-        "critical" => scpf_types::Severity::Critical,
-        "high" => scpf_types::Severity::High,
-        "medium" => scpf_types::Severity::Medium,
-        "low" => scpf_types::Severity::Low,
-        _ => scpf_types::Severity::Info,
-    }
 }
 
 fn extract_solidity_version(source: &str) -> Option<String> {

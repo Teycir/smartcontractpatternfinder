@@ -19,43 +19,14 @@ tags:
   - error-handling
 
 patterns:
-  # Semantic: Low-level call detection
-  - id: low-level-call
-    kind: semantic
-    pattern: |
-      (expression_statement
-        (expression
-          (call_expression
-            (expression
-              (member_expression
-                (identifier) @target
-                (identifier) @method))))) @unchecked
-      (#match? @method "^(call|delegatecall|staticcall|send)$")
-    message: "Low-level '@method' call return value not captured. Use: (bool success,) = @target.@method(...); require(success);"
-
   # Regex: Expression statement with low-level call (no assignment)
   - id: unchecked-call-regex
     kind: regex
-    validate: true
     pattern: '^\s*[^=\n]*\.(call|delegatecall|staticcall|send)\s*[\({]'
     message: "Unchecked low-level call detected. Return value should be verified."
-    required: true
-    on_error: skip
 
   # send without assignment or require - returns false on failure instead of reverting
   - id: unchecked-send-regex
     kind: regex
-    validate: true
     pattern: '^\s*\w+\.send\([^)]+\)\s*;'
     message: "'.send()' return not checked - fails silently. Use require(addr.send(amount)) or .transfer()."
-    required: true
-    on_error: skip
-
-  # Regex: Properly checked call (info only)
-  - id: checked-call-info
-    kind: regex
-    validate: true
-    pattern: '\(\s*bool\s+\w+\s*,?\s*\)\s*=\s*\w+\.(call|delegatecall)'
-    message: "[INFO] Properly checked low-level call found. Good practice."
-    required: false
-    on_error: skip

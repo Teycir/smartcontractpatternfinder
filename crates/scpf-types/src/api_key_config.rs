@@ -22,8 +22,6 @@ impl ApiKeyConfig {
         self
     }
 
-
-
     pub fn get(&self, chain: Chain) -> Option<&[String]> {
         self.keys.get(&chain).map(|v| v.as_slice())
     }

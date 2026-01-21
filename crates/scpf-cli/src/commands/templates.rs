@@ -33,9 +33,6 @@ pub async fn list(templates_dir: Option<PathBuf>) -> Result<()> {
         let severity_str = match template.severity {
             scpf_types::Severity::Critical => "CRITICAL".red().bold(),
             scpf_types::Severity::High => "HIGH".red(),
-            scpf_types::Severity::Medium => "MEDIUM".yellow(),
-            scpf_types::Severity::Low => "LOW".blue(),
-            scpf_types::Severity::Info => "INFO".cyan(),
         };
 
         println!("  {} [{}]", template.id.bold(), severity_str);
@@ -70,9 +67,6 @@ pub async fn show(id: &str, templates_dir: Option<PathBuf>) -> Result<()> {
     let severity_str = match template.severity {
         scpf_types::Severity::Critical => "CRITICAL".red().bold(),
         scpf_types::Severity::High => "HIGH".red(),
-        scpf_types::Severity::Medium => "MEDIUM".yellow(),
-        scpf_types::Severity::Low => "LOW".blue(),
-        scpf_types::Severity::Info => "INFO".cyan(),
     };
 
     println!("\n{}: {}", "ID".bold(), template.id);

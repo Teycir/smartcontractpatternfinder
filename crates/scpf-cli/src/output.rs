@@ -168,8 +168,6 @@ fn export_sarif(findings: &[&Match]) -> Result<String> {
 fn severity_to_sarif_level(severity: &Severity) -> String {
     match severity {
         Severity::Critical | Severity::High => "error".to_string(),
-        Severity::Medium => "warning".to_string(),
-        Severity::Low | Severity::Info => "note".to_string(),
     }
 }
 
@@ -177,8 +175,5 @@ fn severity_to_score(severity: &Severity) -> String {
     match severity {
         Severity::Critical => "10.0".to_string(),
         Severity::High => "8.0".to_string(),
-        Severity::Medium => "5.0".to_string(),
-        Severity::Low => "3.0".to_string(),
-        Severity::Info => "1.0".to_string(),
     }
 }

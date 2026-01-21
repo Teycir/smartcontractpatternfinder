@@ -18,45 +18,14 @@ tags:
   - access-control
 
 patterns:
-  # Semantic: Direct selfdestruct call
-  - id: selfdestruct-call
-    kind: semantic
-    pattern: |
-      (call_expression
-        (expression
-          (identifier) @func)) @destruct
-      (#match? @func "^(selfdestruct|suicide)$")
-    message: "selfdestruct detected. CRITICAL: Verify onlyOwner or equivalent access control."
-
-  # Semantic: selfdestruct with payable cast
-  - id: selfdestruct-payable
-    kind: semantic
-    pattern: |
-      (call_expression
-        (expression
-          (identifier) @func)
-        (call_argument
-          (expression
-            (call_expression
-              (expression
-                (identifier) @cast))))) @destruct
-      (#match? @func "^(selfdestruct|suicide)$")
-      (#eq? @cast "payable")
-    message: "selfdestruct(payable(...)) detected. Ensure protected by access modifier."
-
   # Regex: Any selfdestruct
   - id: selfdestruct-regex
     kind: regex
     pattern: '(selfdestruct|suicide)\s*\('
     message: "selfdestruct/suicide usage detected. Contract will be permanently destroyed."
-    cache: true
 
   # Regex: selfdestruct in public function
   - id: selfdestruct-public-regex
     kind: regex
-    validate: true
     pattern: 'function\s+\w+\s*\([^)]{0,200}\)\s*(public|external)[^{]{0,100}\{[^}]{0,1000}(selfdestruct|suicide)\s*\('
     message: "CRITICAL: selfdestruct in public/external function. Verify access control modifier."
-    required: false
-    on_error: skip
-    cache: true

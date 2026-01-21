@@ -1,10 +1,9 @@
 use crate::analysis::{classify_modifiers, is_vulnerable_reentrancy, SymbolCollector};
 use crate::dataflow::{DataFlowRegistry, DataFlowSeverity};
 use crate::regex_validator::RegexValidator;
-use crate::semantic::SemanticScanner;
 use anyhow::Result;
 use regex::RegexBuilder;
-use scpf_types::{ContractContext, Match, Pattern, PatternKind, Template};
+use scpf_types::{ContractContext, Match, Pattern, Template};
 use std::path::PathBuf;
 use tracing::warn;
 
@@ -21,7 +20,6 @@ struct CompiledTemplate {
 
 pub struct Scanner {
     templates: Vec<CompiledTemplate>,
-    semantic_scanner: Option<SemanticScanner>,
     dataflow_registry: DataFlowRegistry,
     pub contextual_enabled: bool,
 }
@@ -30,34 +28,15 @@ impl Scanner {
     pub fn new(templates: Vec<Template>) -> Result<Self> {
         let mut compiled_templates = Vec::with_capacity(templates.len());
         let mut pattern_index = 0u32;
-        let mut needs_semantic = false;
 
         for template in templates {
-            if let Some(compiled) =
-                compile_template(template, &mut pattern_index, &mut needs_semantic)?
-            {
+            if let Some(compiled) = compile_template(template, &mut pattern_index)? {
                 compiled_templates.push(compiled);
             }
         }
 
-        let semantic_scanner = if needs_semantic {
-            match SemanticScanner::new() {
-                Ok(scanner) => {
-                    warn!("Semantic scanning enabled but may have compatibility issues with current tree-sitter-solidity grammar.");
-                    Some(scanner)
-                }
-                Err(e) => {
-                    warn!("Failed to initialize semantic scanner: {}. Only regex patterns will be used.", e);
-                    None
-                }
-            }
-        } else {
-            None
-        };
-
         Ok(Self {
             templates: compiled_templates,
-            semantic_scanner,
             dataflow_registry: DataFlowRegistry::with_default_analyzers(),
             contextual_enabled: true,
         })
@@ -66,7 +45,6 @@ impl Scanner {
     pub fn scan(&mut self, source: &str, file_path: PathBuf) -> Result<Vec<Match>> {
         let newlines: Vec<usize> = source.match_indices('\n').map(|(i, _)| i).collect();
 
-        // Extract Solidity version for filtering
         let solidity_version = extract_solidity_version(source);
         let is_modern_solidity = is_version_gte_0_8(&solidity_version);
 
@@ -74,20 +52,10 @@ impl Scanner {
         let mut seen = std::collections::HashSet::new();
         let mut dedup_set = std::collections::HashSet::new();
 
-        // Parse AST once for all semantic patterns and dataflow analysis
-        let parsed_tree = if self.semantic_scanner.is_some() {
-            self.semantic_scanner
-                .as_mut()
-                .and_then(|scanner| match scanner.parse(source) {
-                    Ok(tree) => Some(tree),
-                    Err(e) => {
-                        eprintln!("Error: Failed to parse source for semantic analysis: {}", e);
-                        None
-                    }
-                })
-        } else {
-            None
-        };
+        // Parse AST once for dataflow analysis
+        let parsed_tree = crate::semantic::SemanticScanner::new()
+            .ok()
+            .and_then(|mut s| s.parse(source).ok());
 
         // Run all registered dataflow analyzers
         if let Some(ref tree) = parsed_tree {
@@ -108,8 +76,6 @@ impl Scanner {
                 let severity = match finding.severity {
                     DataFlowSeverity::Critical => scpf_types::Severity::Critical,
                     DataFlowSeverity::High => scpf_types::Severity::High,
-                    DataFlowSeverity::Medium => scpf_types::Severity::Medium,
-                    DataFlowSeverity::Low => scpf_types::Severity::Low,
                 };
 
                 matches.push(Match {
@@ -132,39 +98,12 @@ impl Scanner {
         }
 
         for compiled_template in &self.templates {
-            // Skip integer overflow template for Solidity >= 0.8.0
             if is_modern_solidity && compiled_template.template.id.contains("integer_overflow") {
                 continue;
             }
 
             for compiled_pattern in &compiled_template.patterns {
-                // Dispatch based on pattern kind
-                if compiled_pattern.pattern.kind == PatternKind::Semantic {
-                    if let (Some(ref mut semantic_scanner), Some(ref tree)) =
-                        (&mut self.semantic_scanner, &parsed_tree)
-                    {
-                        match semantic_scanner.scan_with_tree(
-                            source,
-                            tree,
-                            &compiled_pattern.pattern,
-                            &compiled_template.template.id,
-                            compiled_template.template.severity,
-                            file_path.clone(),
-                        ) {
-                            Ok(semantic_matches) => matches.extend(semantic_matches),
-                            Err(e) => {
-                                eprintln!(
-                                    "Error: Semantic pattern '{}' in template '{}' failed: {}",
-                                    compiled_pattern.pattern.id, compiled_template.template.id, e
-                                );
-                                // Continue scanning other patterns instead of failing entire scan
-                            }
-                        }
-                    }
-                    continue;
-                }
-
-                // Regex pattern matching
+                // All patterns are now regex-based
                 for mat in compiled_pattern.regex.find_iter(source) {
                     let key = (mat.start(), mat.end(), compiled_pattern.index);
                     if !seen.insert(key) {
@@ -201,7 +140,6 @@ impl Scanner {
             }
         }
 
-        // Deduplicate matches by (file_path, line_number, pattern_id)
         matches.retain(|m| {
             let key = (
                 m.file_path.clone(),
@@ -214,20 +152,15 @@ impl Scanner {
 
         // Apply contextual filtering if enabled
         if self.contextual_enabled {
-            let tree_for_context = if let Some(ref tree) = parsed_tree {
-                Some(tree.clone())
-            } else if let Some(ref mut scanner) = self.semantic_scanner {
-                scanner.parse(source).ok()
-            } else {
-                SemanticScanner::new()
+            let tree_for_context = parsed_tree.or_else(|| {
+                crate::semantic::SemanticScanner::new()
                     .ok()
                     .and_then(|mut s| s.parse(source).ok())
-            };
+            });
 
             if let Some(ref tree) = tree_for_context {
                 let ctx = self.build_context(source, tree);
                 
-                // Apply CFG analysis for reentrancy
                 matches = matches.into_iter().filter(|m| {
                     if self.is_reentrancy_pattern(&m.template_id) {
                         is_vulnerable_reentrancy(tree, source, m.line_number)
@@ -359,14 +292,6 @@ impl Scanner {
 }
 
 fn compile_pattern(pattern: &Pattern, template_id: &str, index: u32) -> Result<CompiledPattern> {
-    if pattern.kind == PatternKind::Semantic {
-        return Ok(CompiledPattern {
-            regex: RegexBuilder::new(".*").build().unwrap(),
-            pattern: pattern.clone(),
-            index,
-        });
-    }
-
     RegexValidator::validate_pattern(&pattern.pattern).map_err(|e| {
         warn!(
             "Unsafe regex pattern in template '{}', pattern '{}': {}",
@@ -407,14 +332,10 @@ fn compile_pattern(pattern: &Pattern, template_id: &str, index: u32) -> Result<C
 fn compile_template(
     template: Template,
     pattern_index: &mut u32,
-    needs_semantic: &mut bool,
 ) -> Result<Option<CompiledTemplate>> {
     let mut compiled_patterns = Vec::with_capacity(template.patterns.len());
 
     for pattern in &template.patterns {
-        if pattern.kind == PatternKind::Semantic {
-            *needs_semantic = true;
-        }
         let compiled = compile_pattern(pattern, &template.id, *pattern_index)?;
         compiled_patterns.push(compiled);
         *pattern_index += 1;

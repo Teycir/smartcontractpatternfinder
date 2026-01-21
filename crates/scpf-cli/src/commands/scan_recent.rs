@@ -94,7 +94,7 @@ pub async fn scan_recent_contracts(
 
         let filtered_matches: Vec<_> = matches
             .into_iter()
-            .filter(|m| m.severity >= min_sev)
+            .filter(|m| m.severity >= min_sev && m.severity >= scpf_types::Severity::High)
             .collect();
 
         if !filtered_matches.is_empty() {
@@ -123,9 +123,9 @@ pub async fn scan_recent_contracts(
         .collect();
 
     scan_results.sort_by(|a, b| b.total_risk_score().cmp(&a.total_risk_score()));
-    let top_40: Vec<_> = scan_results.into_iter().take(40).collect();
+    let top_60: Vec<_> = scan_results.into_iter().take(60).collect();
 
-    let mut with_poc_scores: Vec<_> = top_40
+    let mut with_poc_scores: Vec<_> = top_60
         .into_iter()
         .map(|r| {
             let poc_score: f32 = r.matches.iter().map(|m| m.exploitability_score()).sum();
@@ -136,7 +136,7 @@ pub async fn scan_recent_contracts(
     with_poc_scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
     let scan_results: Vec<_> = with_poc_scores
         .into_iter()
-        .take(20)
+        .take(40)
         .map(|(r, _)| r)
         .collect();
 
@@ -156,7 +156,8 @@ pub async fn scan_recent_contracts(
 
     eprintln!();
     eprintln!("📊 Results saved to: {}", output_file.display());
-    eprintln!("📋 Found {} vulnerable contracts", scan_results.len());
+    eprintln!("📋 Found {} vulnerable contracts (High/Critical only)", scan_results.len());
+    eprintln!("🎯 Selection: Top 60 by risk score → Top 40 by PoC exploitability");
 
     Ok(())
 }
@@ -165,9 +166,7 @@ fn parse_severity(s: &str) -> scpf_types::Severity {
     match s.to_lowercase().as_str() {
         "critical" => scpf_types::Severity::Critical,
         "high" => scpf_types::Severity::High,
-        "medium" => scpf_types::Severity::Medium,
-        "low" => scpf_types::Severity::Low,
-        _ => scpf_types::Severity::Info,
+        _ => panic!("Invalid severity: {}. Only 'high' or 'critical' allowed.", s),
     }
 }
 

@@ -119,7 +119,7 @@ impl PatternBuilder {
                 id: id.clone(),
                 name: name.trim().to_string(),
                 description: "Created via Pattern Builder".to_string(),
-                severity: scpf_types::Severity::Medium,
+                severity: scpf_types::Severity::High,
                 tags: vec![],
                 patterns: vec![],
             }

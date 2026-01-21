@@ -114,9 +114,6 @@ impl RiskScorer {
             match finding.severity {
                 Severity::Critical => breakdown.critical += 1,
                 Severity::High => breakdown.high += 1,
-                Severity::Medium => breakdown.medium += 1,
-                Severity::Low => breakdown.low += 1,
-                Severity::Info => breakdown.informational += 1,
             }
         }
 

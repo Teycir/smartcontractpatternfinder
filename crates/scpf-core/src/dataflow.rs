@@ -22,8 +22,6 @@ pub struct AnalyzerFinding {
 pub enum DataFlowSeverity {
     Critical,
     High,
-    Medium,
-    Low,
 }
 
 /// Registry for dataflow analyzers
@@ -82,7 +80,7 @@ impl DataFlowAnalyzer for ReentrancyAnalyzer {
                 severity: match risk.severity {
                     RiskSeverity::Critical => DataFlowSeverity::Critical,
                     RiskSeverity::High => DataFlowSeverity::High,
-                    RiskSeverity::Medium => DataFlowSeverity::Medium,
+                    RiskSeverity::High => DataFlowSeverity::High,
                 },
                 context: risk.call_method.clone(),
             })
@@ -145,7 +143,6 @@ pub struct ReentrancyRisk {
 pub enum RiskSeverity {
     Critical, // Value transfer + balance update after
     High,     // External call + state change after
-    Medium,   // Potential issue
 }
 
 /// State mutation tracker
@@ -512,7 +509,7 @@ impl DataFlowAnalysis {
                     } else if call.method == "call" || call.method == "delegatecall" {
                         RiskSeverity::High
                     } else {
-                        RiskSeverity::Medium
+                        RiskSeverity::High
                     };
 
                     risks.push(ReentrancyRisk {

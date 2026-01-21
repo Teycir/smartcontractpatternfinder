@@ -30,21 +30,18 @@ pub struct RiskThresholds {
 impl Default for RiskConfig {
     fn default() -> Self {
         let mut severity_weights = HashMap::new();
-        severity_weights.insert(Severity::Info, 1);
-        severity_weights.insert(Severity::Low, 3);
-        severity_weights.insert(Severity::Medium, 7);
-        severity_weights.insert(Severity::High, 15);
-        severity_weights.insert(Severity::Critical, 30);
+        severity_weights.insert(Severity::High, 10);
+        severity_weights.insert(Severity::Critical, 100);
 
         Self {
             severity_weights,
             pattern_multipliers: HashMap::new(),
             composition_bonus: 10,
             thresholds: RiskThresholds {
-                low: 5,
-                medium: 15,
-                high: 30,
-                critical: 50,
+                low: 50,
+                medium: 200,
+                high: 500,
+                critical: 500,
             },
         }
     }
@@ -245,6 +242,8 @@ mod tests {
             start_byte: None,
             end_byte: None,
             code_snippet: None,
+            function_context: None,
+            protections: None,
         }
     }
 
@@ -259,6 +258,7 @@ mod tests {
                 create_test_match(Severity::High, "access-control"),
             ],
             scan_time_ms: 100,
+            solidity_version: None,
         };
 
         let assessment = scorer.assess(&result);
@@ -270,8 +270,8 @@ mod tests {
     fn test_composition_bonus() {
         let scorer = RiskScorer::with_defaults();
         let matches = vec![
-            create_test_match(Severity::Medium, "external-call"),
-            create_test_match(Severity::Medium, "state-mutation"),
+            create_test_match(Severity::High, "external-call"),
+            create_test_match(Severity::High, "state-mutation"),
         ];
 
         let bonus = scorer.calculate_composition_bonus(&matches);

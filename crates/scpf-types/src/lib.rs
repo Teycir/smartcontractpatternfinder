@@ -41,9 +41,6 @@ pub enum PatternKind {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[serde(rename_all = "lowercase")]
 pub enum Severity {
-    Info,
-    Low,
-    Medium,
     High,
     Critical,
 }
@@ -154,16 +151,10 @@ impl Match {
     /// Formula:
     /// - CRITICAL: 100 points
     /// - HIGH: 10 points
-    /// - MEDIUM: 3 points
-    /// - LOW: 1 point
-    /// - INFO: 0 points
     pub fn risk_score(&self) -> u32 {
         match self.severity {
             Severity::Critical => 100,
             Severity::High => 10,
-            Severity::Medium => 3,
-            Severity::Low => 1,
-            Severity::Info => 0,
         }
     }
 
@@ -195,25 +186,25 @@ impl ScanResult {
     /// Calculate total risk score for all matches
     /// 
     /// Formula: Σ(severity_weight × count)
-    /// Weights: CRITICAL=100, HIGH=10, MEDIUM=3, LOW=1, INFO=0
+    /// Weights: CRITICAL=100, HIGH=10 (Medium/Low/Info excluded)
     pub fn total_risk_score(&self) -> u32 {
         self.matches.iter().map(|m| m.risk_score()).sum()
     }
 
     /// Get risk level based on total score
     /// 
-    /// Thresholds:
+    /// Thresholds (High/Critical only):
     /// - 0: None ✅
-    /// - 1-100: Low ✅
-    /// - 101-500: Medium ⚠️
-    /// - 501-2000: High 🔴
-    /// - 2000+: Critical 🚨
+    /// - 1-50: Low ✅ (1-5 High issues)
+    /// - 51-200: Medium ⚠️ (6-20 High issues or 1-2 Critical)
+    /// - 201-500: High 🔴 (20+ High or 3-5 Critical)
+    /// - 500+: Critical 🚨 (5+ Critical issues)
     pub fn risk_level(&self) -> &'static str {
         match self.total_risk_score() {
             0 => "None",
-            1..=100 => "Low",
-            101..=500 => "Medium",
-            501..=2000 => "High",
+            1..=50 => "Low",
+            51..=200 => "Medium",
+            201..=500 => "High",
             _ => "Critical",
         }
     }
@@ -222,9 +213,9 @@ impl ScanResult {
     pub fn risk_emoji(&self) -> &'static str {
         match self.total_risk_score() {
             0 => "✅",
-            1..=100 => "✅",
-            101..=500 => "⚠️",
-            501..=2000 => "🔴",
+            1..=50 => "✅",
+            51..=200 => "⚠️",
+            201..=500 => "🔴",
             _ => "🚨",
         }
     }
@@ -236,9 +227,6 @@ impl ScanResult {
             match m.severity {
                 Severity::Critical => breakdown.critical += 1,
                 Severity::High => breakdown.high += 1,
-                Severity::Medium => breakdown.medium += 1,
-                Severity::Low => breakdown.low += 1,
-                Severity::Info => breakdown.info += 1,
             }
         }
         breakdown
@@ -249,30 +237,22 @@ impl ScanResult {
 pub struct SeverityBreakdown {
     pub critical: usize,
     pub high: usize,
-    pub medium: usize,
-    pub low: usize,
-    pub info: usize,
 }
 
 impl SeverityBreakdown {
-    /// Calculate risk score from breakdown
+    /// Calculate risk score from breakdown (High/Critical only)
     pub fn risk_score(&self) -> u32 {
-        (self.critical as u32 * 100)
-            + (self.high as u32 * 10)
-            + (self.medium as u32 * 3)
-            + (self.low as u32)
+        (self.critical as u32 * 100) + (self.high as u32 * 10)
     }
 
     /// Format breakdown as string
     pub fn format(&self) -> String {
         format!(
-            "CRITICAL: {} × 100 = {}\n  HIGH: {} × 10 = {}\n  MEDIUM: {} × 3 = {}",
+            "CRITICAL: {} × 100 = {}\n  HIGH: {} × 10 = {}",
             self.critical,
             self.critical * 100,
             self.high,
-            self.high * 10,
-            self.medium,
-            self.medium * 3
+            self.high * 10
         )
     }
 }
