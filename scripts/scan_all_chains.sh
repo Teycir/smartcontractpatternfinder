@@ -1,29 +1,29 @@
 #!/bin/bash
-# Scan recently updated contracts from blockchain
-# Usage: ./scan_recent.sh [days] [chain] [severity]
+# Scan all chains for recent contracts
+# Usage: ./scan_all_chains.sh [days] [severity]
 
 set -e
 
 DAYS=${1:-7}
-CHAIN=${2:-ethereum}
-MIN_SEVERITY=${3:-high}
+MIN_SEVERITY=${2:-high}
 OUTPUT_DIR="results"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-OUTPUT_FILE="${OUTPUT_DIR}/scan_${CHAIN}_${DAYS}days_${TIMESTAMP}.json"
+OUTPUT_FILE="${OUTPUT_DIR}/scan_all_chains_${DAYS}days_${TIMESTAMP}.json"
 
-echo "🔍 SCPF - Recent Contracts Scan"
-echo "================================"
-echo "Days: $DAYS | Chain: $CHAIN | Min Severity: $MIN_SEVERITY"
+echo "🔍 SCPF - Multi-Chain Scan"
+echo "=========================="
+echo "Days: $DAYS | Min Severity: $MIN_SEVERITY"
+echo "Chains: ethereum, bsc, polygon, arbitrum, optimism, base"
 echo ""
 
 cd "$(dirname "$0")/.." || exit 1
 
 mkdir -p "$OUTPUT_DIR"
 
-echo "📡 Fetching and scanning contracts..."
+echo "📡 Fetching and scanning all chains..."
 cargo run --release --bin scpf -- scan \
   --days "$DAYS" \
-  --chain "$CHAIN" \
+  --all-chains \
   --min-severity "$MIN_SEVERITY" \
   --output json > "$OUTPUT_FILE"
 
@@ -32,13 +32,13 @@ echo "✅ Scan complete!"
 echo "📊 Results: $OUTPUT_FILE"
 echo ""
 
-# Calculate risk scores and generate report
+# Risk analysis
 echo "📈 Risk Analysis:"
-echo "================================"
+echo "=========================="
 
 python3 << PYEOF
 import json
-import sys
+from collections import defaultdict
 
 with open('$OUTPUT_FILE') as f:
     results = json.load(f)
@@ -47,16 +47,12 @@ total_contracts = len(results)
 with_issues = sum(1 for r in results if r['matches'])
 total_findings = sum(len(r['matches']) for r in results)
 
-# Severity breakdown
 critical = sum(1 for r in results for m in r['matches'] if m['severity'] == 'critical')
 high = sum(1 for r in results for m in r['matches'] if m['severity'] == 'high')
 medium = sum(1 for r in results for m in r['matches'] if m['severity'] == 'medium')
 
-# Risk scoring (CRITICAL×100 + HIGH×10 + MEDIUM×3)
 total_risk = (critical * 100) + (high * 10) + (medium * 3)
-avg_risk = total_risk // total_contracts if total_contracts > 0 else 0
 
-# Risk level
 if total_risk == 0:
     risk_level = "None ✅"
 elif total_risk <= 100:
@@ -76,20 +72,19 @@ print(f"  • Medium: {medium}")
 print()
 print(f"Risk Score: {total_risk} ({risk_level})")
 print(f"  Formula: {critical}×100 + {high}×10 + {medium}×3 = {total_risk}")
-print(f"  Average: {avg_risk} per contract")
 print()
-print("Thresholds: 0-100=Low | 101-500=Medium | 501-2000=High | 2000+=Critical")
 
-# Top risky contracts
-if results:
-    print()
-    print("🔴 Top 5 Risky Contracts:")
-    sorted_results = sorted(results, key=lambda r: sum(m.get('severity') == 'critical' for m in r['matches']) * 100 + sum(m.get('severity') == 'high' for m in r['matches']) * 10, reverse=True)
-    for i, r in enumerate(sorted_results[:5], 1):
-        addr = r['address'][:10] + '...'
-        risk = sum(100 if m['severity'] == 'critical' else 10 if m['severity'] == 'high' else 3 for m in r['matches'])
-        count = len(r['matches'])
-        print(f"  {i}. {addr} - Risk: {risk}, Findings: {count}")
+# Per-chain breakdown
+chain_stats = defaultdict(lambda: {'contracts': 0, 'findings': 0, 'risk': 0})
+for r in results:
+    chain = r['chain']
+    chain_stats[chain]['contracts'] += 1
+    chain_stats[chain]['findings'] += len(r['matches'])
+    chain_stats[chain]['risk'] += sum(100 if m['severity'] == 'critical' else 10 if m['severity'] == 'high' else 3 for m in r['matches'])
+
+print("📊 Per-Chain Breakdown:")
+for chain, stats in sorted(chain_stats.items(), key=lambda x: x[1]['risk'], reverse=True):
+    print(f"  {chain}: {stats['contracts']} contracts, {stats['findings']} findings, Risk: {stats['risk']}")
 PYEOF
 
 echo ""

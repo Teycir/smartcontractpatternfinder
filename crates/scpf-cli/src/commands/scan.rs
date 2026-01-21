@@ -659,7 +659,7 @@ async fn scan_recent_contracts(args: ScanArgs) -> Result<()> {
         match fetcher.fetch_recent_contracts(*chain, args.days).await {
             Ok(addresses) => {
                 println!("   ✓ Found {} contracts", addresses.len());
-                for addr in addresses.into_iter().take(10) {
+                for addr in addresses {
                     all_contracts.push((addr, *chain));
                 }
             }
