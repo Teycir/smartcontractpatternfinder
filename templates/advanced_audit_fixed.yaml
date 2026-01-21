@@ -104,6 +104,7 @@ patterns:
   # Unchecked low-level call
   - id: unchecked-call-fixed
     kind: semantic
+    validate: true
     pattern: |
       (expression_statement
         (expression
@@ -114,10 +115,14 @@ patterns:
                 (identifier) @method)))))
       (#match? @method "^(call|delegatecall|send)$")
     message: Unchecked low-level call return value - may silently fail
+    required: false
+    fallback: regex
+    on_error: skip
 
   # Timestamp dependence
   - id: timestamp-dependence-fixed
     kind: semantic
+    validate: true
     pattern: |
       (binary_expression
         (expression
@@ -127,10 +132,14 @@ patterns:
       (#eq? @obj "block")
       (#eq? @prop "timestamp")
     message: Block timestamp used in logic - miners can manipulate
+    required: false
+    fallback: regex
+    on_error: skip
 
   # Strict balance equality
   - id: strict-balance-equality-fixed
     kind: semantic
+    validate: true
     pattern: |
       (binary_expression
         (expression
@@ -139,3 +148,6 @@ patterns:
             (identifier) @prop)))
       (#eq? @prop "balance")
     message: Strict equality with balance - use >= instead
+    required: false
+    fallback: regex
+    on_error: skip

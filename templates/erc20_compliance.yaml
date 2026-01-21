@@ -7,7 +7,6 @@ tags:
   - erc20
   - standards
 patterns:
-  # Core transfer functions
   - id: transfer-function
     kind: regex
     validate: true
@@ -24,7 +23,6 @@ patterns:
     required: false
     on_error: skip
     
-  # Approval functions
   - id: approve-function
     kind: regex
     validate: true
@@ -41,7 +39,6 @@ patterns:
     required: false
     on_error: skip
     
-  # Query functions
   - id: balanceof-function
     kind: regex
     validate: true

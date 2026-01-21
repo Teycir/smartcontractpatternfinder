@@ -192,8 +192,6 @@ impl RiskScorer {
             RiskLevel::Low
         } else if score < self.config.thresholds.medium {
             RiskLevel::Medium
-        } else if score < self.config.thresholds.high {
-            RiskLevel::High
         } else if score < self.config.thresholds.critical {
             RiskLevel::High
         } else {

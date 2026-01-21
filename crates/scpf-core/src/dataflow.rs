@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use tree_sitter::{Node, Tree};
 
 /// Trait for dataflow analyzers
-pub trait DataFlowAnalyzer {
+pub trait DataFlowAnalyzer: Send + Sync {
     fn analyze(&self, tree: &Tree, source: &str) -> Vec<AnalyzerFinding>;
     fn analyzer_id(&self) -> &str;
 }
@@ -29,6 +29,12 @@ pub enum DataFlowSeverity {
 /// Registry for dataflow analyzers
 pub struct DataFlowRegistry {
     analyzers: Vec<Box<dyn DataFlowAnalyzer>>,
+}
+
+impl Default for DataFlowRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl DataFlowRegistry {
@@ -166,6 +172,12 @@ pub struct MutationEvent {
     pub after_external_call: bool,
 }
 
+impl Default for StateMutationTracker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl StateMutationTracker {
     pub fn new() -> Self {
         Self {
@@ -241,7 +253,7 @@ impl StateMutationTracker {
                     let line = child.start_position().row + 1;
                     self.external_calls
                         .entry(func_name.clone())
-                        .or_insert_with(Vec::new)
+                        .or_default()
                         .push(line);
                 }
             }

@@ -69,25 +69,31 @@ patterns:
       (#eq? @mint "_mint")
     message: "Using _mint instead of _safeMint - receiver contract may not handle NFT"
 
-  # ERC721: tokenURI manipulation
+  # ERC721: tokenURI manipulation - abi.encodePacked with user input allows collision attacks
   - id: erc721-tokenuri-injection
     kind: semantic
+    validate: true
     pattern: |
       (function_definition
         name: (identifier) @name
         (function_body))
       (#eq? @name "tokenURI")
     message: "tokenURI using abi.encodePacked with user input - potential injection vulnerability"
+    required: false
+    on_error: skip
 
-  # ERC721: Reentrancy in safeTransfer
+  # ERC721: Reentrancy in safeTransfer - callback allows attacker to re-enter before state updates
   - id: erc721-safe-transfer-reentrancy
     kind: semantic
+    validate: true
     pattern: |
       (function_definition
         name: (identifier) @name
         (function_body))
       (#match? @name "^(safeTransferFrom|_safeTransfer)$")
     message: "State change after safeTransfer - onERC721Received callback enables reentrancy"
+    required: false
+    on_error: skip
 
   # ERC1155: Missing batch callback
   - id: erc1155-batch-callback
@@ -107,11 +113,14 @@ patterns:
       (#eq? @method "setInterfaceImplementer")
     message: "ERC777 interface registration - verify hooks cannot be exploited for reentrancy"
 
-  # Rebasing token handling
+  # Rebasing token handling - stored balances become stale as token supply changes
   - id: rebasing-token-balance
     kind: regex
+    validate: true
     pattern: '(uint256|uint)\s+(balance|amount|deposit|stake)'
     message: "Stored balance variable - may desync if token is rebasing (stETH, AMPL)"
+    required: false
+    on_error: skip
 
   # Missing totalSupply check
   - id: token-supply-overflow
@@ -123,8 +132,11 @@ patterns:
       (#match? @name "^(mint|_mint)$")
     message: "Minting without supply cap check - verify totalSupply cannot overflow"
 
-  # Non-standard decimals
+  # Non-standard decimals - hardcoded 18 decimals breaks with tokens using different precision
   - id: token-decimals-assumption
     kind: regex
+    validate: true
     pattern: '(1e18|10\s*\*\*\s*18|1000000000000000000)'
     message: "Hardcoded 18 decimals - some tokens use different decimals (USDC=6, WBTC=8)"
+    required: false
+    on_error: skip

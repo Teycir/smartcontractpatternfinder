@@ -47,6 +47,8 @@ patterns:
       (#match? @name "^(deposit|mint)$")
       (#eq? @method "totalSupply")
     message: ERC4626 vault without virtual shares - vulnerable to inflation attack
+    on_error: skip
+    on_error: skip
 
   # Permit front-running (2023-2024)
   - id: permit-frontrun
@@ -67,6 +69,8 @@ patterns:
       (#match? @sig "^(v|r|s|signature|permit)$")
       (#eq? @method "permit")
     message: Permit signature without deadline check - vulnerable to front-running
+    on_error: skip
+    on_error: skip
 
   # Cross-contract reentrancy (Uniswap V3 style)
   - id: cross-contract-reentrancy
@@ -87,6 +91,8 @@ patterns:
               (member_expression)))))
       (#match? @callback "^(callback|hook|onFlash)$")
     message: Callback with state read after - vulnerable to cross-contract reentrancy
+    on_error: skip
+    on_error: skip
 
   # ERC777 reentrancy hooks
   - id: erc777-hook-reentrancy
@@ -99,6 +105,8 @@ patterns:
             (identifier) @method)))
       (#match? @method "^(send|operatorSend)$")
     message: ERC777 token transfer without reentrancy guard - hooks enable reentrancy
+    on_error: skip
+    on_error: skip
 
   # Vyper reentrancy lock bypass (2023)
   - id: vyper-lock-bypass
@@ -119,6 +127,8 @@ patterns:
               (assignment_expression)))))
       (#match? @raw "^(raw_call|create_forwarder_to)$")
     message: Raw call with state change - Vyper lock bypass pattern detected
+    on_error: skip
+    on_error: skip
 
   # Arbitrum sequencer downtime (2024)
   - id: arbitrum-sequencer-check
@@ -131,6 +141,8 @@ patterns:
             (identifier) @method)))
       (#match? @method "^(latestRoundData|latestAnswer)$")
     message: Chainlink oracle without sequencer uptime check - critical on L2s (Arbitrum/Optimism)
+    on_error: skip
+    on_error: skip
 
   # Blast yield manipulation (2024)
   - id: blast-yield-exploit
@@ -143,6 +155,8 @@ patterns:
             (identifier) @method)))
       (#match? @method "^(claim|claimYield|claimGas|claimAllYield)$")
     message: Blast yield claim without access control - yield can be stolen
+    on_error: skip
+    on_error: skip
 
   # EIP-4844 blob data manipulation
   - id: blob-data-validation
@@ -155,6 +169,8 @@ patterns:
       (#eq? @type "bytes")
       (#match? @name "^(blob|blobData)$")
     message: Blob data parameter without validation - EIP-4844 data integrity risk
+    on_error: skip
+    on_error: skip
 
   # Account abstraction (ERC-4337) validation
   - id: aa-validation-bypass
@@ -167,6 +183,8 @@ patterns:
             (return_statement))))
       (#match? @name "^(validateUserOp|validatePaymasterUserOp)$")
     message: AA validation without proper checks - can bypass signature verification
+    on_error: skip
+    on_error: skip
 
   # Multicall reentrancy (2024)
   - id: multicall-reentrancy
@@ -188,6 +206,8 @@ patterns:
       (#eq? @name "multicall")
       (#eq? @method "delegatecall")
     message: Multicall with delegatecall in loop - enables complex reentrancy attacks
+    on_error: skip
+    on_error: skip
 
   # Uniswap V4 hook manipulation
   - id: uniswap-v4-hook-exploit
@@ -202,6 +222,8 @@ patterns:
                 (call_expression))))))
       (#match? @name "^(beforeSwap|afterSwap|beforeModifyPosition|afterModifyPosition)$")
     message: Uniswap V4 hook with external call - can manipulate pool state
+    on_error: skip
+    on_error: skip
 
   # Eigenlayer restaking risks (2024)
   - id: restaking-slashing-risk
@@ -221,6 +243,8 @@ patterns:
       (#match? @name "^(stake|delegate|restake)$")
       (#eq? @method "approve")
     message: Restaking without slashing protection - funds at risk from operator misbehavior
+    on_error: skip
+    on_error: skip
 
   # Pendle PT/YT manipulation (2024)
   - id: pendle-pt-yt-exploit
@@ -233,6 +257,8 @@ patterns:
             (identifier) @method)))
       (#match? @method "^(mintPY|redeemPY|swapExactPtForYt)$")
     message: Pendle PT/YT operation - verify oracle manipulation protection
+    on_error: skip
+    on_error: skip
 
   # Balancer composable pool reentrancy (2023)
   - id: balancer-composable-reentrancy
@@ -249,6 +275,8 @@ patterns:
                     (member_expression))))))))
       (#match? @name "^(onJoinPool|onExitPool)$")
     message: Balancer pool hook with external call - composable pool reentrancy risk
+    on_error: skip
+    on_error: skip
 
   # Aave V3 e-mode manipulation
   - id: aave-emode-exploit
@@ -263,6 +291,8 @@ patterns:
                 (call_expression))))))
       (#match? @name "^(setUserEMode|borrow)$")
     message: Aave e-mode operation - verify category manipulation protection
+    on_error: skip
+    on_error: skip
 
   # Compound V3 absorb exploit
   - id: compound-v3-absorb
@@ -277,6 +307,8 @@ patterns:
                 (call_expression))))))
       (#eq? @name "absorb")
     message: Compound V3 absorb without validation - liquidation manipulation risk
+    on_error: skip
+    on_error: skip
 
   # GMX V2 price impact manipulation
   - id: gmx-v2-price-impact
@@ -291,6 +323,8 @@ patterns:
                 (binary_expression))))))
       (#match? @name "^(createOrder|executeOrder)$")
     message: GMX V2 order execution - verify price impact calculation protection
+    on_error: skip
+    on_error: skip
 
   # Morpho optimizer rate manipulation
   - id: morpho-rate-manipulation
@@ -310,6 +344,8 @@ patterns:
       (#match? @name "^(supply|borrow)$")
       (#match? @rate "^(supplyRate|borrowRate)$")
     message: Morpho rate-dependent logic - verify manipulation protection
+    on_error: skip
+    on_error: skip
 
   # Frax V3 AMO exploit
   - id: frax-amo-exploit

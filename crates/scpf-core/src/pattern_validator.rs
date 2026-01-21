@@ -5,6 +5,12 @@ pub struct PatternValidator {
     language: tree_sitter::Language,
 }
 
+impl Default for PatternValidator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PatternValidator {
     pub fn new() -> Self {
         Self {
@@ -80,11 +86,11 @@ pub struct PatternError {
 impl PatternError {
     fn from_query_error(e: &QueryError, pattern: &str) -> Self {
         let lines: Vec<&str> = pattern.lines().collect();
-        let context = if (e.row as usize) < lines.len() {
+        let context = if e.row < lines.len() {
             format!(
                 "{}\n{}^",
-                lines[e.row as usize],
-                " ".repeat(e.column as usize)
+                lines[e.row],
+                " ".repeat(e.column)
             )
         } else {
             String::new()

@@ -27,20 +27,26 @@ patterns:
   # Array iteration without limit
   - id: array-iteration-unbounded
     kind: regex
-    pattern: 'for\s*\([^)]+\.length[^)]*\)'
+    pattern: 'for\s*\([^)]{1,200}\.length[^)]{0,100}\)'
     message: "Full array iteration - add pagination or max iteration limit"
 
   # External call in loop
   - id: loop-external-call
     kind: regex
-    pattern: 'for\s*\([^)]+\)[^{]*\{[^}]*(call|transfer|send|delegatecall)\s*\('
+    validate: true
+    pattern: 'for\s*\([^)]{1,200}\)[^{]{0,100}\{[^}]{0,500}(call|transfer|send|delegatecall)\s*\('
     message: "External call in loop - single failure can DoS entire function"
+    required: false
+    on_error: skip
 
   # Revert in loop
   - id: revert-in-loop
     kind: regex
-    pattern: 'for\s*\([^)]+\)[^{]*\{[^}]*(require|revert|assert)\s*\('
+    validate: true
+    pattern: 'for\s*\([^)]{1,200}\)[^{]{0,100}\{[^}]{0,500}(require|revert|assert)\s*\('
     message: "Revert inside loop - consider try/catch or continue on failure"
+    required: false
+    on_error: skip
 
   # Ether transfer to contract
   - id: dos-ether-transfer
@@ -54,8 +60,11 @@ patterns:
   # Block gas limit in constructor
   - id: constructor-gas-limit
     kind: regex
-    pattern: 'constructor\s*\([^)]*\)[^{]*\{[^}]*for\s*\('
+    validate: true
+    pattern: 'constructor\s*\([^)]{0,200}\)[^{]{0,100}\{[^}]{0,1000}for\s*\('
     message: "Loop in constructor - deployment may fail if array too large"
+    required: false
+    on_error: skip
 
   # Griefing via selfdestruct
   - id: griefing-selfdestruct
@@ -78,8 +87,11 @@ patterns:
   # Delete from mapping in loop
   - id: delete-mapping-loop
     kind: regex
-    pattern: 'for\s*\([^)]+\)[^{]*\{[^}]*delete\s+'
+    validate: true
+    pattern: 'for\s*\([^)]{1,200}\)[^{]{0,100}\{[^}]{0,500}delete\s+'
     message: "Deleting in loop - consider alternative data structure or lazy deletion"
+    required: false
+    on_error: skip
 
   # Minimum balance check
   - id: dos-minimum-balance

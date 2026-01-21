@@ -50,7 +50,7 @@ pub struct AdvancedScanner {
     state_analyzer: StateAnalyzer,
     exploit_generator: ExploitGenerator,
     risk_scorer: RiskScorer,
-    dependency_analyzer: DependencyAnalyzer,
+    _dependency_analyzer: DependencyAnalyzer,
     poc_stager: PocStager,
 }
 
@@ -62,7 +62,7 @@ impl AdvancedScanner {
             state_analyzer: StateAnalyzer::new(),
             exploit_generator: ExploitGenerator::new(),
             risk_scorer: RiskScorer::new(),
-            dependency_analyzer: DependencyAnalyzer::new(),
+            _dependency_analyzer: DependencyAnalyzer::new(),
             poc_stager: PocStager::new(),
         }
     }
@@ -121,7 +121,7 @@ impl AdvancedScanner {
         let mut vulnerabilities = Vec::new();
 
         for finding in findings {
-            let mut confidence = 0.5;
+            let mut confidence: f64 = 0.5;
             let mut sources = vec!["Pattern Match".to_string()];
 
             for flow in taint_flows {
@@ -143,7 +143,7 @@ impl AdvancedScanner {
             vulnerabilities.push(CombinedVulnerability {
                 id: finding.pattern_id.clone(),
                 severity: format!("{:?}", finding.severity),
-                confidence: (confidence as f64).min(1.0),
+                confidence: confidence.min(1.0),
                 sources,
                 description: finding.message.clone(),
                 exploit_scenario: self.generate_scenario(finding),
@@ -246,7 +246,7 @@ impl AdvancedScanner {
             output.push_str(&format!("**Description**: {}\n\n", vuln.description));
         }
 
-        output.push_str(&format!("\n## Taint Analysis\n"));
+        output.push_str("\n## Taint Analysis\n");
         output.push_str(&format!(
             "- Total flows: {}\n",
             report.taint_summary.total_flows
@@ -256,7 +256,7 @@ impl AdvancedScanner {
             report.taint_summary.high_risk_flows
         ));
 
-        output.push_str(&format!("\n## Value Flow Analysis\n"));
+        output.push_str("\n## Value Flow Analysis\n");
         output.push_str(&format!(
             "- Total paths: {}\n",
             report.value_flow_summary.total_paths

@@ -252,7 +252,7 @@ impl SeverityBreakdown {
         (self.critical as u32 * 100)
             + (self.high as u32 * 10)
             + (self.medium as u32 * 3)
-            + (self.low as u32 * 1)
+            + (self.low as u32)
     }
 
     /// Format breakdown as string

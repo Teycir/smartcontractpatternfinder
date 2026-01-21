@@ -28,6 +28,7 @@ composition:
       max_distance: 50
       severity: critical
       required: true
+      on_error: skip
     
     - type: all_of
       templates:
@@ -35,11 +36,13 @@ composition:
         - balance-mapping-write
         - no-reentrancy-guard
       severity: critical
+      on_error: skip
     
     - type: and_not
       required: external-call-pattern
       excluded: nonreentrant-modifier
       severity: high
+      on_error: skip
 
 scoring:
   pattern_scores:
@@ -51,12 +54,14 @@ scoring:
     critical: 80
     high: 50
     medium: 30
+  on_error: skip
 
 patterns:
   - id: external-call-pattern
     kind: regex
     pattern: '\.(call|delegatecall|send)\s*[\({]'
     message: "External call detected"
+    on_error: skip
   
   - id: cei-violation-regex
     kind: regex
@@ -64,3 +69,4 @@ patterns:
     message: "Classic reentrancy pattern"
     required: true
     fallback: skip
+    on_error: skip

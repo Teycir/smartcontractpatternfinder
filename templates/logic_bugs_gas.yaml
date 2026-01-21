@@ -126,6 +126,7 @@ patterns:
   # Logic: Division before multiplication
   - id: division-before-multiplication
     kind: semantic
+    validate: true
     pattern: |
       (binary_expression
         (expression
@@ -133,15 +134,20 @@ patterns:
         (expression
           (identifier)))
     message: Division before multiplication - precision loss, reorder operations
+    required: false
+    on_error: skip
 
   # Logic: Incorrect comparison operator
   - id: assignment-in-condition
     kind: semantic
+    validate: true
     pattern: |
       (if_statement
         (expression
           (assignment_expression)))
     message: Assignment in condition instead of comparison - likely bug
+    required: false
+    on_error: skip
 
   # Gas: Storage read in loop
   - id: storage-read-loop

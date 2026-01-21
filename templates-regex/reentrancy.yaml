@@ -9,7 +9,7 @@ patterns:
   # Detects external calls with value transfer (high reentrancy risk)
   - id: external-call-with-value
     kind: regex
-    pattern: '\.call\{value:'
+    pattern: '\.call\{value:\s*'
     message: External call with value transfer detected
     required: true
     on_error: skip

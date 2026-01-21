@@ -220,9 +220,10 @@ patterns:
     required: false
     on_error: skip
 
-  # Reentrancy via modifier
+  # Reentrancy via modifier - external calls in modifiers execute before function body
   - id: modifier-external-call
     kind: semantic
+    validate: true
     pattern: |
       (modifier_definition
         (function_body
@@ -233,9 +234,11 @@ patterns:
                   (expression
                     (member_expression
                       (identifier)
-                      (identifier) @method)))))))) 
+                      (identifier) @method))))))))
       (#match? @method "^(call|transfer|send)$")
     message: External call in modifier - can enable reentrancy attacks
+    required: false
+    on_error: skip
 
   # DoS with block gas limit
   - id: unbounded-loop

@@ -19,6 +19,7 @@ patterns:
   # Uninitialized implementation - can be taken over
   - id: uninitialized-implementation
     kind: semantic
+    validate: true
     pattern: |
       (contract_declaration
         (identifier) @name
@@ -27,10 +28,13 @@ patterns:
             (identifier) @parent)))
       (#match? @parent "^(Initializable|UUPSUpgradeable|TransparentUpgradeableProxy)$")
     message: "Upgradeable contract - ensure initialize() is called and protected with initializer modifier"
+    required: false
+    on_error: skip
 
   # Missing initializer modifier
   - id: missing-initializer-modifier
     kind: semantic
+    validate: true
     pattern: |
       (function_definition
         name: (identifier) @name
@@ -38,6 +42,8 @@ patterns:
         (function_body))
       (#match? @name "^(initialize|init|setup)$")
     message: "Initialization function without initializer modifier - can be called multiple times"
+    required: false
+    on_error: skip
 
   # Constructor in upgradeable contract
   - id: constructor-in-upgradeable
@@ -54,20 +60,29 @@ patterns:
   # Storage gap missing
   - id: missing-storage-gap
     kind: regex
-    pattern: 'contract\s+\w+\s+is\s+[^{]*Upgradeable[^{]*\{(?![^}]*__gap)'
+    validate: true
+    pattern: 'contract\s+\w+\s+is\s+[^{]{0,200}Upgradeable[^{]{0,100}\{(?![^}]{0,2000}__gap)'
     message: "Upgradeable contract without __gap - future storage variables may collide"
+    required: false
+    on_error: skip
 
   # Immutable in upgradeable
   - id: immutable-in-upgradeable
     kind: regex
+    validate: true
     pattern: 'immutable\s+\w+'
     message: "Immutable variable in upgradeable contract - value set in constructor won't be available"
+    required: false
+    on_error: skip
 
   # UUPS missing _authorizeUpgrade
   - id: uups-missing-authorize
     kind: regex
-    pattern: 'is\s+UUPSUpgradeable[^{]*\{(?![^}]*_authorizeUpgrade)'
+    validate: true
+    pattern: 'is\s+UUPSUpgradeable[^{]{0,200}\{(?![^}]{0,1000}_authorizeUpgrade)'
     message: "UUPS contract without _authorizeUpgrade - upgrade authorization missing"
+    required: false
+    on_error: skip
 
   # Delegatecall to user input
   - id: proxy-delegatecall-injection
@@ -81,8 +96,11 @@ patterns:
   # Function selector collision
   - id: function-selector-collision
     kind: regex
-    pattern: '(fallback|receive)\s*\([^)]*\)\s*(external|public)[^{]*\{[^}]*delegatecall'
+    validate: true
+    pattern: '(fallback|receive)\s*\([^)]{0,100}\)\s*(external|public)[^{]{0,100}\{[^}]{0,500}delegatecall'
     message: "Proxy fallback with delegatecall - check for function selector collisions with proxy admin functions"
+    required: false
+    on_error: skip
 
   # Transparent proxy admin functions
   - id: transparent-proxy-admin
@@ -105,5 +123,8 @@ patterns:
   # Initializer reentrancy
   - id: initializer-reentrancy
     kind: regex
-    pattern: 'function\s+(initialize|init)\s*\([^)]*\)[^{]*\{[^}]*(call|delegatecall)\s*\('
+    validate: true
+    pattern: 'function\s+(initialize|init)\s*\([^)]{0,200}\)[^{]{0,100}\{[^}]{0,500}(call|delegatecall)\s*\('
     message: "External call in initializer - potential reentrancy during initialization"
+    required: false
+    on_error: skip

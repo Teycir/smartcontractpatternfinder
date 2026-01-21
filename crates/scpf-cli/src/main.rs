@@ -11,11 +11,8 @@ use cli::{Cli, Commands};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Load .env file if it exists
-    if dotenvy::dotenv().is_err() {
-        eprintln!("Warning: No .env file found. API keys must be set via environment variables.");
-        eprintln!("Create a .env file with your API keys or export them manually.");
-    }
+    // Load .env file if it exists, ignore if missing
+    dotenvy::dotenv().ok();
 
     let cli = Cli::parse();
 
@@ -31,9 +28,7 @@ async fn main() -> Result<()> {
     let result = match cli.command {
         Commands::Audit(args) => {
             if args.addresses.is_empty() {
-                eprintln!("Error: Audit command requires contract addresses");
-                eprintln!("Usage: scpf audit 0x... 0x... --chain ethereum");
-                std::process::exit(1);
+                anyhow::bail!("Audit command requires contract addresses\nUsage: scpf audit 0x... 0x... --chain ethereum");
             }
             commands::audit::run_full_audit(args.addresses.clone(), args).await
         }
@@ -47,6 +42,10 @@ async fn main() -> Result<()> {
             cli::TemplatesCommand::Registry => commands::templates::registry().await,
         },
         Commands::FetchZeroDay(args) => commands::fetch_zeroday::run(args).await,
+        Commands::PatternBuilder(args) => {
+            pattern_builder::cmd_pattern_builder(args.file.as_deref(), args.pattern.as_deref())
+                .map_err(|e| anyhow::anyhow!(e))
+        }
     };
 
     if let Err(e) = &result {

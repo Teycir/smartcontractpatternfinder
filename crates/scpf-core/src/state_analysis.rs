@@ -116,17 +116,18 @@ impl StateAnalyzer {
                 });
             }
 
-            if matches!(slot.slot_type, SlotType::Mapping { .. }) {
-                if !slot.written_by.is_empty() && slot.written_by.len() > 1 {
-                    invariants.push(Invariant {
-                        description: format!(
-                            "{} has multiple writers - check for race conditions",
-                            name
-                        ),
-                        expression: format!("Concurrent writes to {}", name),
-                        severity: InvariantSeverity::High,
-                    });
-                }
+            if matches!(slot.slot_type, SlotType::Mapping { .. })
+                && !slot.written_by.is_empty()
+                && slot.written_by.len() > 1
+            {
+                invariants.push(Invariant {
+                    description: format!(
+                        "{} has multiple writers - check for race conditions",
+                        name
+                    ),
+                    expression: format!("Concurrent writes to {}", name),
+                    severity: InvariantSeverity::High,
+                });
             }
         }
 
@@ -153,7 +154,7 @@ impl StateAnalyzer {
 
     fn generate_attack_sequences(
         &self,
-        state: &ContractState,
+        _state: &ContractState,
         invariant: &Invariant,
     ) -> Vec<Vec<FunctionCall>> {
         let mut sequences = Vec::new();

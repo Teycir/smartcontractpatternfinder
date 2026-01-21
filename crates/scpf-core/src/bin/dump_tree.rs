@@ -57,10 +57,8 @@ fn print_tree(node: &tree_sitter::Node, source: &str, indent: usize) {
 }
 
 fn collect_node_types(node: &tree_sitter::Node, types: &mut std::collections::HashSet<String>) {
-    if node.is_named() {
-        if types.insert(node.kind().to_string()) {
-            println!("  {}", node.kind());
-        }
+    if node.is_named() && types.insert(node.kind().to_string()) {
+        println!("  {}", node.kind());
     }
     for i in 0..node.child_count() {
         if let Some(child) = node.child(i as u32) {

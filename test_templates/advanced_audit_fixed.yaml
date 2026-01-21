@@ -9,9 +9,10 @@ tags:
   - fixed
 
 patterns:
-  # Unbounded loop with external calls
+  # Unbounded loop with external calls - DoS via gas limit
   - id: unbounded-loop-fixed
     kind: semantic
+    validate: true
     pattern: |
       (for_statement
         (block_statement
@@ -20,6 +21,9 @@ patterns:
               (expression
                 (call_expression))))))
     message: Loop with external calls - vulnerable to DoS via block gas limit
+    required: false
+    fallback: regex
+    on_error: skip
 
   # tx.origin authentication
   - id: tx-origin-auth-fixed
@@ -40,9 +44,10 @@ patterns:
       (#eq? @prop "origin")
     message: tx.origin used for authentication - vulnerable to phishing
 
-  # Missing access control on critical functions
+  # Missing access control - critical functions need modifiers
   - id: missing-access-control-fixed
     kind: semantic
+    validate: true
     pattern: |
       (function_definition
         (identifier) @name
@@ -51,10 +56,14 @@ patterns:
       (#match? @name "^(withdraw|transfer|destroy|kill)$")
       (#eq? @vis "public")
     message: Critical function without access control modifier
+    required: false
+    fallback: regex
+    on_error: skip
 
-  # Reentrancy: external call before state change
+  # Reentrancy - external call before state change violates CEI pattern
   - id: reentrancy-pattern-fixed
     kind: semantic
+    validate: true
     pattern: |
       (function_body
         (statement
@@ -71,6 +80,9 @@ patterns:
               (assignment_expression)))))
       (#match? @method "^(call|transfer|send)$")
     message: External call before state modification - reentrancy risk
+    required: false
+    fallback: regex
+    on_error: skip
 
   # Unprotected selfdestruct
   - id: unprotected-selfdestruct-fixed
@@ -89,9 +101,10 @@ patterns:
       (#eq? @func "selfdestruct")
     message: Unprotected selfdestruct - contract can be destroyed by anyone
 
-  # Unchecked low-level call
+  # Unchecked low-level call - return value must be checked
   - id: unchecked-call-fixed
     kind: semantic
+    validate: true
     pattern: |
       (expression_statement
         (expression
@@ -102,10 +115,14 @@ patterns:
                 (identifier) @method)))))
       (#match? @method "^(call|delegatecall|send)$")
     message: Unchecked low-level call return value - may silently fail
+    required: false
+    fallback: regex
+    on_error: skip
 
-  # Timestamp dependence
+  # Timestamp dependence - miners can manipulate block.timestamp
   - id: timestamp-dependence-fixed
     kind: semantic
+    validate: true
     pattern: |
       (binary_expression
         (expression
@@ -115,10 +132,14 @@ patterns:
       (#eq? @obj "block")
       (#eq? @prop "timestamp")
     message: Block timestamp used in logic - miners can manipulate
+    required: false
+    fallback: regex
+    on_error: skip
 
-  # Strict balance equality
+  # Strict balance equality - can be manipulated via selfdestruct
   - id: strict-balance-equality-fixed
     kind: semantic
+    validate: true
     pattern: |
       (binary_expression
         (expression
@@ -127,3 +148,6 @@ patterns:
             (identifier) @prop)))
       (#eq? @prop "balance")
     message: Strict equality with balance - use >= instead
+    required: false
+    fallback: regex
+    on_error: skip

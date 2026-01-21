@@ -68,8 +68,8 @@ patterns:
     pattern: '(for_statement) @loop'
     message: Loop detected - verify no unbounded iterations
     required: false
-    fallback: regex
     on_error: skip
+    fallback: regex
 
   # Detects function definitions
   - id: function-def

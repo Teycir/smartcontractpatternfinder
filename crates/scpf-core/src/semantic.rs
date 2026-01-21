@@ -55,9 +55,9 @@ impl SemanticScanner {
                 );
 
                 let lines: Vec<&str> = pattern.pattern.lines().collect();
-                if (e.row as usize) < lines.len() {
-                    tracing::error!("Error line: {}", lines[e.row as usize]);
-                    tracing::error!("Position:   {}^", " ".repeat(e.column as usize));
+                if e.row < lines.len() {
+                    tracing::error!("Error line: {}", lines[e.row]);
+                    tracing::error!("Position:   {}^", " ".repeat(e.column));
                 }
 
                 return Err(anyhow::anyhow!(

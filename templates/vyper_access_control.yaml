@@ -15,7 +15,7 @@ patterns:
     required: true
     on_error: skip
     
-  - id: missing-owner-check
+  - id: vyper-owner-assignment
     kind: regex
     validate: true
     pattern: 'self\.owner\s*=\s*msg\.sender'

@@ -12,6 +12,8 @@ def create_scanline_animation(input_path, output_path, frames=40):
         animation_frames = []
         
         # Calculate scanline movement
+        if frames <= 0:
+            raise ValueError("frames must be positive")
         step = height // frames
         
         for i in range(frames):

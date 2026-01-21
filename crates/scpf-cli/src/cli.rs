@@ -38,6 +38,8 @@ pub enum Commands {
     #[command(about = "Fetch latest 0-day patterns from security feeds")]
     #[command(after_help = "Updates templates with vulnerabilities disclosed in last 7 days")]
     FetchZeroDay(FetchZeroDayArgs),
+    #[command(about = "Interactive pattern builder helper")]
+    PatternBuilder(PatternBuilderArgs),
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -204,4 +206,13 @@ pub enum TemplatesCommand {
     },
     #[command(about = "List available template collections")]
     Registry,
+}
+
+#[derive(Args)]
+pub struct PatternBuilderArgs {
+    #[arg(short, long, help = "Load test code from file")]
+    pub file: Option<String>,
+
+    #[arg(short, long, help = "Initial pattern string")]
+    pub pattern: Option<String>,
 }

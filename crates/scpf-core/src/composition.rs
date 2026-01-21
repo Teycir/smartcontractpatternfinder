@@ -38,6 +38,12 @@ pub enum CompositionRule {
     },
 }
 
+impl Default for TemplateComposer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TemplateComposer {
     pub fn new() -> Self {
         Self {

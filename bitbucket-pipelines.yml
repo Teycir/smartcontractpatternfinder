@@ -16,9 +16,9 @@ pipelines:
           - cargo
           - scpf-target
         script:
-          - command -v scpf &> /dev/null || cargo install scpf-cli || { echo "Error: Failed to install scpf-cli"; exit 1; }
-          - scpf scan --output json > scpf-results.json || { echo "Error: JSON scan failed"; exit 1; }
-          - scpf scan --output sarif > scpf-results.sarif || { echo "Error: SARIF scan failed"; exit 1; }
+          - command -v scpf &> /dev/null || cargo install scpf-cli
+          - if ! scpf scan --output json > scpf-results.json; then echo "Error: JSON scan failed" >&2; exit 1; fi
+          - if ! scpf scan --output sarif > scpf-results.sarif; then echo "Error: SARIF scan failed" >&2; exit 1; fi
         artifacts:
           - scpf-results.json
           - scpf-results.sarif
@@ -62,5 +62,5 @@ pipelines:
           caches:
             - cargo
           script:
-            - command -v scpf &> /dev/null || cargo install scpf-cli || { echo "Error: Failed to install scpf-cli"; exit 1; }
-            - scpf scan $CONTRACT_ADDRESS --chain $CHAIN --output json || { echo "Error: Blockchain scan failed"; exit 1; }
+            - command -v scpf &> /dev/null || cargo install scpf-cli || { echo "Error: Failed to install scpf-cli" >&2; exit 1; }
+            - scpf scan $CONTRACT_ADDRESS --chain $CHAIN --output json || { echo "Error: Blockchain scan failed" >&2; exit 1; }

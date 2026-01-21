@@ -1,6 +1,6 @@
-use std::collections::HashMap;
 
-#[derive(Debug, Clone, PartialEq)]
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ValueNode {
     MsgValue,
     ExternalDeposit { token: String },
@@ -101,7 +101,7 @@ impl ValueFlowAnalyzer {
 
     fn find_path(&self, start: &ValueNode, end: &ValueNode) -> Option<Vec<ValueEdge>> {
         let mut path = Vec::new();
-        let mut visited = Vec::new();
+        let mut visited = std::collections::HashSet::new();
 
         if self.dfs(start, end, &mut path, &mut visited) {
             Some(path)
@@ -115,13 +115,13 @@ impl ValueFlowAnalyzer {
         current: &ValueNode,
         target: &ValueNode,
         path: &mut Vec<ValueEdge>,
-        visited: &mut Vec<ValueNode>,
+        visited: &mut std::collections::HashSet<ValueNode>,
     ) -> bool {
         if current == target {
             return true;
         }
 
-        visited.push(current.clone());
+        visited.insert(current.clone());
 
         for edge in &self.edges {
             if &edge.from == current && !visited.contains(&edge.to) {
@@ -231,12 +231,9 @@ impl ValueFlowAnalyzer {
 
         let mut step_num = 2;
         for edge in edges.iter().skip(1) {
-            match &edge.to {
-                ValueNode::Calculation { expression } => {
-                    steps.push(format!("{}. Trigger calculation: {}", step_num, expression));
-                    step_num += 1;
-                }
-                _ => {}
+            if let ValueNode::Calculation { expression } = &edge.to {
+                steps.push(format!("{}. Trigger calculation: {}", step_num, expression));
+                step_num += 1;
             }
         }
 
@@ -286,7 +283,7 @@ impl ValueFlowAnalyzer {
             for step in &path.exploit_steps {
                 summary.push_str(&format!("{}\n", step));
             }
-            summary.push_str("\n");
+            summary.push('\n');
         }
 
         summary

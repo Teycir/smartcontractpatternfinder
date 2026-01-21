@@ -168,8 +168,12 @@ impl PocStager {
 
     fn get_function_context(&self, finding: &Match, source_code: &str) -> String {
         let lines: Vec<&str> = source_code.lines().collect();
-        let start = finding.line_number.saturating_sub(5);
+        let start = finding.line_number.saturating_sub(5).min(lines.len());
         let end = (finding.line_number + 5).min(lines.len());
+
+        if start >= end {
+            return String::new();
+        }
 
         lines[start..end].join("\n")
     }
@@ -265,7 +269,12 @@ mod tests {
             message: "Reentrancy".to_string(),
             start_byte: None,
             end_byte: None,
-            code_snippet: Some("call{value: amount}".to_string()),
+            code_snippet: Some(scpf_types::CodeSnippet {
+                before: String::new(),
+                vulnerable_line: "call{value: amount}".to_string(),
+                after: String::new(),
+                line_start: 10,
+            }),
         };
 
         let source = "function withdraw() public { msg.sender.call{value: balance}(\"\"); }";

@@ -99,11 +99,6 @@ impl Scanner {
                     DataFlowSeverity::Low => scpf_types::Severity::Low,
                 };
 
-                // Skip LOW and INFO severity
-                if matches!(severity, scpf_types::Severity::Low) {
-                    continue;
-                }
-
                 matches.push(Match {
                     template_id: finding.analyzer_id,
                     pattern_id: finding.pattern_id,
@@ -138,10 +133,14 @@ impl Scanner {
                         ) {
                             Ok(semantic_matches) => matches.extend(semantic_matches),
                             Err(e) => {
-                                warn!(
-                                    "Skipping semantic pattern '{}' in template '{}': {}",
+                                eprintln!(
+                                    "Error: Semantic pattern '{}' in template '{}' failed: {}",
                                     compiled_pattern.pattern.id, compiled_template.template.id, e
                                 );
+                                return Err(anyhow::anyhow!(
+                                    "Semantic pattern '{}' failed: {}",
+                                    compiled_pattern.pattern.id, e
+                                ));
                             }
                         }
                     }
@@ -165,14 +164,6 @@ impl Scanner {
                     let context =
                         get_match_context(source, &newlines, mat.start(), mat.end(), line_number);
 
-                    // Skip LOW and INFO severity
-                    if matches!(
-                        compiled_template.template.severity,
-                        scpf_types::Severity::Low | scpf_types::Severity::Info
-                    ) {
-                        continue;
-                    }
-
                     matches.push(Match {
                         template_id: compiled_template.template.id.clone(),
                         pattern_id: compiled_pattern.pattern.id.clone(),
@@ -193,7 +184,12 @@ impl Scanner {
 
         // Deduplicate matches by (file_path, line_number, pattern_id)
         matches.retain(|m| {
-            let key = (m.file_path.clone(), m.line_number, m.pattern_id.clone());
+            let key = (
+                m.file_path.clone(),
+                m.line_number,
+                m.column,
+                m.pattern_id.clone(),
+            );
             dedup_set.insert(key)
         });
 

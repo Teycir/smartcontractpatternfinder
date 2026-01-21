@@ -14,8 +14,10 @@ patterns:
     validate: true
     pattern: |
       (call_expression
-        function: (expression (member_expression
-           property: (identifier) @method (#eq? @method "delegatecall"))))
+        (expression
+          (member_expression
+            property: (identifier) @method)))
+      (#eq? @method "delegatecall")
     message: "Delegatecall usage detected. Ensure the target address and data are trusted."
     required: true
     fallback: regex

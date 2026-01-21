@@ -42,12 +42,12 @@ patterns:
     required: true
     on_error: skip
 
-  # Regex: send without assignment or require
+  # send without assignment or require - returns false on failure instead of reverting
   - id: unchecked-send-regex
     kind: regex
     validate: true
     pattern: '^\s*\w+\.send\([^)]+\)\s*;'
-    message: "'.send()' return not checked. Use require(addr.send(amount)) or .transfer()."
+    message: "'.send()' return not checked - fails silently. Use require(addr.send(amount)) or .transfer()."
     required: true
     on_error: skip
 

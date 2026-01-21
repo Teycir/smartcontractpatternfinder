@@ -32,14 +32,14 @@ jobs:
         with:
           toolchain: stable
           
-      - name: Run tests
+      - name: Run tests to validate new patterns
         run: |
-          cargo test --all || { echo "Error: Tests failed"; exit 1; }
+          cargo test --all || { echo "Error: Tests failed" >&2; exit 1; }
           
       - name: Create Pull Request
         id: create-pr
         uses: peter-evans/create-pull-request@v5
-        continue-on-error: false
+        continue-on-error: true
         with:
           commit-message: 'feat: add 0-day patterns from security feeds'
           title: '🚨 Live 0-Day Patterns - {{ date }}'
@@ -68,7 +68,7 @@ jobs:
           labels: security,0-day,auto-generated
           
       - name: Check PR creation
-        if: failure()
+        if: steps.create-pr.outcome == 'failure'
         run: |
           echo "Error: Failed to create pull request"
           exit 1

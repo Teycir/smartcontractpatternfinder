@@ -89,7 +89,7 @@ impl RiskScorer {
         });
         score *= concentration_factor;
 
-        let total_score = score.min(100.0).max(0.0);
+        let total_score = score.clamp(0.0, 100.0);
         let recommendations = self.generate_recommendations(&severity_breakdown, total_score);
 
         RiskScore {
@@ -140,10 +140,8 @@ impl RiskScorer {
         for finding in findings {
             let pattern_id = &finding.pattern_id;
             for (key, &multiplier) in &self.weights {
-                if pattern_id.contains(key) {
-                    if multiplier > max_multiplier {
-                        max_multiplier = multiplier;
-                    }
+                if pattern_id.contains(key) && multiplier > max_multiplier {
+                    max_multiplier = multiplier;
                 }
             }
         }

@@ -8,9 +8,10 @@ tags:
   - nft
   - standards
 patterns:
-  # Core transfer functions
+  # Core transfer functions - required for NFT ownership transfers
   - id: safetransferfrom-function
     kind: regex
+    validate: true
     pattern: 'function\s+safeTransferFrom\s*\(\s*address\s+\w+\s*,\s*address\s+\w+\s*,\s*uint256\s+\w+\s*\)'
     message: ERC-721 safeTransferFrom function found
     required: false
@@ -18,14 +19,16 @@ patterns:
     
   - id: transferfrom-function
     kind: regex
+    validate: true
     pattern: 'function\s+transferFrom\s*\(\s*address\s+\w+\s*,\s*address\s+\w+\s*,\s*uint256\s+\w+\s*\)'
     message: ERC-721 transferFrom function found
     required: false
     on_error: skip
     
-  # Approval functions
+  # Approval functions - required for delegated transfers
   - id: approve-function
     kind: regex
+    validate: true
     pattern: 'function\s+approve\s*\(\s*address\s+\w+\s*,\s*uint256\s+\w+\s*\)'
     message: ERC-721 approve function found
     required: false
@@ -33,6 +36,7 @@ patterns:
     
   - id: setapprovalforall-function
     kind: regex
+    validate: true
     pattern: 'function\s+setApprovalForAll\s*\(\s*address\s+\w+\s*,\s*bool\s+\w+\s*\)'
     message: ERC-721 setApprovalForAll function found
     required: false
@@ -40,6 +44,7 @@ patterns:
     
   - id: getapproved-function
     kind: regex
+    validate: true
     pattern: 'function\s+getApproved\s*\(\s*uint256\s+\w+\s*\)'
     message: ERC-721 getApproved function found
     required: false
@@ -47,14 +52,16 @@ patterns:
     
   - id: isapprovedforall-function
     kind: regex
+    validate: true
     pattern: 'function\s+isApprovedForAll\s*\(\s*address\s+\w+\s*,\s*address\s+\w+\s*\)'
     message: ERC-721 isApprovedForAll function found
     required: false
     on_error: skip
     
-  # Query functions
+  # Query functions - required for NFT ownership and balance checks
   - id: balanceof-function
     kind: regex
+    validate: true
     pattern: 'function\s+balanceOf\s*\(\s*address\s+\w+\s*\)'
     message: ERC-721 balanceOf function found
     required: false
@@ -62,6 +69,7 @@ patterns:
     
   - id: ownerof-function
     kind: regex
+    validate: true
     pattern: 'function\s+ownerOf\s*\(\s*uint256\s+\w+\s*\)'
     message: ERC-721 ownerOf function found
     required: false

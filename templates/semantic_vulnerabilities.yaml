@@ -49,7 +49,7 @@ patterns:
       (#eq? @func "selfdestruct")
     message: selfdestruct usage detected - ensure proper access control
 
-  # Detects low-level calls without return value checks
+  # Low-level calls without return value checks - call can fail silently without reverting
   - id: unchecked-low-level-call
     kind: semantic
     validate: true
@@ -62,7 +62,7 @@ patterns:
                 (identifier)
                 (identifier) @method)))))
       (#match? @method "^(call|delegatecall|staticcall)$")
-    message: Unchecked low-level call - verify return value is checked
+    message: Unchecked low-level call - verify return value is checked to prevent silent failures
     required: true
     fallback: regex
     on_error: skip

@@ -20,31 +20,22 @@ echo ""
 
 # Console output
 export RUST_LOG=error
-cargo run --release --bin scpf -- scan \
-  --days 7 \
-  --all-chains \
-  --min-severity high \
-  --update-templates 0 \
-  --output console \
-  2>/dev/null | tee "$REPORT_DIR/audit_7days_${TIMESTAMP}_console.txt"
+if ! cargo run --release --bin scpf -- scan --days 7 --all-chains --min-severity high --update-templates 0 --output console 2>/dev/null | tee "$REPORT_DIR/audit_7days_${TIMESTAMP}_console.txt"; then
+  echo "Error: Console report generation failed" >&2
+  exit 1
+fi
 
 # JSON report
-cargo run --release --bin scpf -- scan \
-  --days 7 \
-  --all-chains \
-  --min-severity high \
-  --update-templates 0 \
-  --output json \
-  2>/dev/null > "$REPORT_DIR/audit_7days_${TIMESTAMP}.json"
+if ! cargo run --release --bin scpf -- scan --days 7 --all-chains --min-severity high --update-templates 0 --output json 2>/dev/null > "$REPORT_DIR/audit_7days_${TIMESTAMP}.json"; then
+  echo "Error: JSON report generation failed" >&2
+  exit 1
+fi
 
 # SARIF report
-cargo run --release --bin scpf -- scan \
-  --days 7 \
-  --all-chains \
-  --min-severity high \
-  --update-templates 0 \
-  --output sarif \
-  2>/dev/null > "$REPORT_DIR/audit_7days_${TIMESTAMP}.sarif"
+if ! cargo run --release --bin scpf -- scan --days 7 --all-chains --min-severity high --update-templates 0 --output sarif 2>/dev/null > "$REPORT_DIR/audit_7days_${TIMESTAMP}.sarif"; then
+  echo "Error: SARIF report generation failed" >&2
+  exit 1
+fi
 
 echo ""
 echo "✅ Audit Complete"

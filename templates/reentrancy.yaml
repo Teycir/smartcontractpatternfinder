@@ -7,8 +7,16 @@ tags:
   - reentrancy
 patterns:
   - id: external-call-with-value
+    kind: regex
+    validate: true
     pattern: '\.call\{value:'
     message: External call with value transfer detected
+    required: false
+    on_error: skip
   - id: delegatecall-usage
+    kind: regex
+    validate: true
     pattern: '\.delegatecall\('
     message: Delegatecall usage detected
+    required: false
+    on_error: skip

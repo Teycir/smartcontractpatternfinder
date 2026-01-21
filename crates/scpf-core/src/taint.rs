@@ -62,7 +62,7 @@ pub struct TaintAnalyzer {
     sources: Vec<TaintSource>,
     sinks: Vec<TaintSink>,
     flows: Vec<TaintFlow>,
-    sanitizers: HashSet<String>,
+    _sanitizers: HashSet<String>,
 }
 
 impl TaintAnalyzer {
@@ -77,7 +77,7 @@ impl TaintAnalyzer {
             sources: Vec::new(),
             sinks: Vec::new(),
             flows: Vec::new(),
-            sanitizers,
+            _sanitizers: sanitizers,
         }
     }
 
@@ -132,8 +132,8 @@ impl TaintAnalyzer {
     }
 
     fn assess_exploitability(&self, source: &TaintSource, sink: &TaintSink) -> Exploitability {
-        let mut score = 0.5;
-        let mut confidence = 0.7;
+        let mut score: f64 = 0.5;
+        let confidence: f64 = 0.7;
         let mut requires = Vec::new();
 
         let impact = match sink {
@@ -172,8 +172,8 @@ impl TaintAnalyzer {
         }
 
         Exploitability {
-            score: (score as f64).clamp(0.0, 1.0),
-            confidence: (confidence as f64).clamp(0.0, 1.0),
+            score: score.clamp(0.0, 1.0),
+            confidence: confidence.clamp(0.0, 1.0),
             requires,
             impact,
         }

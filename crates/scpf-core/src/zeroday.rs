@@ -56,10 +56,18 @@ impl ZeroDayFetcher {
 
     async fn fetch_json<T: serde::de::DeserializeOwned>(&self, url: &str) -> Result<Option<T>> {
         match self.client.get(url).send().await {
-            Ok(resp) => Ok(resp.json::<T>().await.ok()),
+            Ok(resp) => {
+                match resp.json::<T>().await {
+                    Ok(data) => Ok(Some(data)),
+                    Err(e) => {
+                        eprintln!("Error: Failed to parse JSON from {}: {}", url, e);
+                        Err(anyhow::anyhow!("JSON parsing failed for {}: {}", url, e))
+                    }
+                }
+            }
             Err(e) => {
-                warn!("Failed to fetch {}: {}", url, e);
-                Ok(None)
+                eprintln!("Error: Failed to fetch {}: {}", url, e);
+                Err(anyhow::anyhow!("Network request failed for {}: {}", url, e))
             }
         }
     }
@@ -374,14 +382,14 @@ fn classify_by_text(text: &str) -> ExploitType {
     }
 }
 
-impl ToString for ExploitType {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for ExploitType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ExploitType::Reentrancy => "reentrancy".to_string(),
-            ExploitType::OracleManipulation => "oracle_manipulation".to_string(),
-            ExploitType::AccessControl => "access_control".to_string(),
-            ExploitType::FlashLoan => "flash_loan".to_string(),
-            ExploitType::Unknown => "unknown".to_string(),
+            ExploitType::Reentrancy => write!(f, "reentrancy"),
+            ExploitType::OracleManipulation => write!(f, "oracle_manipulation"),
+            ExploitType::AccessControl => write!(f, "access_control"),
+            ExploitType::FlashLoan => write!(f, "flash_loan"),
+            ExploitType::Unknown => write!(f, "unknown"),
         }
     }
 }

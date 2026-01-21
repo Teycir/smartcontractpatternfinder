@@ -1,17 +1,9 @@
 use std::fs;
 use std::io::{self, Write};
 
-#[derive(Debug, Clone)]
-pub struct MatchResult {
-    pub line: usize,
-    pub column: usize,
-    pub text_preview: String,
-}
-
 pub struct PatternBuilder {
     pattern: String,
     test_code: String,
-    error: Option<String>,
 }
 
 impl PatternBuilder {
@@ -19,7 +11,6 @@ impl PatternBuilder {
         Self {
             pattern: String::new(),
             test_code: String::new(),
-            error: None,
         }
     }
 
@@ -105,10 +96,34 @@ impl PatternBuilder {
             return Ok(());
         }
 
-        print!("\nEnter template ID: ");
+        print!("\nEnter template ID (filename without ext): ");
         io::stdout().flush()?;
         let mut id = String::new();
         io::stdin().read_line(&mut id)?;
+        let id = id.trim().to_string();
+
+        let filename = format!("templates/{}.yaml", id);
+        let path = std::path::Path::new(&filename);
+        
+        let mut template = if path.exists() {
+            let content = fs::read_to_string(path)?;
+            serde_yaml::from_str::<scpf_types::Template>(&content)
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?
+        } else {
+            print!("New template! Enter name: ");
+            io::stdout().flush()?;
+            let mut name = String::new();
+            io::stdin().read_line(&mut name)?;
+
+            scpf_types::Template {
+                id: id.clone(),
+                name: name.trim().to_string(),
+                description: "Created via Pattern Builder".to_string(),
+                severity: scpf_types::Severity::Medium,
+                tags: vec![],
+                patterns: vec![],
+            }
+        };
 
         print!("Enter pattern ID: ");
         io::stdout().flush()?;
@@ -120,23 +135,18 @@ impl PatternBuilder {
         let mut message = String::new();
         io::stdin().read_line(&mut message)?;
 
-        let yaml = format!(
-            r#"  - id: {}
-    kind: semantic
-    pattern: |
-{}
-    message: "{}"
-"#,
-            pattern_id.trim(),
-            self.pattern
-                .lines()
-                .map(|l| format!("      {}", l))
-                .collect::<Vec<_>>()
-                .join("\n"),
-            message.trim()
-        );
+        let new_pattern = scpf_types::Pattern {
+            id: pattern_id.trim().to_string(),
+            pattern: self.pattern.clone(),
+            message: message.trim().to_string(),
+            kind: scpf_types::PatternKind::Semantic,
+        };
 
-        let filename = format!("templates/{}.yaml", id.trim());
+        template.patterns.push(new_pattern);
+
+        let yaml = serde_yaml::to_string(&template)
+            .map_err(io::Error::other)?;
+
         println!("\n📝 Pattern YAML:\n{}", yaml);
         println!("\nSave to {}? (y/n): ", filename);
         io::stdout().flush()?;
@@ -145,6 +155,9 @@ impl PatternBuilder {
         io::stdin().read_line(&mut confirm)?;
 
         if confirm.trim().eq_ignore_ascii_case("y") {
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent)?;
+            }
             fs::write(&filename, yaml)?;
             println!("✓ Saved to {}", filename);
         } else {

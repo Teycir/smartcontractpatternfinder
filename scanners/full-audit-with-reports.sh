@@ -20,13 +20,22 @@ echo ""
 
 # Console output (suppress warnings)
 export RUST_LOG=error
-cargo run --release -- scan --days 90 --all-chains --min-severity info --update-templates 7 --output console 2>/dev/null | tee "$REPORT_DIR/audit_${TIMESTAMP}_console.txt"
+if ! cargo run --release -- scan --days 90 --all-chains --min-severity info --update-templates 7 --output console 2>/dev/null | tee "$REPORT_DIR/audit_${TIMESTAMP}_console.txt"; then
+  echo "Error: Console report generation failed" >&2
+  exit 1
+fi
 
 # JSON report
-cargo run --release -- scan --days 90 --all-chains --min-severity info --update-templates 0 --output json 2>/dev/null > "$REPORT_DIR/audit_${TIMESTAMP}.json"
+if ! cargo run --release -- scan --days 90 --all-chains --min-severity info --update-templates 0 --output json 2>/dev/null > "$REPORT_DIR/audit_${TIMESTAMP}.json"; then
+  echo "Error: JSON report generation failed" >&2
+  exit 1
+fi
 
 # SARIF report (for CI/CD)
-cargo run --release -- scan --days 90 --all-chains --min-severity info --update-templates 0 --output sarif 2>/dev/null > "$REPORT_DIR/audit_${TIMESTAMP}.sarif"
+if ! cargo run --release -- scan --days 90 --all-chains --min-severity info --update-templates 0 --output sarif 2>/dev/null > "$REPORT_DIR/audit_${TIMESTAMP}.sarif"; then
+  echo "Error: SARIF report generation failed" >&2
+  exit 1
+fi
 
 echo ""
 echo "✅ Reports generated:"

@@ -13,7 +13,7 @@ impl ApiKeyConfig {
     }
 
     pub fn with_key(mut self, chain: Chain, key: String) -> Self {
-        self.keys.entry(chain).or_insert_with(Vec::new).push(key);
+        self.keys.entry(chain).or_default().push(key);
         self
     }
 

@@ -182,21 +182,7 @@ fn print_console(results: &[ScanResult], failed: usize, sort_by_exploitability: 
         }
     }
 
-    // Count by severity
-    let mut critical = 0;
-    let mut high = 0;
-    let mut medium = 0;
 
-    for result in results {
-        for m in &result.matches {
-            match m.severity {
-                scpf_types::Severity::Critical => critical += 1,
-                scpf_types::Severity::High => high += 1,
-                scpf_types::Severity::Medium => medium += 1,
-                _ => {}
-            }
-        }
-    }
 
     // Show vulnerability groups first
     if !pattern_groups.is_empty() {
@@ -304,9 +290,7 @@ fn print_console(results: &[ScanResult], failed: usize, sort_by_exploitability: 
     }
 
     // Show individual file results
-    let mut total_matches = 0;
     for result in results {
-        total_matches += result.matches.len();
 
         if result.matches.is_empty() {
             println!(

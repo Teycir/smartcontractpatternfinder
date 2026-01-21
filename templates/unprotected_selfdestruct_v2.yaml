@@ -54,6 +54,9 @@ patterns:
   # Regex: selfdestruct in public function
   - id: selfdestruct-public-regex
     kind: regex
-    pattern: 'function\s+\w+\s*\([^)]*\)\s*(public|external)[^{]*\{[^}]*(selfdestruct|suicide)\s*\('
+    validate: true
+    pattern: 'function\s+\w+\s*\([^)]{0,200}\)\s*(public|external)[^{]{0,100}\{[^}]{0,1000}(selfdestruct|suicide)\s*\('
     message: "CRITICAL: selfdestruct in public/external function. Verify access control modifier."
+    required: false
+    on_error: skip
     cache: true

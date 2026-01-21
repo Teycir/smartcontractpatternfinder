@@ -47,13 +47,13 @@ patterns:
   # Replay attack - missing chain ID
   - id: replay-missing-chainid
     kind: regex
-    pattern: 'keccak256\s*\(\s*abi\.(encode|encodePacked)\s*\((?![^)]*chainid)'
+    pattern: 'keccak256\s*\(\s*abi\.(?:encode|encodePacked)\s*\((?![^)]{0,200}chainid)'
     message: "Hash without block.chainid - signature may be replayed on other chains"
 
   # Replay attack - missing contract address
   - id: replay-missing-address
     kind: regex
-    pattern: 'keccak256\s*\(\s*abi\.(encode|encodePacked)\s*\((?![^)]*address\s*\(\s*this\s*\))'
+    pattern: 'keccak256\s*\(\s*abi\.(?:encode|encodePacked)\s*\((?![^)]{0,200}address\s*\(\s*this\s*\))'
     message: "Hash without address(this) - signature may be replayed on other contracts"
 
   # Weak randomness - block hash
@@ -88,7 +88,7 @@ patterns:
   # Hash collision with encodePacked
   - id: encode-packed-collision
     kind: regex
-    pattern: 'keccak256\s*\(\s*abi\.encodePacked\s*\([^)]*,\s*[^)]*,\s*[^)]*\)'
+    pattern: 'keccak256\s*\(\s*abi\.encodePacked\s*\([^)]{1,200},\s*[^)]{1,200},\s*[^)]{1,200}\)'
     message: "abi.encodePacked with multiple dynamic types - vulnerable to hash collision"
 
   # Signature verification return
@@ -105,7 +105,7 @@ patterns:
   # EIP-712 domain separator cached
   - id: eip712-domain-cached
     kind: regex
-    pattern: 'bytes32\s+immutable\s+\w*(DOMAIN_SEPARATOR|domainSeparator)\w*'
+    pattern: 'bytes32\s+immutable\s+\w{0,50}(DOMAIN_SEPARATOR|domainSeparator)\w{0,50}'
     message: "Immutable DOMAIN_SEPARATOR - won't update on chain fork, replay possible"
 
   # Commit-reveal missing delay
