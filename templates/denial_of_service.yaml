@@ -17,11 +17,8 @@ tags:
 patterns:
   # Push to unbounded array
   - id: unbounded-array-push
-    kind: semantic
-    pattern: |
-      (member_expression
-        property: (identifier) @method)
-      (#eq? @method "push")
+    kind: regex
+    pattern: '\w+\s*\.\s*push\s*\('
     message: "Unbounded array push - iteration may exceed block gas limit"
 
   # Array iteration without limit
@@ -50,11 +47,8 @@ patterns:
 
   # Ether transfer to contract
   - id: dos-ether-transfer
-    kind: semantic
-    pattern: |
-      (member_expression
-        property: (identifier) @method)
-      (#match? @method "^(transfer|send)$")
+    kind: regex
+    pattern: '\.\s*(transfer|send)\s*\('
     message: "Ether transfer to address - receiving contract can revert and DoS sender"
 
   # Block gas limit in constructor
@@ -68,20 +62,14 @@ patterns:
 
   # Griefing via selfdestruct
   - id: griefing-selfdestruct
-    kind: semantic
-    pattern: |
-      (member_expression
-        property: (identifier) @balance)
-      (#eq? @balance "balance")
+    kind: regex
+    pattern: 'require\s*\([^)]*\.balance\s*[=!<>]'
     message: "Balance check can be griefed via selfdestruct - attacker can force-send ETH"
 
   # Return bomb attack
   - id: return-bomb
-    kind: semantic
-    pattern: |
-      (member_expression
-        property: (identifier) @method)
-      (#eq? @method "call")
+    kind: regex
+    pattern: '\.call\s*\{[^}]*\}\s*\([^)]*\)'
     message: "Low-level call with unbounded return data - vulnerable to return bomb DoS"
 
   # Delete from mapping in loop
@@ -107,13 +95,8 @@ patterns:
 
   # Vulnerable to block stuffing
   - id: block-stuffing-vulnerable
-    kind: semantic
-    pattern: |
-      (member_expression
-        object: (identifier) @block
-        property: (identifier) @prop)
-      (#eq? @block "block")
-      (#match? @prop "^(timestamp|number)$")
+    kind: regex
+    pattern: 'require\s*\([^)]*block\.(timestamp|number)'
     message: "Block-dependent timing - attacker can stuff blocks to manipulate deadline"
 
   # Pull over push pattern missing
