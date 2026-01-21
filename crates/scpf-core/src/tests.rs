@@ -54,7 +54,7 @@ async fn test_cache_atomic_write() -> Result<()> {
 #[tokio::test]
 async fn test_cache_ttl_expiration() -> Result<()> {
     use std::time::Duration;
-    
+
     let dir = tempdir()?;
     let cache = Cache::with_ttl(dir.path().to_path_buf(), Duration::from_millis(100)).await?;
 
@@ -62,7 +62,10 @@ async fn test_cache_ttl_expiration() -> Result<()> {
     assert_eq!(cache.get("key").await, Some("value".to_string()));
 
     tokio::time::sleep(Duration::from_millis(150)).await;
-    assert!(cache.get("key").await.is_none(), "Cache should expire after TTL");
+    assert!(
+        cache.get("key").await.is_none(),
+        "Cache should expire after TTL"
+    );
 
     Ok(())
 }

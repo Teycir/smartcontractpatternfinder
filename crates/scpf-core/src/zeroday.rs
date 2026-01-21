@@ -44,11 +44,26 @@ impl ZeroDayFetcher {
 
         info!("Fetching exploits from last {} days", days);
 
-        // Real working sources
-        exploits.extend(self.fetch_defillama_hacks(&cutoff).await?);
-        exploits.extend(self.fetch_defihacklabs(&cutoff).await?);
-        exploits.extend(self.fetch_github_solidity_advisories(&cutoff).await?);
-        exploits.extend(self.fetch_rss_feeds(&cutoff).await?);
+        // Fetch from all sources with graceful degradation
+        match self.fetch_defillama_hacks(&cutoff).await {
+            Ok(results) => exploits.extend(results),
+            Err(e) => warn!("DeFiLlama fetch failed: {}", e),
+        }
+
+        match self.fetch_defihacklabs(&cutoff).await {
+            Ok(results) => exploits.extend(results),
+            Err(e) => warn!("DeFiHackLabs fetch failed: {}", e),
+        }
+
+        match self.fetch_github_solidity_advisories(&cutoff).await {
+            Ok(results) => exploits.extend(results),
+            Err(e) => warn!("GitHub Solidity fetch failed: {}", e),
+        }
+
+        match self.fetch_rss_feeds(&cutoff).await {
+            Ok(results) => exploits.extend(results),
+            Err(e) => warn!("RSS feeds fetch failed: {}", e),
+        }
 
         info!("Found {} total exploits", exploits.len());
         Ok(exploits)
@@ -334,13 +349,20 @@ fn parse_rss(xml: &str, cutoff: &DateTime<Utc>, source: &str) -> Vec<Exploit> {
 }
 
 fn extract_xml_tag(content: &str, tag: &str) -> Option<String> {
-    let start_tag = format!("<{}>", tag);
+    // Handle tags with attributes: <tag attr="value">content</tag>
+    let start_pattern = format!("<{}", tag);
     let end_tag = format!("</{}>", tag);
 
-    let start = content.find(&start_tag)? + start_tag.len();
-    let end = content.find(&end_tag)?;
+    let start_pos = content.find(&start_pattern)?;
+    let content_after_tag = &content[start_pos..];
+    
+    // Find the end of opening tag (could be <tag> or <tag attr="val">)
+    let content_start = content_after_tag.find('>')? + 1;
+    let full_start = start_pos + content_start;
+    
+    let end = content[full_start..].find(&end_tag)? + full_start;
 
-    Some(content[start..end].trim().to_string())
+    Some(content[full_start..end].trim().to_string())
 }
 
 fn extract_loss(text: &str) -> Option<u64> {
@@ -417,3 +439,48 @@ const FLASH_LOAN_PATTERN: &str = r#"(function_definition
       (binary_expression
         (member_expression
           property: (identifier) @balance (#eq? @balance "balance"))))))"#;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_xml_tag_extraction_simple() {
+        let xml = r#"<item><title>Test Title</title><description>Test Desc</description></item>"#;
+        
+        assert_eq!(extract_xml_tag(xml, "title"), Some("Test Title".to_string()));
+        assert_eq!(extract_xml_tag(xml, "description"), Some("Test Desc".to_string()));
+    }
+
+    #[test]
+    fn test_xml_tag_extraction_with_attributes() {
+        let xml = r#"<item><title type="text">Test Title</title><description type="html">Test Desc</description></item>"#;
+        
+        assert_eq!(extract_xml_tag(xml, "title"), Some("Test Title".to_string()));
+        assert_eq!(extract_xml_tag(xml, "description"), Some("Test Desc".to_string()));
+    }
+
+    #[test]
+    fn test_xml_tag_extraction_with_namespace() {
+        let xml = r#"<item><pubDate ns:attr="value">Mon, 01 Jan 2024 12:00:00 GMT</pubDate></item>"#;
+        
+        assert_eq!(extract_xml_tag(xml, "pubDate"), Some("Mon, 01 Jan 2024 12:00:00 GMT".to_string()));
+    }
+
+    #[test]
+    fn test_extract_loss() {
+        assert_eq!(extract_loss("Hack: $15M stolen"), Some(15_000_000));
+        assert_eq!(extract_loss("Loss of $5.2M"), Some(5_200_000));
+        assert_eq!(extract_loss("$500K exploit"), Some(500_000));
+        assert_eq!(extract_loss("No loss mentioned"), None);
+    }
+
+    #[test]
+    fn test_classify_by_text() {
+        assert!(matches!(classify_by_text("Reentrancy attack"), ExploitType::Reentrancy));
+        assert!(matches!(classify_by_text("Flash loan exploit"), ExploitType::FlashLoan));
+        assert!(matches!(classify_by_text("Oracle manipulation"), ExploitType::OracleManipulation));
+        assert!(matches!(classify_by_text("Access control bypass"), ExploitType::AccessControl));
+        assert!(matches!(classify_by_text("Unknown issue"), ExploitType::Unknown));
+    }
+}
