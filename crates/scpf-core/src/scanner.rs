@@ -160,15 +160,18 @@ impl Scanner {
 
             if let Some(ref tree) = tree_for_context {
                 let ctx = self.build_context(source, tree);
-                
-                matches = matches.into_iter().filter(|m| {
-                    if self.is_reentrancy_pattern(&m.template_id) {
-                        is_vulnerable_reentrancy(tree, source, m.line_number)
-                    } else {
-                        true
-                    }
-                }).collect();
-                
+
+                matches = matches
+                    .into_iter()
+                    .filter(|m| {
+                        if self.is_reentrancy_pattern(&m.template_id) {
+                            is_vulnerable_reentrancy(tree, source, m.line_number)
+                        } else {
+                            true
+                        }
+                    })
+                    .collect();
+
                 matches = self.filter_findings(matches, &ctx);
                 matches = self.enrich_with_context(matches, &ctx);
             }
@@ -182,28 +185,31 @@ impl Scanner {
         let collector = SymbolCollector::new(source, tree);
         let mut ctx = collector.collect();
         classify_modifiers(&mut ctx);
-        
-        let function_data: Vec<(String, Vec<String>)> = ctx.functions
+
+        let function_data: Vec<(String, Vec<String>)> = ctx
+            .functions
             .iter()
             .map(|(name, func)| (name.clone(), func.modifiers.clone()))
             .collect();
-        
-        let modifiers_map: std::collections::HashMap<_, _> = ctx.modifiers.clone().into_iter().collect();
-        
+
+        let modifiers_map: std::collections::HashMap<_, _> =
+            ctx.modifiers.clone().into_iter().collect();
+
         for (name, modifiers) in function_data {
             if let Some(func) = ctx.functions.get_mut(&name) {
                 func.protections = Self::compute_protections_static(&modifiers, &modifiers_map);
             }
         }
-        
+
         ctx
     }
 
     /// Filter findings based on semantic context
     fn filter_findings(&self, matches: Vec<Match>, ctx: &ContractContext) -> Vec<Match> {
-        matches.into_iter().filter(|m| {
-            self.should_report_finding(m, ctx)
-        }).collect()
+        matches
+            .into_iter()
+            .filter(|m| self.should_report_finding(m, ctx))
+            .collect()
     }
 
     /// Enrich matches with function context for Opus analysis
@@ -220,7 +226,7 @@ impl Scanner {
     /// Determine if finding should be reported based on protections
     fn should_report_finding(&self, finding: &Match, ctx: &ContractContext) -> bool {
         let func = self.find_function_at_line(ctx, finding.line_number);
-        
+
         if let Some(func) = func {
             // Filter reentrancy findings if function has reentrancy guard OR access control
             if self.is_reentrancy_pattern(&finding.template_id) {
@@ -228,40 +234,46 @@ impl Scanner {
                     return false;
                 }
             }
-            
+
             // Filter access control findings if function has access control
-            if self.is_access_control_pattern(&finding.template_id) && func.protections.has_access_control {
+            if self.is_access_control_pattern(&finding.template_id)
+                && func.protections.has_access_control
+            {
                 return false;
             }
-            
+
             // Filter if function is pausable
             if func.protections.has_pausable {
                 return false;
             }
         }
-        
+
         true
     }
 
     /// Find function containing the given line number
-    fn find_function_at_line<'a>(&self, ctx: &'a ContractContext, line: usize) -> Option<&'a scpf_types::FunctionContext> {
-        ctx.functions.values().find(|f| {
-            f.start_line <= line && line <= f.end_line
-        })
+    fn find_function_at_line<'a>(
+        &self,
+        ctx: &'a ContractContext,
+        line: usize,
+    ) -> Option<&'a scpf_types::FunctionContext> {
+        ctx.functions
+            .values()
+            .find(|f| f.start_line <= line && line <= f.end_line)
     }
 
     /// Check if template is reentrancy-related
     fn is_reentrancy_pattern(&self, template_id: &str) -> bool {
-        template_id.contains("reentrancy") || 
-        template_id.contains("external-call") ||
-        template_id.contains("low-level-call")
+        template_id.contains("reentrancy")
+            || template_id.contains("external-call")
+            || template_id.contains("low-level-call")
     }
 
     /// Check if template is access-control-related
     fn is_access_control_pattern(&self, template_id: &str) -> bool {
-        template_id.contains("access") || 
-        template_id.contains("authorization") ||
-        template_id.contains("permission")
+        template_id.contains("access")
+            || template_id.contains("authorization")
+            || template_id.contains("permission")
     }
 
     fn compute_protections_static(
@@ -435,7 +447,9 @@ fn is_version_gte_0_8(version: &Option<String>) -> bool {
     if let Some(regex) = version_regex {
         if let Some(cap) = regex.captures(version) {
             if let (Some(major), Some(minor)) = (cap.get(1), cap.get(2)) {
-                if let (Ok(maj), Ok(min)) = (major.as_str().parse::<u32>(), minor.as_str().parse::<u32>()) {
+                if let (Ok(maj), Ok(min)) =
+                    (major.as_str().parse::<u32>(), minor.as_str().parse::<u32>())
+                {
                     return maj > 0 || (maj == 0 && min >= 8);
                 }
             }

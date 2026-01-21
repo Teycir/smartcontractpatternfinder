@@ -4,7 +4,6 @@ use clap::Parser;
 mod cli;
 mod commands;
 mod error_helper;
-mod output;
 mod pattern_builder;
 pub mod keys;
 
@@ -33,7 +32,7 @@ async fn main() -> Result<()> {
             }
             commands::audit::run_full_audit(args.addresses.clone(), args).await
         }
-        Commands::Scan(args) => commands::scan::run(args).await,
+        Commands::Scan(args) => commands::scan_recent::scan_recent_contracts(args.days, &args.min_severity, &args.templates).await,
         Commands::Init(args) => commands::init::run(args).await,
         Commands::Templates(args) => match args.command {
             cli::TemplatesCommand::List { templates } => commands::templates::list(templates).await,

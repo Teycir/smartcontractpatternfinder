@@ -249,7 +249,10 @@ impl ContractFetcher {
         };
 
         let response = self.client.get(&block_url).send().await?;
-        let json: Value = response.json().await.context("Failed to decode block response")?;
+        let json: Value = response
+            .json()
+            .await
+            .context("Failed to decode block response")?;
 
         if json["status"].as_str() != Some("1") {
             anyhow::bail!("Failed to get block number: {:?}", json["message"]);
@@ -279,16 +282,18 @@ impl ContractFetcher {
 
         let response = self.client.get(&logs_url).send().await?;
         let text = response.text().await?;
-        let json: Value = serde_json::from_str(&text)
-            .with_context(|| format!("Failed to decode logs response. Body: {}", &text[..text.len().min(500)]))?;
+        let json: Value = serde_json::from_str(&text).with_context(|| {
+            format!(
+                "Failed to decode logs response. Body: {}",
+                &text[..text.len().min(500)]
+            )
+        })?;
 
         if json["status"].as_str() != Some("1") {
             anyhow::bail!("Failed to get logs: {:?}", json["message"]);
         }
 
-        let logs = json["result"]
-            .as_array()
-            .context("No logs in response")?;
+        let logs = json["result"].as_array().context("No logs in response")?;
 
         let mut addresses = std::collections::HashSet::new();
         for log in logs {
