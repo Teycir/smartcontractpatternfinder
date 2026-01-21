@@ -89,13 +89,14 @@ pub struct ScanArgs {
     #[arg(
         long,
         default_value = "7",
-        help = "Scan contracts from last N days (default: 7)"
+        help = "Scan contracts from last N days (fixed: 7)"
     )]
     pub days: u64,
 
     #[arg(
         long,
-        help = "Scan all available chains (ethereum, bsc, polygon, arbitrum, optimism, base)"
+        default_value = "true",
+        help = "Scan all available chains (fixed: true)"
     )]
     pub all_chains: bool,
     #[arg(

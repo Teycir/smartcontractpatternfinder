@@ -24,7 +24,7 @@ SmartContractPatternFinder/
 │   ├── scpf-types/      # Core data structures (Template, Match, ScanResult)
 │   ├── scpf-core/       # Business logic (Scanner, Fetcher, Cache, Analysis)
 │   └── scpf-cli/        # CLI interface (commands, output formatting)
-├── templates/           # YAML pattern definitions (3 active templates only)
+├── templates/           # YAML pattern definitions (10 PoC-exploitable templates)
 ├── scripts/             # Shell scripts (scan_recent.sh, scan_local.sh, scan_all_chains.sh)
 ├── docs/                # Documentation
 └── .env                 # API keys (6 per chain: ETHERSCAN_API_KEY, _API_KEY_2, etc.)
@@ -64,12 +64,21 @@ Input → Template Loading → Contract Fetching → Scanning → Filtering → 
 
 ### 1. Templates (YAML)
 **Location**: `templates/`
-**Active**: 3 templates (PoC-exploitable only)
+**Active**: 10 PoC-exploitable templates (CRITICAL/HIGH severity only)
 
-**Active Templates**:
-- `reentrancy.yaml` - External calls with value transfer
-- `delegatecall_user_input.yaml` - Delegatecall to user input
-- `integer_overflow_legacy.yaml` - Arithmetic without SafeMath (Solidity < 0.8.0)
+**CRITICAL Severity (2)**:
+1. `delegatecall_user_input.yaml` - Delegatecall to user-controlled address
+2. `unprotected_selfdestruct.yaml` - Selfdestruct without access control
+
+**HIGH Severity (8)**:
+3. `reentrancy.yaml` - External calls with value transfer
+4. `integer_overflow_legacy.yaml` - Arithmetic without SafeMath (Solidity < 0.8.0)
+5. `missing_access_control.yaml` - Critical functions without access control
+6. `tx_origin_auth.yaml` - tx.origin used for authentication
+7. `unchecked_return_value.yaml` - Unchecked low-level call returns
+8. `front_running.yaml` - Front-running vulnerabilities
+9. `signature_unchecked.yaml` - Unchecked signature recovery
+10. `denial_of_service.yaml` - DoS vulnerabilities
 
 **Template Structure**:
 ```yaml
@@ -232,7 +241,7 @@ scpf scan --output sarif > results.sarif
 - Better to miss vulnerabilities than overwhelm with noise
 - SCPF is a sifter, not a validator
 
-**Result**: 33 templates deleted, 3 active (99% reduction)
+**Result**: 26 templates deleted, 10 active PoC-exploitable templates (CRITICAL/HIGH only)
 
 ### 2. Three-Tool Pipeline (Day 8)
 **Decision**: SCPF → Opus → Fuzzer architecture

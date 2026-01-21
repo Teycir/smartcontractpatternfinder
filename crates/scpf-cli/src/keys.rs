@@ -1,5 +1,5 @@
-use scpf_types::{ApiKeyConfig, Chain};
 use rand::seq::SliceRandom;
+use scpf_types::{ApiKeyConfig, Chain};
 
 pub fn load_api_keys_from_env() -> ApiKeyConfig {
     let mut config = ApiKeyConfig::new();

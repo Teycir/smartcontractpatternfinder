@@ -5,7 +5,7 @@ use colored::Colorize;
 use futures::stream::{self, StreamExt};
 use indicatif::{ProgressBar, ProgressStyle};
 use scpf_core::{Cache, ContractFetcher, Scanner, TemplateLoader};
-use scpf_types::{ScanResult};
+use scpf_types::ScanResult;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -52,8 +52,13 @@ pub async fn run(args: ScanArgs) -> Result<()> {
         if should_scan_local {
             return scan_local_project(args).await;
         } else {
-            // Fetch recent contracts from blockchain
-            return scan_recent_contracts(args).await;
+            // Fetch recent contracts from blockchain - FIXED FLOW
+            return crate::commands::scan_recent::scan_recent_contracts(
+                args.days,
+                &args.min_severity,
+                &args.templates,
+            )
+            .await;
         }
     }
 
@@ -624,138 +629,6 @@ fn discover_diff_files(diff_spec: &str) -> Result<Vec<PathBuf>> {
         .collect();
 
     Ok(sol_files)
-}
-
-async fn scan_recent_contracts(args: ScanArgs) -> Result<()> {
-    println!(
-        "{}  Scanning contracts updated in last {} days...",
-        "🔍".cyan(),
-        args.days
-    );
-    println!(
-        "   Severity filter: {} and above",
-        args.min_severity.to_uppercase()
-    );
-
-    let api_keys = crate::keys::load_api_keys_from_env();
-    let fetcher = Arc::new(ContractFetcher::new(api_keys)?);
-
-    let chains = if args.all_chains {
-        vec![
-            scpf_types::Chain::Ethereum,
-            scpf_types::Chain::Bsc,
-            scpf_types::Chain::Polygon,
-            scpf_types::Chain::Arbitrum,
-            scpf_types::Chain::Optimism,
-            scpf_types::Chain::Base,
-        ]
-    } else {
-        vec![args.chain]
-    };
-
-    let mut all_contracts = Vec::new();
-    for chain in &chains {
-        println!("{}  Fetching from {}...", "📡".cyan(), chain.as_str());
-        match fetcher.fetch_recent_contracts(*chain, args.days).await {
-            Ok(addresses) => {
-                println!("   ✓ Found {} contracts", addresses.len());
-                for addr in addresses {
-                    all_contracts.push((addr, *chain));
-                }
-            }
-            Err(e) => {
-                println!("   ✗ Failed: {}", e);
-            }
-        }
-    }
-
-    if all_contracts.is_empty() {
-        println!("{}  No recent contracts found", "⚠️".yellow());
-        return Ok(());
-    }
-
-    println!();
-    println!(
-        "{}  Scanning {} contracts...",
-        "🔎".cyan(),
-        all_contracts.len()
-    );
-    println!();
-
-    let templates = load_templates(&args.templates).await?;
-    let scanner = Arc::new(tokio::sync::Mutex::new(Scanner::new(templates)?));
-    let cache_dir = dirs::cache_dir()
-        .map(|d| d.join("scpf"))
-        .unwrap_or_else(|| PathBuf::from(".cache"));
-    let cache = Arc::new(Cache::new(cache_dir).await?);
-
-    let min_severity = parse_severity(&args.min_severity);
-    let mut scan_results = Vec::new();
-
-    for (address, chain) in all_contracts {
-        let cache_key = format!("{}:{}", chain, address);
-        let source = if let Some(cached) = cache.get(&cache_key).await {
-            cached
-        } else {
-            match fetcher.fetch_source(&address, chain).await {
-                Ok(src) => {
-                    cache.set(&cache_key, &src).await?;
-                    src
-                }
-                Err(e) => {
-                    println!("{}  {} - Failed: {}", "✗".red(), &address[..10], e);
-                    continue;
-                }
-            }
-        };
-
-        let start = Instant::now();
-        let matches = scanner
-            .lock()
-            .await
-            .scan(&source, PathBuf::from(&address))?;
-        let scan_time_ms = start.elapsed().as_millis() as u64;
-
-        let filtered_matches: Vec<_> = matches
-            .into_iter()
-            .filter(|m| m.severity >= min_severity)
-            .collect();
-
-        if !filtered_matches.is_empty() {
-            println!(
-                "{}  {} ({}) - {} issues",
-                "⚠️".yellow(),
-                &address[..10],
-                chain.as_str(),
-                filtered_matches.len()
-            );
-            scan_results.push(ScanResult {
-                address,
-                chain: chain.to_string(),
-                matches: filtered_matches,
-                scan_time_ms,
-                solidity_version: extract_solidity_version(&source),
-            });
-        } else {
-            println!(
-                "{}  {} ({}) - Clean",
-                "✓".green(),
-                &address[..10],
-                chain.as_str()
-            );
-        }
-    }
-
-    println!();
-    match args.output {
-        crate::cli::OutputFormat::Json => println!("{}", output::format_json(&scan_results)?),
-        crate::cli::OutputFormat::Sarif => println!("{}", output::format_sarif(&scan_results)?),
-        crate::cli::OutputFormat::Console => {
-            print_console(&scan_results, 0, args.sort_by_exploitability)
-        }
-    }
-
-    Ok(())
 }
 
 fn parse_severity(s: &str) -> scpf_types::Severity {

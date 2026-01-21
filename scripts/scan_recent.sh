@@ -25,7 +25,7 @@ cargo run --release --bin scpf -- scan \
   --days "$DAYS" \
   --chain "$CHAIN" \
   --min-severity "$MIN_SEVERITY" \
-  --output json > "$OUTPUT_FILE"
+  --output json 2>/dev/null > "$OUTPUT_FILE"
 
 echo ""
 echo "✅ Scan complete!"
