@@ -3,15 +3,18 @@
 ## 📚 User Guides
 
 ### Getting Started
+
 - [README](../README.md) - Main documentation and quick start
 - [Quick Wins](QUICK_WINS.md) - New features: ERC compliance, L2 support, risk scoring, CI/CD
 
 ### Features
+
 - [Ecosystem & Extensibility](ECOSYSTEM.md) - Template registry, plugin system
 - [GitHub Action](GITHUB_ACTION.md) - CI/CD integration for GitHub
 - [Fetch Zero-Day](FETCH_ZERODAY.md) - Automatic vulnerability pattern updates
 
 ### Advanced Usage
+
 - [Advanced Audit](ADVANCED_AUDIT.md) - Deep security analysis
 - [Semantic Search](SEMANTIC_SEARCH.md) - AST-based pattern matching
 - [Data Sources](DATA_SOURCES.md) - Vulnerability data sources
@@ -20,8 +23,8 @@
 
 - [Template Changelog](TEMPLATE_CHANGELOG.md) - Template version history
 - [Changelog](../CHANGELOG.md) - Project changelog
-- [Roadmap](../ROADMAP.md) - Future plans
-- [Benchmarks](../BENCHMARK_RESULTS.md) - Performance metrics
+- [Roadmap](ROADMAP.md) - Future plans
+- [Benchmarks](BENCHMARK_50_RESULTS.md) - Performance metrics
 
 ## 🔧 Development
 
@@ -31,7 +34,7 @@
 ## 🎯 Quick Links
 
 | Task | Documentation |
-|------|---------------|
+| :--- | :--- |
 | Install & Setup | [README](../README.md#installation) |
 | Scan Contracts | [README](../README.md#scan-a-contract) |
 | ERC Compliance | [Quick Wins](QUICK_WINS.md#1-erc-standard-compliance-checks) |
