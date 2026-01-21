@@ -122,10 +122,12 @@ pub async fn scan_recent_contracts(
         .filter(|r| !r.matches.is_empty())
         .collect();
 
+    // Sort by risk score and take top 100
     scan_results.sort_by(|a, b| b.total_risk_score().cmp(&a.total_risk_score()));
-    let top_60: Vec<_> = scan_results.into_iter().take(60).collect();
+    let top_100: Vec<_> = scan_results.into_iter().take(100).collect();
 
-    let mut with_poc_scores: Vec<_> = top_60
+    // Calculate PoC scores and sort by exploitability
+    let mut with_poc_scores: Vec<_> = top_100
         .into_iter()
         .map(|r| {
             let poc_score: f32 = r.matches.iter().map(|m| m.exploitability_score()).sum();
@@ -142,9 +144,9 @@ pub async fn scan_recent_contracts(
     }
     eprintln!();
     
+    // Keep all 100 ranked by PoC
     let scan_results: Vec<_> = with_poc_scores
         .into_iter()
-        .take(40)
         .map(|(r, _)| r)
         .collect();
 
@@ -165,7 +167,7 @@ pub async fn scan_recent_contracts(
     eprintln!();
     eprintln!("📊 Results saved to: {}", output_file.display());
     eprintln!("📋 Found {} vulnerable contracts (High/Critical only)", scan_results.len());
-    eprintln!("🎯 Selection: Top 60 by risk score → Top 40 by PoC exploitability");
+    eprintln!("🎯 Selection: Top 100 by risk score → All 100 ranked by PoC exploitability");
 
     Ok(())
 }
