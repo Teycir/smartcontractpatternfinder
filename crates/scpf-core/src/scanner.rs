@@ -71,7 +71,13 @@ impl Scanner {
         let parsed_tree = if self.semantic_scanner.is_some() {
             self.semantic_scanner
                 .as_mut()
-                .and_then(|scanner| scanner.parse(source).ok())
+                .and_then(|scanner| match scanner.parse(source) {
+                    Ok(tree) => Some(tree),
+                    Err(e) => {
+                        eprintln!("Error: Failed to parse source for semantic analysis: {}", e);
+                        None
+                    }
+                })
         } else {
             None
         };
@@ -137,10 +143,7 @@ impl Scanner {
                                     "Error: Semantic pattern '{}' in template '{}' failed: {}",
                                     compiled_pattern.pattern.id, compiled_template.template.id, e
                                 );
-                                return Err(anyhow::anyhow!(
-                                    "Semantic pattern '{}' failed: {}",
-                                    compiled_pattern.pattern.id, e
-                                ));
+                                // Continue scanning other patterns instead of failing entire scan
                             }
                         }
                     }
