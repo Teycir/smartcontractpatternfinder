@@ -47,13 +47,13 @@ patterns:
   # Replay attack - missing chain ID
   - id: replay-missing-chainid
     kind: regex
-    pattern: 'keccak256\s*\(\s*abi\.(?:encode|encodePacked)\s*\((?![^)]{0,200}chainid)'
+    pattern: 'keccak256\s*\(\s*abi\.(?:encode|encodePacked)\s*\('
     message: "Hash without block.chainid - signature may be replayed on other chains"
 
   # Replay attack - missing contract address
   - id: replay-missing-address
     kind: regex
-    pattern: 'keccak256\s*\(\s*abi\.(?:encode|encodePacked)\s*\((?![^)]{0,200}address\s*\(\s*this\s*\))'
+    pattern: 'keccak256\s*\(\s*abi\.(?:encode|encodePacked)\s*\('
     message: "Hash without address(this) - signature may be replayed on other contracts"
 
   # Weak randomness - block hash

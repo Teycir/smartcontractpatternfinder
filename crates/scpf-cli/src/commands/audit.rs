@@ -2,7 +2,7 @@ use crate::cli::ScanArgs;
 use anyhow::Result;
 use colored::Colorize;
 use scpf_core::{Cache, ContractFetcher, Scanner, TemplateLoader, ZeroDayFetcher};
-use scpf_types::{ApiKeyConfig, Chain, ScanResult, Severity};
+use scpf_types::{Chain, ScanResult, Severity};
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -57,7 +57,7 @@ pub async fn run_full_audit(_addresses: Vec<String>, args: ScanArgs) -> Result<(
         "{} Layer 2: Fetching contracts from last 30 days (all chains)...",
         "🌐".cyan()
     );
-    let api_keys = ApiKeyConfig::from_env();
+    let api_keys = crate::keys::load_api_keys_from_env();
     let fetcher = Arc::new(ContractFetcher::new(api_keys)?);
 
     let chains = vec![

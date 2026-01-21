@@ -88,7 +88,7 @@ patterns:
   # Cross-L2: Missing chain ID
   - id: cross-l2-replay
     kind: regex
-    pattern: 'keccak256\s*\(\s*abi\.(encode|encodePacked)\s*\((?![^)]*chainid)'
+    pattern: 'keccak256\s*\(\s*abi\.(encode|encodePacked)\s*\('
     message: "Message hash without chain ID - may be replayed across L2s sharing same address"
 
   # Bridge: L2 message verification

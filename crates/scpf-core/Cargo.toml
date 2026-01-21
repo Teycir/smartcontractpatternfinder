@@ -27,7 +27,7 @@ sha2 = { workspace = true }
 xxhash-rust = { workspace = true }
 backon = { workspace = true }
 hex = { workspace = true }
-md5 = "0.7"
+
 
 [dev-dependencies]
 tempfile = "3.9"
@@ -41,6 +41,4 @@ harness = false
 name = "dump_tree"
 path = "src/bin/dump_tree.rs"
 
-[[bin]]
-name = "validate_all"
-path = "src/bin/validate_all.rs"
+

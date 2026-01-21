@@ -1,0 +1,253 @@
+{
+  "contracts": [
+    {
+      "file_path": "benchmarks/known-exploits/dao-reentrancy.sol",
+      "description": "The DAO hack - classic reentrancy vulnerability",
+      "vulnerabilities": [
+        {
+          "pattern_id": "reentrancy-unprotected",
+          "line_number": 17,
+          "severity": "critical",
+          "description": "External call before state update in withdraw function",
+          "exploitable": true
+        }
+      ],
+      "safe_patterns": []
+    },
+    {
+      "file_path": "benchmarks/known-exploits/parity-delegatecall.sol",
+      "description": "Parity wallet hack - delegatecall to user-controlled address",
+      "vulnerabilities": [
+        {
+          "pattern_id": "delegatecall-user-input",
+          "line_number": 17,
+          "severity": "critical",
+          "description": "Delegatecall with user-controlled target",
+          "exploitable": true
+        },
+        {
+          "pattern_id": "missing-access-control",
+          "line_number": 14,
+          "severity": "high",
+          "description": "No access control on execute function",
+          "exploitable": true
+        }
+      ],
+      "safe_patterns": []
+    },
+    {
+      "file_path": "benchmarks/known-exploits/bzx-flash-loan.sol",
+      "description": "bZx 2020 - Flash loan price oracle manipulation",
+      "vulnerabilities": [
+        {
+          "pattern_id": "oracle-manipulation",
+          "line_number": 22,
+          "severity": "high",
+          "description": "Using spot price without TWAP protection",
+          "exploitable": true
+        }
+      ],
+      "safe_patterns": []
+    },
+    {
+      "file_path": "benchmarks/known-exploits/poly-network-crosschain.sol",
+      "description": "Poly Network 2021 - Cross-chain keeper manipulation",
+      "vulnerabilities": [
+        {
+          "pattern_id": "missing-access-control",
+          "line_number": 30,
+          "severity": "critical",
+          "description": "putCurEpochConPubKeyBytes lacks access control",
+          "exploitable": true
+        }
+      ],
+      "safe_patterns": []
+    },
+    {
+      "file_path": "benchmarks/swc-registry/SWC-101-integer-overflow.sol",
+      "description": "SWC-101 Integer Overflow",
+      "vulnerabilities": [
+        {
+          "pattern_id": "integer-overflow",
+          "line_number": 11,
+          "severity": "high",
+          "description": "Unchecked addition in deposit",
+          "exploitable": true
+        },
+        {
+          "pattern_id": "integer-underflow",
+          "line_number": 16,
+          "severity": "high",
+          "description": "Unchecked subtraction in withdraw",
+          "exploitable": true
+        },
+        {
+          "pattern_id": "integer-overflow",
+          "line_number": 21,
+          "severity": "critical",
+          "description": "Overflow in multiplication (batchTransfer)",
+          "exploitable": true
+        }
+      ],
+      "safe_patterns": []
+    },
+    {
+      "file_path": "benchmarks/swc-registry/SWC-104-unchecked-call.sol",
+      "description": "SWC-104 Unchecked Call Return Value",
+      "vulnerabilities": [
+        {
+          "pattern_id": "unchecked-call",
+          "line_number": 18,
+          "severity": "medium",
+          "description": "Call return value not checked in withdraw",
+          "exploitable": true
+        },
+        {
+          "pattern_id": "unchecked-send",
+          "line_number": 27,
+          "severity": "medium",
+          "description": "Send return value not checked in withdrawSend",
+          "exploitable": true
+        }
+      ],
+      "safe_patterns": []
+    },
+    {
+      "file_path": "benchmarks/swc-registry/SWC-105-unprotected-withdrawal.sol",
+      "description": "SWC-105 Unprotected Ether Withdrawal",
+      "vulnerabilities": [
+        {
+          "pattern_id": "missing-access-control",
+          "line_number": 13,
+          "severity": "critical",
+          "description": "withdrawAll function lacks access control",
+          "exploitable": true
+        }
+      ],
+      "safe_patterns": []
+    },
+    {
+      "file_path": "benchmarks/swc-registry/SWC-106-unprotected-selfdestruct.sol",
+      "description": "SWC-106 Unprotected SELFDESTRUCT",
+      "vulnerabilities": [
+        {
+          "pattern_id": "unprotected-selfdestruct",
+          "line_number": 13,
+          "severity": "critical",
+          "description": "No access control on selfdestruct",
+          "exploitable": true
+        }
+      ],
+      "safe_patterns": []
+    },
+    {
+      "file_path": "benchmarks/swc-registry/SWC-107-reentrancy.sol",
+      "description": "SWC-107 Reentrancy",
+      "vulnerabilities": [
+        {
+          "pattern_id": "reentrancy-basic",
+          "line_number": 11,
+          "severity": "high",
+          "description": "State change after external call",
+          "exploitable": true
+        }
+      ],
+      "safe_patterns": []
+    },
+    {
+      "file_path": "benchmarks/swc-registry/SWC-112-delegatecall.sol",
+      "description": "SWC-112 Delegatecall to Untrusted Callee",
+      "vulnerabilities": [
+        {
+          "pattern_id": "delegatecall-user-input",
+          "line_number": 15,
+          "severity": "critical",
+          "description": "Delegatecall to user-provided address",
+          "exploitable": true
+        }
+      ],
+      "safe_patterns": []
+    },
+    {
+      "file_path": "benchmarks/swc-registry/SWC-115-tx-origin.sol",
+      "description": "SWC-115 Authorization through tx.origin",
+      "vulnerabilities": [
+        {
+          "pattern_id": "tx-origin-auth",
+          "line_number": 13,
+          "severity": "high",
+          "description": "Using tx.origin for authentication",
+          "exploitable": true
+        },
+        {
+          "pattern_id": "tx-origin-auth",
+          "line_number": 19,
+          "severity": "high",
+          "description": "Using tx.origin for authentication",
+          "exploitable": true
+        }
+      ],
+      "safe_patterns": []
+    },
+    {
+      "file_path": "benchmarks/swc-registry/SWC-116-timestamp-dependence.sol",
+      "description": "SWC-116 Timestamp Dependence",
+      "vulnerabilities": [
+        {
+          "pattern_id": "timestamp-dependence",
+          "line_number": 12,
+          "severity": "medium",
+          "description": "Using block.timestamp for randomness",
+          "exploitable": true
+        },
+        {
+          "pattern_id": "timestamp-dependence",
+          "line_number": 20,
+          "severity": "medium",
+          "description": "Using block.timestamp for critical logic",
+          "exploitable": true
+        }
+      ],
+      "safe_patterns": []
+    },
+    {
+      "file_path": "benchmarks/swc-registry/SWC-120-weak-randomness.sol",
+      "description": "SWC-120 Weak Randomness",
+      "vulnerabilities": [
+        {
+          "pattern_id": "weak-randomness",
+          "line_number": 12,
+          "severity": "high",
+          "description": "Using block attributes for randomness",
+          "exploitable": true
+        },
+        {
+          "pattern_id": "weak-randomness",
+          "line_number": 27,
+          "severity": "high",
+          "description": "Using blockhash for randomness",
+          "exploitable": true
+        }
+      ],
+      "safe_patterns": []
+    },
+    {
+      "file_path": "benchmarks/false-positives/safe-reentrancy.sol",
+      "description": "Properly protected against reentrancy",
+      "vulnerabilities": [],
+      "safe_patterns": ["checks-effects-interactions", "reentrancy-guard"]
+    },
+    {
+      "file_path": "benchmarks/false-positives/safe-erc20.sol",
+      "description": "Safe ERC20 implementation",
+      "vulnerabilities": [],
+      "safe_patterns": ["checks-effects-interactions", "safe-math"]
+    },
+    {
+      "file_path": "benchmarks/false-positives/safe-ownable.sol",
+      "description": "Safe access control implementation",
+      "vulnerabilities": [],
+      "safe_patterns": ["access-control", "zero-address-check"]
+    }
+  ]
+}

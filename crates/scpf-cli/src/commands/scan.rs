@@ -5,7 +5,7 @@ use colored::Colorize;
 use futures::stream::{self, StreamExt};
 use indicatif::{ProgressBar, ProgressStyle};
 use scpf_core::{Cache, ContractFetcher, Scanner, TemplateLoader};
-use scpf_types::{ApiKeyConfig, ScanResult};
+use scpf_types::{ScanResult};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -63,7 +63,7 @@ pub async fn run(args: ScanArgs) -> Result<()> {
 
     let templates = load_templates(&args.templates).await?;
     let scanner = Arc::new(tokio::sync::Mutex::new(Scanner::new(templates)?));
-    let api_keys = ApiKeyConfig::from_env();
+    let api_keys = crate::keys::load_api_keys_from_env();
     let fetcher = Arc::new(ContractFetcher::new(api_keys)?);
 
     let cache_dir = dirs::cache_dir()
@@ -182,8 +182,6 @@ fn print_console(results: &[ScanResult], failed: usize, sort_by_exploitability: 
         }
     }
 
-
-
     // Show vulnerability groups first
     if !pattern_groups.is_empty() {
         if sort_by_exploitability {
@@ -291,7 +289,6 @@ fn print_console(results: &[ScanResult], failed: usize, sort_by_exploitability: 
 
     // Show individual file results
     for result in results {
-
         if result.matches.is_empty() {
             println!(
                 "{}  {} ({}ms)",
@@ -581,7 +578,7 @@ async fn load_templates(templates_path: &Option<PathBuf>) -> Result<Vec<scpf_typ
         anyhow::bail!("No templates found in {:?}", templates_dir);
     }
 
-    println!("{}  Loaded {} templates", "✓".green(), templates.len());
+    // println!("{}  Loaded {} templates", "✓".green(), templates.len());
 
     if let Ok(mut cache) = TEMPLATE_CACHE.lock() {
         *cache = Some(templates.clone());
@@ -637,7 +634,7 @@ async fn scan_recent_contracts(args: ScanArgs) -> Result<()> {
         args.min_severity.to_uppercase()
     );
 
-    let api_keys = ApiKeyConfig::from_env();
+    let api_keys = crate::keys::load_api_keys_from_env();
     let fetcher = Arc::new(ContractFetcher::new(api_keys)?);
 
     let chains = if args.all_chains {

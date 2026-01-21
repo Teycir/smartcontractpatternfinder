@@ -57,12 +57,12 @@ patterns:
     pattern: 'selfdestruct\s*\('
     message: "CRITICAL: selfdestruct in implementation - can destroy proxy's delegatecall target"
 
-  # Storage gap missing
+  # Storage gap missing - simplified without lookahead
   - id: missing-storage-gap
     kind: regex
     validate: true
-    pattern: 'contract\s+\w+\s+is\s+[^{]{0,200}Upgradeable[^{]{0,100}\{(?![^}]{0,2000}__gap)'
-    message: "Upgradeable contract without __gap - future storage variables may collide"
+    pattern: 'contract\s+\w+\s+is\s+.*Upgradeable'
+    message: "Upgradeable contract detected - verify __gap storage variable exists"
     required: false
     on_error: skip
 
@@ -75,12 +75,12 @@ patterns:
     required: false
     on_error: skip
 
-  # UUPS missing _authorizeUpgrade
+  # UUPS missing _authorizeUpgrade - simplified
   - id: uups-missing-authorize
     kind: regex
     validate: true
-    pattern: 'is\s+UUPSUpgradeable[^{]{0,200}\{(?![^}]{0,1000}_authorizeUpgrade)'
-    message: "UUPS contract without _authorizeUpgrade - upgrade authorization missing"
+    pattern: 'is\s+UUPSUpgradeable'
+    message: "UUPS contract detected - verify _authorizeUpgrade implementation"
     required: false
     on_error: skip
 

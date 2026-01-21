@@ -6,6 +6,7 @@ mod commands;
 mod error_helper;
 mod output;
 mod pattern_builder;
+pub mod keys;
 
 use cli::{Cli, Commands};
 

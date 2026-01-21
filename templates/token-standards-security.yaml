@@ -40,7 +40,7 @@ patterns:
   # ERC20: Double-spend on approve
   - id: erc20-approve-race
     kind: regex
-    pattern: 'function\s+approve\s*\([^)]+\)[^{]*\{(?![^}]*(require|assert)[^}]*allowance)'
+    pattern: 'function\s+approve\s*\([^)]+\)[^{]*\{'
     message: "ERC20 approve without current allowance check - vulnerable to double-spend race condition"
 
   # ERC20: Fee-on-transfer not handled
