@@ -5,8 +5,16 @@ echo "=== SCPF Baseline Evaluation ==="
 echo ""
 
 # Count benchmark corpus
-CONTRACTS=$(find benchmarks -name "*.sol" | wc -l)
-VULNS=$(jq '[.contracts[].vulnerabilities | length] | add' benchmarks/ground-truth.json)
+CONTRACTS=$(find benchmarks -name "*.sol" 2>/dev/null | wc -l)
+if [ ! -f benchmarks/ground-truth.json ]; then
+    echo "Error: benchmarks/ground-truth.json not found" >&2
+    exit 1
+fi
+VULNS=$(jq '[.contracts[].vulnerabilities | length] | add' benchmarks/ground-truth.json 2>/dev/null)
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to parse ground-truth.json" >&2
+    exit 1
+fi
 
 echo "Benchmark Corpus:"
 echo "  Contracts: $CONTRACTS"
@@ -35,7 +43,8 @@ echo "✅ Ground truth: $VULNS vulnerabilities labeled"
 echo "✅ SARIF output: Implemented"
 echo "✅ CI workflows: Configured"
 echo ""
-echo "📊 Progress: 16/100 contracts (16%)"
+PROGRESS_PERCENT=$((CONTRACTS * 100 / 100))
+echo "📊 Progress: $CONTRACTS/100 contracts ($PROGRESS_PERCENT%)"
 echo ""
 echo "Next steps:"
 echo "1. Add 10+ more SWC test cases"

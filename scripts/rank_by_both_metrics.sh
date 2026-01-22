@@ -22,12 +22,15 @@ echo ""
 mkdir -p "$OUTPUT_DIR"
 
 # Run scan with exploitability sorting AND save JSON
-cargo run --release --bin scpf -- scan \
+if ! cargo run --release --bin scpf -- scan \
   --days "$DAYS" \
   --chain "$CHAIN" \
   --min-severity "$MIN_SEVERITY" \
   --sort-by-exploitability \
-  --output json > "$OUTPUT_FILE"
+  --output json > "$OUTPUT_FILE"; then
+    echo "Error: SCPF scan failed" >&2
+    exit 1
+fi
 
 echo ""
 echo "✅ Scan complete!"
@@ -38,6 +41,8 @@ echo "   1. PoC Exploitability - Pattern-based success probability"
 echo "   2. Risk Score - CRITICAL×100 + HIGH×10 + MEDIUM×3"
 echo ""
 echo "📋 To view ranked results:"
-echo "   • Console: cargo run --release --bin scpf -- scan --days $DAYS --chain $CHAIN --sort-by-exploitability"
+echo "   • Console: cargo run --release --bin scpf -- scan \\"
+echo "              --days $DAYS --chain $CHAIN --sort-by-exploitability"
 echo "   • JSON: cat $OUTPUT_FILE | jq"
-echo "   • SARIF: cargo run --release --bin scpf -- scan --days $DAYS --chain $CHAIN --output sarif"
+echo "   • SARIF: cargo run --release --bin scpf -- scan \\"
+echo "            --days $DAYS --chain $CHAIN --output sarif"

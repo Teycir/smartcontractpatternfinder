@@ -168,16 +168,13 @@ impl Scanner {
             if let Some(ref tree) = tree_for_context {
                 let ctx = self.build_context(source, tree);
 
-                matches = matches
-                    .into_iter()
-                    .filter(|m| {
-                        if self.is_reentrancy_pattern(&m.template_id) {
-                            is_vulnerable_reentrancy(tree, source, m.line_number)
-                        } else {
-                            true
-                        }
-                    })
-                    .collect();
+                matches.retain(|m| {
+                    if self.is_reentrancy_pattern(&m.template_id) {
+                        is_vulnerable_reentrancy(tree, source, m.line_number)
+                    } else {
+                        true
+                    }
+                });
 
                 matches = self.filter_findings(matches, &ctx);
                 matches = self.enrich_with_context(matches, &ctx);
@@ -236,10 +233,10 @@ impl Scanner {
 
         if let Some(func) = func {
             // Filter reentrancy findings if function has reentrancy guard OR access control
-            if self.is_reentrancy_pattern(&finding.template_id) {
-                if func.protections.has_reentrancy_guard || func.protections.has_access_control {
-                    return false;
-                }
+            if self.is_reentrancy_pattern(&finding.template_id)
+                && (func.protections.has_reentrancy_guard || func.protections.has_access_control)
+            {
+                return false;
             }
 
             // Filter access control findings if function has access control

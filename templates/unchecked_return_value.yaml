@@ -21,12 +21,12 @@ tags:
 patterns:
   # Regex: Expression statement with low-level call (no assignment)
   - id: unchecked-call-regex
-    kind: regex
-    pattern: '^\s*[^=\n]*\.(call|delegatecall|staticcall|send)\s*[\({]'
+    pattern: '^\s*[^=\n]*?\.(?:call|delegatecall|staticcall|send)\s*[\({]'
     message: "Unchecked low-level call detected. Return value should be verified."
+    kind: regex
 
   # send without assignment or require - returns false on failure instead of reverting
   - id: unchecked-send-regex
-    kind: regex
-    pattern: '^\s*\w+\.send\([^)]+\)\s*;'
+    pattern: '^\s*\w+\.send\([^)]+?\)\s*;'
     message: "'.send()' return not checked - fails silently. Use require(addr.send(amount)) or .transfer()."
+    kind: regex

@@ -5,10 +5,26 @@ echo "=== SCPF Baseline Accuracy Evaluation ==="
 echo ""
 
 # Count contracts
-TOTAL_CONTRACTS=$(find benchmarks -name "*.sol" | wc -l)
-VULNERABLE=$(jq '.contracts | map(select(.vulnerabilities | length > 0)) | length' benchmarks/ground-truth.json)
-SAFE=$(jq '.contracts | map(select(.vulnerabilities | length == 0)) | length' benchmarks/ground-truth.json)
-TOTAL_VULNS=$(jq '[.contracts[].vulnerabilities | length] | add' benchmarks/ground-truth.json)
+TOTAL_CONTRACTS=$(find benchmarks -name "*.sol" 2>/dev/null | wc -l)
+if [ ! -f benchmarks/ground-truth.json ]; then
+    echo "Error: benchmarks/ground-truth.json not found" >&2
+    exit 1
+fi
+VULNERABLE=$(jq '.contracts | map(select(.vulnerabilities | length > 0)) | length' benchmarks/ground-truth.json 2>/dev/null)
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to parse ground-truth.json for vulnerable count" >&2
+    exit 1
+fi
+SAFE=$(jq '.contracts | map(select(.vulnerabilities | length == 0)) | length' benchmarks/ground-truth.json 2>/dev/null)
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to parse ground-truth.json for safe count" >&2
+    exit 1
+fi
+TOTAL_VULNS=$(jq '[.contracts[].vulnerabilities | length] | add' benchmarks/ground-truth.json 2>/dev/null)
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to parse ground-truth.json for total vulnerabilities" >&2
+    exit 1
+fi
 
 echo "Benchmark Corpus:"
 echo "  Total contracts: $TOTAL_CONTRACTS"
@@ -19,11 +35,28 @@ echo ""
 
 # Run scan on benchmarks
 echo "Scanning benchmark contracts..."
-cd benchmarks && cargo run --release --bin scpf -- scan --output json > /tmp/scpf_findings.json 2>/dev/null || true
+if ! cd benchmarks; then
+    echo "Error: benchmarks directory not found" >&2
+    exit 1
+fi
+
+if ! cargo run --release --bin scpf -- scan --output json > /tmp/scpf_findings.json 2>&1; then
+    echo "Error: SCPF scan failed" >&2
+    cd ..
+    exit 1
+fi
 cd ..
 
 # Count findings
-FINDINGS=$(jq '[.[].matches | length] | add // 0' /tmp/scpf_findings.json)
+if [ ! -f /tmp/scpf_findings.json ]; then
+    echo "Error: Scan output file not found" >&2
+    exit 1
+fi
+FINDINGS=$(jq '[.[].matches | length] | add // 0' /tmp/scpf_findings.json 2>/dev/null)
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to parse scan results" >&2
+    exit 1
+fi
 echo "  Found $FINDINGS total findings"
 echo ""
 

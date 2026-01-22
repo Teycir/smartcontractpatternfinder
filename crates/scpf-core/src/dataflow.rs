@@ -505,8 +505,6 @@ impl DataFlowAnalysis {
                             StateChange::MapWrite { .. } | StateChange::Decrement { .. }
                         ) {
                         RiskSeverity::Critical
-                    } else if call.method == "call" || call.method == "delegatecall" {
-                        RiskSeverity::High
                     } else {
                         RiskSeverity::High
                     };

@@ -29,21 +29,21 @@ patterns:
 
   # External call in loop
   - id: loop-external-call
-    kind: regex
-    pattern: 'for\s*\([^)]{1,200}\)[^{]{0,100}\{[^}]{0,500}(call|transfer|send|delegatecall)\s*\('
+    pattern: 'for\s*\([^)]+\)[^{]*\{[^}]{0,500}(?:call|transfer|send|delegatecall)\s*\('
     message: "External call in loop - single failure can DoS entire function"
+    kind: regex
 
   # Revert in loop
   - id: revert-in-loop
-    kind: regex
-    pattern: 'for\s*\([^)]{1,200}\)[^{]{0,100}\{[^}]{0,500}(require|revert|assert)\s*\('
+    pattern: 'for\s*\([^)]+\)[^{]*\{[^}]{0,500}(?:require|revert|assert)\s*\('
     message: "Revert inside loop - consider try/catch or continue on failure"
+    kind: regex
 
   # Ether transfer to contract
   - id: dos-ether-transfer
-    kind: regex
-    pattern: '\.\s*(transfer|send)\s*\('
+    pattern: '\.\s*(?:transfer|send)\s*\('
     message: "Ether transfer to address - receiving contract can revert and DoS sender"
+    kind: regex
 
   # Return bomb attack
   - id: return-bomb
@@ -53,9 +53,9 @@ patterns:
 
   # Griefing via selfdestruct
   - id: griefing-selfdestruct
-    kind: regex
     pattern: 'require\s*\([^)]*\.balance\s*[=!<>]'
     message: "Balance check can be griefed via selfdestruct - attacker can force-send ETH"
+    kind: regex
 
   # String concatenation in loop
   - id: string-concat-loop

@@ -24,15 +24,15 @@ patterns:
 
   # Regex: Block-based randomness
   - id: block-randomness-regex
-    kind: regex
-    pattern: '(keccak256|sha256)\s*\(\s*(abi\.)?(encode|encodePacked)\s*\([^)]*block\.(timestamp|number|difficulty|prevrandao)'
+    pattern: '(?:keccak256|sha256)\s*\(\s*(?:abi\.)?(?:encode|encodePacked)\s*\([^)]*block\.(?:timestamp|number|difficulty|prevrandao)'
     message: "Using block properties for randomness is predictable. Use verifiable randomness (VRF)."
+    kind: regex
 
   # Regex: ERC20 approve
   - id: approve-frontrun-regex
-    kind: regex
-    pattern: '\.approve\s*\(\s*\w+\s*,\s*[^0][^)]*\)'
+    pattern: '\.approve\s*\(\s*\w+\s*,\s*(?!0\s*\))[^)]+\)'
     message: "ERC20 approve() with non-zero value. Vulnerable to front-running - use increaseAllowance() or set to 0 first."
+    kind: regex
 
   # Regex: Conditional reward pattern
   - id: conditional-transfer-regex

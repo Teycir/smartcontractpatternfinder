@@ -120,7 +120,7 @@ pub async fn scan_contracts(
 
 pub fn rank_and_score(mut scan_results: Vec<ScanResult>) -> Vec<ScanResult> {
     scan_results.retain(|r| !r.matches.is_empty());
-    scan_results.sort_by(|a, b| b.total_risk_score().cmp(&a.total_risk_score()));
+    scan_results.sort_by_key(|b| std::cmp::Reverse(b.total_risk_score()));
 
     let top_100: Vec<_> = scan_results.into_iter().take(100).collect();
     let mut with_poc_scores: Vec<_> = top_100

@@ -40,4 +40,7 @@ echo "📊 Results: $OUTPUT_FILE"
 echo ""
 
 # Analyze PoC-ability
-./scripts/analyze_poc_ability.sh "$OUTPUT_FILE"
+if ! ./scripts/analyze_poc_ability.sh "$OUTPUT_FILE"; then
+    echo "Error: PoC analysis failed" >&2
+    exit 1
+fi

@@ -11,8 +11,7 @@ tags:
 patterns:
   # Match tx.origin in authentication contexts
   - id: tx-origin-require
-    kind: regex
-    pattern: 'require\s*\(\s*.*tx\.origin\s*[!=]='
+    pattern: 'require\s*\(\s*.*?tx\.origin\s*[!=]='
     message: |
       tx.origin used for authentication.
       
@@ -21,16 +20,17 @@ patterns:
       into calling it.
       
       Replace with: require(msg.sender == owner);
+    kind: regex
 
   - id: tx-origin-if-auth
-    kind: regex
-    pattern: 'if\s*\(\s*.*tx\.origin\s*[!=]=.*\)\s*(revert|require)'
+    pattern: 'if\s*\(\s*.*?tx\.origin\s*[!=]=.*?\)\s*(?:revert|require)'
     message: "tx.origin used in authentication check"
+    kind: regex
 
   - id: tx-origin-assert
-    kind: regex
-    pattern: 'assert\s*\(\s*.*tx\.origin'
+    pattern: 'assert\s*\(\s*.*?tx\.origin'
     message: "tx.origin used in assert statement"
+    kind: regex
 
   # Contract detection pattern (lower severity)
   - id: tx-origin-contract-detection

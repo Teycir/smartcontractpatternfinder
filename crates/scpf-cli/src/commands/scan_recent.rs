@@ -121,7 +121,7 @@ pub async fn scan_recent_contracts(args: ScanArgs) -> Result<()> {
 
     // Build human-readable TXT output
     let mut txt_output = String::new();
-    txt_output.push_str(&format!("Smart Contract Pattern Finder - Scan Report\n"));
+    txt_output.push_str("Smart Contract Pattern Finder - Scan Report\n");
     txt_output.push_str(&format!("Timestamp: {}\n", timestamp));
     txt_output.push_str(&format!("Total Contracts: {}\n\n", scan_results.len()));
     txt_output.push_str("=".repeat(80).as_str());
@@ -142,7 +142,7 @@ pub async fn scan_recent_contracts(args: ScanArgs) -> Result<()> {
         let mut needs_review = Vec::new();
 
         for m in &result.matches {
-            if let Some(_) = &m.function_context {
+            if m.function_context.is_some() {
                 let analysis = scpf_core::analyze_exploitability(m);
                 if analysis.is_exploitable {
                     exploitable.push((m, analysis));
@@ -257,7 +257,7 @@ pub async fn scan_recent_contracts(args: ScanArgs) -> Result<()> {
             }
 
             eprintln!();
-            txt_output.push_str("\n");
+            txt_output.push('\n');
         }
 
         false_positive_findings += false_positives.len();
@@ -288,11 +288,11 @@ pub async fn scan_recent_contracts(args: ScanArgs) -> Result<()> {
         eprintln!("{}", line);
     }
 
-    txt_output.push_str("\n");
+    txt_output.push('\n');
     txt_output.push_str("=".repeat(80).as_str());
     txt_output.push_str("\n\n");
     txt_output.push_str(&summary.join("\n"));
-    txt_output.push_str("\n");
+    txt_output.push('\n');
 
     std::fs::write(&txt_file, txt_output)?;
     eprintln!("\n📝 Human-readable report: {}", txt_file.display());

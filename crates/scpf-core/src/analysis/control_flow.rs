@@ -6,7 +6,7 @@ pub fn is_vulnerable_reentrancy(tree: &Tree, source: &str, line: usize) -> bool 
     let root = tree.root_node();
 
     // Find function containing this line
-    let func_node = find_function_at_line(root, source, line);
+    let func_node = find_function_at_line(root, line);
     if func_node.is_none() {
         return true; // Conservative: report if can't analyze
     }
@@ -15,7 +15,7 @@ pub fn is_vulnerable_reentrancy(tree: &Tree, source: &str, line: usize) -> bool 
 
     // Find all external calls and state changes
     let external_calls = find_external_calls(func, source);
-    let state_changes = find_state_changes(func, source);
+    let state_changes = find_state_changes(func);
 
     // Check if ANY state change happens AFTER external call
     for call_line in &external_calls {
@@ -29,7 +29,7 @@ pub fn is_vulnerable_reentrancy(tree: &Tree, source: &str, line: usize) -> bool 
     false // SAFE: no state changes after calls
 }
 
-fn find_function_at_line<'a>(node: Node<'a>, source: &str, target_line: usize) -> Option<Node<'a>> {
+fn find_function_at_line<'a>(node: Node<'a>, target_line: usize) -> Option<Node<'a>> {
     let mut cursor = node.walk();
 
     for child in node.children(&mut cursor) {
@@ -42,7 +42,7 @@ fn find_function_at_line<'a>(node: Node<'a>, source: &str, target_line: usize) -
             }
         }
 
-        if let Some(found) = find_function_at_line(child, source, target_line) {
+        if let Some(found) = find_function_at_line(child, target_line) {
             return Some(found);
         }
     }
@@ -60,14 +60,13 @@ fn collect_external_calls(node: Node, source: &str, calls: &mut Vec<usize>) {
     let text = node.utf8_text(source.as_bytes()).unwrap_or("");
 
     // Detect external calls: .call, .delegatecall, .transfer, .send
-    if node.kind() == "call_expression" {
-        if text.contains(".call")
+    if node.kind() == "call_expression"
+        && (text.contains(".call")
             || text.contains(".delegatecall")
             || text.contains(".transfer")
-            || text.contains(".send")
-        {
-            calls.push(node.start_position().row + 1);
-        }
+            || text.contains(".send"))
+    {
+        calls.push(node.start_position().row + 1);
     }
 
     let mut cursor = node.walk();
@@ -76,13 +75,13 @@ fn collect_external_calls(node: Node, source: &str, calls: &mut Vec<usize>) {
     }
 }
 
-fn find_state_changes(func: Node, source: &str) -> Vec<usize> {
+fn find_state_changes(func: Node) -> Vec<usize> {
     let mut changes = Vec::new();
-    collect_state_changes(func, source, &mut changes);
+    collect_state_changes(func, &mut changes);
     changes
 }
 
-fn collect_state_changes(node: Node, source: &str, changes: &mut Vec<usize>) {
+fn collect_state_changes(node: Node, changes: &mut Vec<usize>) {
     // Detect state changes: assignments, +=, -=, delete
     if node.kind() == "assignment_expression"
         || node.kind() == "augmented_assignment_expression"
@@ -93,6 +92,6 @@ fn collect_state_changes(node: Node, source: &str, changes: &mut Vec<usize>) {
 
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
-        collect_state_changes(child, source, changes);
+        collect_state_changes(child, changes);
     }
 }

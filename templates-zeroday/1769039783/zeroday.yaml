@@ -7,6 +7,6 @@ tags:
 - live
 patterns:
 - id: flash_loan_20260119
-  pattern: flashLoan|borrow.*repay|address\(this\)\.balance
+  pattern: 'flashLoan|borrow.*repay|address\(this\)\.balance'
   message: Makina - defillama (2026-01-19)
   kind: regex

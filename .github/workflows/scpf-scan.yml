@@ -4,7 +4,12 @@ on:
   pull_request:
     paths:
       - '**.sol'
+    branches:
+      - main
+      - develop
   push:
+    paths:
+      - '**.sol'
     branches:
       - main
       - develop
@@ -29,8 +34,7 @@ jobs:
       # Upload scan results as artifact for review
       - name: Upload Results
         if: always()
-        uses: actions/upload-artifact@v3
-        continue-on-error: true
+        uses: actions/upload-artifact@v4
         with:
           name: scpf-results
           path: scpf-results.sarif

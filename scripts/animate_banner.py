@@ -14,6 +14,8 @@ def create_scanline_animation(input_path, output_path, frames=40):
         # Calculate scanline movement
         if frames <= 0:
             raise ValueError("frames must be positive")
+        if height == 0:
+            raise ValueError("Image height cannot be zero")
         step = height // frames
         
         for i in range(frames):
@@ -33,8 +35,10 @@ def create_scanline_animation(input_path, output_path, frames=40):
             # Glow effect (fading lines above and below)
             for offset in range(1, 5):
                 alpha = int(200 / (offset * 2))
-                draw.line([(0, y-offset), (width, y-offset)], fill=(0, 255, 255, alpha), width=1)
-                draw.line([(0, y+offset), (width, y+offset)], fill=(0, 255, 255, alpha), width=1)
+                y_above = max(0, y - offset)
+                y_below = min(height - 1, y + offset)
+                draw.line([(0, y_above), (width, y_above)], fill=(0, 255, 255, alpha), width=1)
+                draw.line([(0, y_below), (width, y_below)], fill=(0, 255, 255, alpha), width=1)
             
             # Composite the overlay onto the frame
             frame = Image.alpha_composite(frame, overlay)

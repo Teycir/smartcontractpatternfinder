@@ -16,7 +16,7 @@ pipelines:
           - cargo
           - scpf-target
         script:
-          - command -v scpf &> /dev/null || cargo install scpf-cli
+          - command -v scpf &> /dev/null || cargo install scpf-cli || { echo "Error: Failed to install scpf-cli" >&2; exit 1; }
           - if ! scpf scan --output json > scpf-results.json; then echo "Error: JSON scan failed" >&2; exit 1; fi
           - if ! scpf scan --output sarif > scpf-results.sarif; then echo "Error: SARIF scan failed" >&2; exit 1; fi
         artifacts:
@@ -29,10 +29,10 @@ pipelines:
           name: SCPF Diff Scan
           caches:
             - cargo
+            - scpf-target
           script:
             - command -v scpf &> /dev/null || cargo install scpf-cli || { echo "Error: Failed to install scpf-cli"; exit 1; }
-            - scpf scan --diff origin/$BITBUCKET_PR_DESTINATION_BRANCH..HEAD || { echo "Error: Diff scan failed"; exit 1; }
-            - scpf scan --output sarif > scpf-results.sarif || { echo "Error: SARIF scan failed"; exit 1; }
+            - if ! scpf scan --diff origin/$BITBUCKET_PR_DESTINATION_BRANCH..HEAD --output sarif > scpf-results.sarif; then echo "Error: Diff scan failed"; exit 1; fi
           artifacts:
             - scpf-results.sarif
 

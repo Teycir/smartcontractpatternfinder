@@ -10,7 +10,9 @@ description: |
   
   Note: selfdestruct is deprecated (EIP-6049) and behavior may change
   in future hard forks.
+
 severity: critical
+
 tags:
   - security
   - selfdestruct
@@ -20,12 +22,12 @@ tags:
 patterns:
   # Regex: Any selfdestruct
   - id: selfdestruct-regex
-    kind: regex
-    pattern: '(selfdestruct|suicide)\s*\('
+    pattern: '(?:selfdestruct|suicide)\s*\('
     message: "selfdestruct/suicide usage detected. Contract will be permanently destroyed."
+    kind: regex
 
   # Regex: selfdestruct in public function
   - id: selfdestruct-public-regex
-    kind: regex
-    pattern: 'function\s+\w+\s*\([^)]{0,200}\)\s*(public|external)[^{]{0,100}\{[^}]{0,1000}(selfdestruct|suicide)\s*\('
+    pattern: 'function\s+\w+\s*\([^)]{0,200}\)\s*(?:public|external)[^{]{0,100}\{[^}]{0,1000}(?:selfdestruct|suicide)\s*\('
     message: "CRITICAL: selfdestruct in public/external function. Verify access control modifier."
+    kind: regex

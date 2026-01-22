@@ -26,13 +26,18 @@ if [ -f "${ZERODAY_DIR}/zeroday.yaml" ]; then
     
     # Create symlink to latest
     rm -f templates-zeroday/latest
-    ln -s "${TIMESTAMP}" templates-zeroday/latest
+    if ! ln -s "${TIMESTAMP}" templates-zeroday/latest; then
+        echo "Error: Failed to create symlink" >&2
+        exit 1
+    fi
     echo "🔗 Symlink: templates-zeroday/latest -> ${TIMESTAMP}"
     
     # List all 0-day template versions
     echo ""
     echo "📚 Available 0-day template versions:"
-    ls -lt templates-zeroday/ | grep '^d' | head -5 | awk '{print "   " $9 " (" $6 " " $7 " " $8 ")"}'
+    if ! ls -lt templates-zeroday/ 2>/dev/null | grep '^d' | head -5 | awk '{print "   " $9 " (" $6 " " $7 " " $8 ")"}'; then
+        echo "   No previous versions found"
+    fi
 else
     echo "⚠️  No 0-day patterns found or generation failed"
     rmdir "${ZERODAY_DIR}" 2>/dev/null || true

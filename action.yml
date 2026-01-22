@@ -41,12 +41,8 @@ runs:
     - name: Cache SCPF
       uses: actions/cache@v3
       with:
-        path: |
-          ~/.cargo/bin/scpf
-          ~/.cargo/registry/index/
-          ~/.cargo/registry/cache/
-          ~/.cargo/git/db/
-        key: ${{ runner.os }}-scpf-${{ hashFiles('**/Cargo.lock') || 'no-lock' }}
+        path: ~/.cargo/bin/scpf
+        key: ${{ runner.os }}-scpf-${{ hashFiles('**/Cargo.lock') }}
         restore-keys: |
           ${{ runner.os }}-scpf-
         
@@ -54,13 +50,38 @@ runs:
       shell: bash
       run: |
         if ! command -v scpf &> /dev/null; then
-          cargo install --git https://github.com/Teycir/smartcontractpatternfinder scpf-cli
+          if ! cargo install --git https://github.com/Teycir/smartcontractpatternfinder scpf-cli; then
+            echo "::error::Failed to install SCPF"
+            exit 1
+          fi
         fi
         
     - name: Run SCPF Scan
       id: scan
       shell: bash
-      run: scpf scan --output ${{ inputs.output-format }} --templates ${{ inputs.templates }} >scpf-results.sarif 2>&1;EXIT_CODE=$?;[ $EXIT_CODE -ne 0 ]&&echo "::warning::SCPF scan command encountered issues (exit code: $EXIT_CODE)";[ ! -f scpf-results.sarif ]&&{ echo "::error::Failed to generate SARIF output file";exit 1;};FINDINGS=$(jq -r '[.runs[]?.results?//[]|length]|add//0' scpf-results.sarif 2>/dev/null||echo "0");echo "findings=$FINDINGS">>$GITHUB_OUTPUT;echo "sarif=scpf-results.sarif">>$GITHUB_OUTPUT;echo "Found $FINDINGS vulnerabilities";[ "${{ inputs.fail-on-findings }}" = "true" ]&&[ $EXIT_CODE -ne 0 ]&&{ echo "::error::Security vulnerabilities found!";exit 1;}
+      run: |
+        set +e
+        scpf scan --output ${{ inputs.output-format }} --templates ${{ inputs.templates }} > scpf-results.sarif 2>&1
+        EXIT_CODE=$?
+        
+        if [ $EXIT_CODE -ne 0 ]; then
+          echo "::warning::SCPF scan command encountered issues (exit code: $EXIT_CODE)"
+        fi
+        
+        if [ ! -f scpf-results.sarif ]; then
+          echo "::error::Failed to generate SARIF output file"
+          exit 1
+        fi
+        
+        FINDINGS=$(jq -r '[.runs[]?.results?//[]|length]|add//0' scpf-results.sarif 2>/dev/null || echo "0")
+        echo "findings=$FINDINGS" >> $GITHUB_OUTPUT
+        echo "sarif=scpf-results.sarif" >> $GITHUB_OUTPUT
+        echo "Found $FINDINGS vulnerabilities"
+        
+        if [ "${{ inputs.fail-on-findings }}" = "true" ] && [ $EXIT_CODE -ne 0 ]; then
+          echo "::error::Security vulnerabilities found!"
+          exit 1
+        fi
         
     - name: Validate SARIF File
       if: inputs.output-format == 'sarif'

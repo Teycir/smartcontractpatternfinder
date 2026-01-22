@@ -21,11 +21,14 @@ cd "$(dirname "$0")/.." || exit 1
 mkdir -p "$OUTPUT_DIR"
 
 echo "📡 Fetching and scanning all chains..."
-cargo run --release --bin scpf -- scan \
+if ! cargo run --release --bin scpf -- scan \
   --days "$DAYS" \
   --all-chains \
   --min-severity "$MIN_SEVERITY" \
-  --output json > "$OUTPUT_FILE"
+  --output json > "$OUTPUT_FILE"; then
+    echo "Error: SCPF scan failed" >&2
+    exit 1
+fi
 
 echo ""
 echo "✅ Scan complete!"
@@ -36,20 +39,31 @@ echo ""
 echo "📈 Risk Analysis:"
 echo "=========================="
 
-python3 << PYEOF
+if ! python3 << PYEOF
 import json
+import sys
 from collections import defaultdict
 
-with open('$OUTPUT_FILE') as f:
-    results = json.load(f)
+try:
+    with open('$OUTPUT_FILE') as f:
+        results = json.load(f)
+except FileNotFoundError:
+    print(f"Error: File '$OUTPUT_FILE' not found", file=sys.stderr)
+    sys.exit(1)
+except json.JSONDecodeError as e:
+    print(f"Error: Invalid JSON in '$OUTPUT_FILE': {e}", file=sys.stderr)
+    sys.exit(1)
+except Exception as e:
+    print(f"Error: Failed to read results file: {e}", file=sys.stderr)
+    sys.exit(1)
 
 total_contracts = len(results)
-with_issues = sum(1 for r in results if r['matches'])
-total_findings = sum(len(r['matches']) for r in results)
+with_issues = sum(1 for r in results if r.get('matches', []))
+total_findings = sum(len(r.get('matches', [])) for r in results)
 
-critical = sum(1 for r in results for m in r['matches'] if m['severity'] == 'critical')
-high = sum(1 for r in results for m in r['matches'] if m['severity'] == 'high')
-medium = sum(1 for r in results for m in r['matches'] if m['severity'] == 'medium')
+critical = sum(1 for r in results for m in r.get('matches', []) if m.get('severity') == 'critical')
+high = sum(1 for r in results for m in r.get('matches', []) if m.get('severity') == 'high')
+medium = sum(1 for r in results for m in r.get('matches', []) if m.get('severity') == 'medium')
 
 total_risk = (critical * 100) + (high * 10) + (medium * 3)
 
@@ -77,15 +91,20 @@ print()
 # Per-chain breakdown
 chain_stats = defaultdict(lambda: {'contracts': 0, 'findings': 0, 'risk': 0})
 for r in results:
-    chain = r['chain']
+    chain = r.get('chain', 'unknown')
+    matches = r.get('matches', [])
     chain_stats[chain]['contracts'] += 1
-    chain_stats[chain]['findings'] += len(r['matches'])
-    chain_stats[chain]['risk'] += sum(100 if m['severity'] == 'critical' else 10 if m['severity'] == 'high' else 3 for m in r['matches'])
+    chain_stats[chain]['findings'] += len(matches)
+    chain_stats[chain]['risk'] += sum(100 if m.get('severity') == 'critical' else 10 if m.get('severity') == 'high' else 3 for m in matches)
 
 print("📊 Per-Chain Breakdown:")
 for chain, stats in sorted(chain_stats.items(), key=lambda x: x[1]['risk'], reverse=True):
     print(f"  {chain}: {stats['contracts']} contracts, {stats['findings']} findings, Risk: {stats['risk']}")
 PYEOF
+then
+    echo "Error: Risk analysis failed" >&2
+    exit 1
+fi
 
 echo ""
 echo "💾 Full results: $OUTPUT_FILE"

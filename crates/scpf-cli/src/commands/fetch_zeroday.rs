@@ -141,7 +141,7 @@ pub async fn run(args: FetchZeroDayArgs) -> Result<()> {
     report.push_str(TEMPLATE_GUIDE);
 
     // Add summary
-    report.push_str(&format!("\n## 📊 Summary\n\n"));
+    report.push_str("\n## 📊 Summary\n\n");
     report.push_str(&format!("**Total Exploits:** {}\n", exploits.len()));
     report.push_str(&format!(
         "**Report Location:** `{}`\n\n",

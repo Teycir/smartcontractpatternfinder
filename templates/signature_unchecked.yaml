@@ -11,42 +11,42 @@ tags:
 patterns:
   # Unassigned ecrecover call
   - id: ecrecover-unassigned
-    kind: regex
-    pattern: '^\s*ecrecover\s*\([^;]+\);'
+    pattern: '^\s*ecrecover\s*\([^;]+?\);'
     message: |
       ecrecover return value completely ignored.
       
       The recovered address must be validated:
       1. Check it's not address(0) (invalid signature)
       2. Check it matches the expected signer
+    kind: regex
 
   # ECDSA.recover unassigned
   - id: ecdsa-recover-unassigned
-    kind: regex
-    pattern: '^\s*ECDSA\.recover\s*\([^;]+\);'
+    pattern: '^\s*ECDSA\.recover\s*\([^;]+?\);'
     message: "ECDSA.recover return value ignored"
+    kind: regex
 
   # Exclude patterns that are already checked
   - id: ecrecover-in-require
-    kind: regex
-    pattern: 'require\s*\([^)]*ecrecover[^)]*\s*[!=]=\s*\w+'
+    pattern: 'require\s*\([^)]*?ecrecover[^)]*?\s*[!=]=\s*\w+'
     message: "ecrecover validated in require (safe)"
     severity: info
+    kind: regex
 
   - id: ecdsa-in-require
-    kind: regex
-    pattern: 'require\s*\([^)]*ECDSA\.recover[^)]*\s*[!=]=\s*\w+'
+    pattern: 'require\s*\([^)]*?ECDSA\.recover[^)]*?\s*[!=]=\s*\w+'
     message: "ECDSA.recover validated in require (safe)"
     severity: info
+    kind: regex
 
   - id: recover-in-if
-    kind: regex
-    pattern: 'if\s*\([^)]*(?:ecrecover|ECDSA\.recover)[^)]*[!=]='
+    pattern: 'if\s*\([^)]*?(?:ecrecover|ECDSA\.recover)[^)]*?[!=]='
     message: "Signature recovery validated in if condition (safe)"
     severity: info
+    kind: regex
 
   - id: recover-in-return
-    kind: regex
-    pattern: 'return\s+.*(?:ecrecover|ECDSA\.recover).*[!=]='
+    pattern: 'return\s+.*?(?:ecrecover|ECDSA\.recover).*?[!=]='
     message: "Signature recovery compared in return (safe)"
     severity: info
+    kind: regex

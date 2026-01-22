@@ -252,11 +252,11 @@ impl ZeroDayFetcher {
                             
                             // Only process commits with .sol files
                             let files = commit.get("files").and_then(|f| f.as_array());
-                            let has_sol_file = files.as_ref().map_or(false, |f| {
+                            let has_sol_file = files.as_ref().is_some_and(|f| {
                                 f.iter().any(|file| {
                                     file.get("filename")
                                         .and_then(|n| n.as_str())
-                                        .map_or(false, |n| n.ends_with(".sol"))
+                                        .is_some_and(|n| n.ends_with(".sol"))
                                 })
                             });
 
@@ -357,11 +357,11 @@ impl ZeroDayFetcher {
 
                         // Only process commits with .sol or PoC files
                         let files = commit.get("files").and_then(|f| f.as_array());
-                        let has_poc_file = files.as_ref().map_or(false, |f| {
+                        let has_poc_file = files.as_ref().is_some_and(|f| {
                             f.iter().any(|file| {
                                 file.get("filename")
                                     .and_then(|n| n.as_str())
-                                    .map_or(false, |n| {
+                                    .is_some_and(|n| {
                                         n.ends_with(".sol") || n.contains("poc") || n.contains("exploit")
                                     })
                             })

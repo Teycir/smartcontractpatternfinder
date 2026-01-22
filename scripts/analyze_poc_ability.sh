@@ -4,7 +4,7 @@
 
 set -e
 
-RESULTS_FILE=${1:-$(ls -t results/scan_*.json 2>/dev/null | head -1)}
+RESULTS_FILE=${1:-$(find results -name "scan_*.json" -type f -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)}
 
 if [ -z "$RESULTS_FILE" ] || [ ! -f "$RESULTS_FILE" ]; then
     echo "❌ No results file found"
@@ -19,12 +19,23 @@ echo ""
 
 python3 << PYEOF
 import json
+import sys
 
-with open('$RESULTS_FILE') as f:
-    results = json.load(f)
+try:
+    with open('$RESULTS_FILE') as f:
+        results = json.load(f)
+except FileNotFoundError:
+    print(f"Error: File '$RESULTS_FILE' not found", file=sys.stderr)
+    sys.exit(1)
+except json.JSONDecodeError as e:
+    print(f"Error: Invalid JSON in '$RESULTS_FILE': {e}", file=sys.stderr)
+    sys.exit(1)
+except Exception as e:
+    print(f"Error: Failed to read results file: {e}", file=sys.stderr)
+    sys.exit(1)
 
 total = len(results)
-with_findings = [r for r in results if r['matches']]
+with_findings = [r for r in results if r.get('matches', [])]
 
 print(f"📊 SUMMARY:")
 print(f"  Total Contracts: {total}")
@@ -41,10 +52,10 @@ easy_findings = 0
 medium_findings = 0
 
 for contract in with_findings:
-    addr = contract['address']
+    addr = contract.get('address', 'unknown')
     
-    for match in contract['matches']:
-        pattern = match['pattern_id']
+    for match in contract.get('matches', []):
+        pattern = match.get('pattern_id', '')
         
         # TRIVIAL: 95-100% PoC success
         if any(p in pattern for p in ['unprotected-selfdestruct', 'missing-access-control', 'reentrancy-pattern']):
@@ -76,12 +87,13 @@ print()
 # Top 10 most PoC-able contracts
 pocable = []
 for contract in with_findings:
-    addr = contract['address']
+    addr = contract.get('address', 'unknown')
+    matches = contract.get('matches', [])
     
-    trivial_count = sum(1 for m in contract['matches'] 
-                       if any(p in m['pattern_id'] for p in ['unprotected-selfdestruct', 'missing-access-control', 'reentrancy-pattern']))
-    easy_count = sum(1 for m in contract['matches']
-                    if any(p in m['pattern_id'] for p in ['delegatecall-user-input', 'tx-origin', 'unchecked-call']))
+    trivial_count = sum(1 for m in matches 
+                       if any(p in m.get('pattern_id', '') for p in ['unprotected-selfdestruct', 'missing-access-control', 'reentrancy-pattern']))
+    easy_count = sum(1 for m in matches
+                    if any(p in m.get('pattern_id', '') for p in ['delegatecall-user-input', 'tx-origin', 'unchecked-call']))
     
     poc_score = (trivial_count * 3.0) + (easy_count * 2.0)
     
@@ -91,7 +103,7 @@ for contract in with_findings:
             'poc_score': poc_score,
             'trivial': trivial_count,
             'easy': easy_count,
-            'total': len(contract['matches'])
+            'total': len(matches)
         })
 
 pocable.sort(key=lambda x: x['poc_score'], reverse=True)

@@ -28,9 +28,7 @@ jobs:
           python scripts/fetch_0day_patterns.py || { echo "Error: Failed to fetch 0-day patterns"; exit 1; }
           
       - name: Setup Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
+        uses: dtolnay/rust-toolchain@stable
           
       - name: Run tests to validate new patterns
         run: |
@@ -39,7 +37,6 @@ jobs:
       - name: Create Pull Request
         id: create-pr
         uses: peter-evans/create-pull-request@v5
-        continue-on-error: true
         with:
           commit-message: 'feat: add 0-day patterns from security feeds'
           title: '🚨 Live 0-Day Patterns - {{ date }}'
@@ -66,9 +63,3 @@ jobs:
           branch: 0day-patterns-{{ date }}
           delete-branch: true
           labels: security,0-day,auto-generated
-          
-      - name: Check PR creation
-        if: steps.create-pr.outcome == 'failure'
-        run: |
-          echo "Error: Failed to create pull request"
-          exit 1

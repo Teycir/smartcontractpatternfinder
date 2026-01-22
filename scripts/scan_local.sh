@@ -19,9 +19,12 @@ cd "$(dirname "$0")/.." || exit 1
 mkdir -p "$OUTPUT_DIR"
 
 echo "📂 Scanning local .sol files..."
-cargo run --release --bin scpf -- scan \
+if ! cargo run --release --bin scpf -- scan \
   --min-severity "$MIN_SEVERITY" \
-  --output json > "$OUTPUT_FILE"
+  --output json > "$OUTPUT_FILE"; then
+    echo "Error: SCPF scan failed" >&2
+    exit 1
+fi
 
 echo ""
 echo "✅ Scan complete!"
@@ -32,19 +35,30 @@ echo ""
 echo "📈 Risk Analysis:"
 echo "============================="
 
-python3 << PYEOF
+if ! python3 << PYEOF
 import json
+import sys
 
-with open('$OUTPUT_FILE') as f:
-    results = json.load(f)
+try:
+    with open('$OUTPUT_FILE') as f:
+        results = json.load(f)
+except FileNotFoundError:
+    print(f"Error: File '$OUTPUT_FILE' not found", file=sys.stderr)
+    sys.exit(1)
+except json.JSONDecodeError as e:
+    print(f"Error: Invalid JSON in '$OUTPUT_FILE': {e}", file=sys.stderr)
+    sys.exit(1)
+except Exception as e:
+    print(f"Error: Failed to read results file: {e}", file=sys.stderr)
+    sys.exit(1)
 
 total_files = len(results)
-with_issues = sum(1 for r in results if r['matches'])
-total_findings = sum(len(r['matches']) for r in results)
+with_issues = sum(1 for r in results if r.get('matches', []))
+total_findings = sum(len(r.get('matches', [])) for r in results)
 
-critical = sum(1 for r in results for m in r['matches'] if m['severity'] == 'critical')
-high = sum(1 for r in results for m in r['matches'] if m['severity'] == 'high')
-medium = sum(1 for r in results for m in r['matches'] if m['severity'] == 'medium')
+critical = sum(1 for r in results for m in r.get('matches', []) if m.get('severity') == 'critical')
+high = sum(1 for r in results for m in r.get('matches', []) if m.get('severity') == 'high')
+medium = sum(1 for r in results for m in r.get('matches', []) if m.get('severity') == 'medium')
 
 total_risk = (critical * 100) + (high * 10) + (medium * 3)
 
@@ -71,12 +85,17 @@ print()
 
 if total_risk > 0:
     print("🔴 Top Risky Files:")
-    sorted_results = sorted(results, key=lambda r: sum(100 if m['severity'] == 'critical' else 10 if m['severity'] == 'high' else 3 for m in r['matches']), reverse=True)
+    sorted_results = sorted(results, key=lambda r: sum(100 if m.get('severity') == 'critical' else 10 if m.get('severity') == 'high' else 3 for m in r.get('matches', [])), reverse=True)
     for i, r in enumerate(sorted_results[:5], 1):
-        if r['matches']:
-            risk = sum(100 if m['severity'] == 'critical' else 10 if m['severity'] == 'high' else 3 for m in r['matches'])
-            print(f"  {i}. {r['address']} - Risk: {risk}")
+        matches = r.get('matches', [])
+        if matches:
+            risk = sum(100 if m.get('severity') == 'critical' else 10 if m.get('severity') == 'high' else 3 for m in matches)
+            print(f"  {i}. {r.get('address', 'unknown')} - Risk: {risk}")
 PYEOF
+then
+    echo "Error: Risk analysis failed" >&2
+    exit 1
+fi
 
 echo ""
 echo "💾 Full results: $OUTPUT_FILE"
