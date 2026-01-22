@@ -285,7 +285,7 @@ impl ZeroDayFetcher {
                         exploit.source,
                         exploit.date.format("%Y-%m-%d")
                     ),
-                    kind: PatternKind::Semantic,
+                    kind: PatternKind::Regex,
                 })
             })
             .collect();
@@ -414,29 +414,13 @@ impl std::fmt::Display for ExploitType {
     }
 }
 
-const REENTRANCY_PATTERN: &str = r#"(function_definition
-  body: (block
-    (expression_statement
-      (call_expression
-        function: (member_expression
-          property: (identifier) @call (#match? @call "^(call|transfer|send)$"))))
-    (expression_statement
-      (assignment_expression))))"#;
+const REENTRANCY_PATTERN: &str = r#"\.call\{value:"#;
 
-const ORACLE_PATTERN: &str = r#"(call_expression
-  function: (member_expression
-    property: (identifier) @method (#match? @method "^(getPrice|latestAnswer|latestRoundData)$")))"#;
+const ORACLE_PATTERN: &str = r#"(getPrice|latestAnswer|latestRoundData)\("#;
 
-const ACCESS_CONTROL_PATTERN: &str = r#"(function_definition
-  name: (identifier) @name
-  visibility: (visibility) @vis (#match? @vis "^(public|external)$"))"#;
+const ACCESS_CONTROL_PATTERN: &str = r#"function\s+(withdraw|mint|burn|transferOwnership|setOwner)\s*\([^)]*\)\s+(public|external)"#;
 
-const FLASH_LOAN_PATTERN: &str = r#"(function_definition
-  body: (block
-    (expression_statement
-      (binary_expression
-        (member_expression
-          property: (identifier) @balance (#eq? @balance "balance"))))))"#;
+const FLASH_LOAN_PATTERN: &str = r#"flashLoan|borrow.*repay|address\(this\)\.balance"#;
 
 #[cfg(test)]
 mod tests {

@@ -1,0 +1,12 @@
+id: zero-day-live
+name: Live 0-Day Detection
+description: 'Auto-generated from security feeds (Updated: 2026-01-21)'
+severity: critical
+tags:
+- zero-day
+- live
+patterns:
+- id: flash_loan_20260119
+  pattern: flashLoan|borrow.*repay|address\(this\)\.balance
+  message: Makina - defillama (2026-01-19)
+  kind: regex
