@@ -102,6 +102,8 @@ impl Scanner {
                 continue;
             }
 
+            let is_zeroday_template = compiled_template.template.id.contains("zero-day");
+
             for compiled_pattern in &compiled_template.patterns {
                 // All patterns are now regex-based
                 for mat in compiled_pattern.regex.find_iter(source) {
@@ -119,6 +121,11 @@ impl Scanner {
 
                     let context =
                         get_match_context(source, &newlines, mat.start(), mat.end(), line_number);
+
+                    // Skip OpenZeppelin safe patterns (only for 0-day templates)
+                    if is_zeroday_template && is_openzeppelin_safe_pattern(source, &context, mat.as_str()) {
+                        continue;
+                    }
 
                     matches.push(Match {
                         template_id: compiled_template.template.id.clone(),
@@ -455,5 +462,55 @@ fn is_version_gte_0_8(version: &Option<String>) -> bool {
             }
         }
     }
+    false
+}
+
+/// Detect if source code is OpenZeppelin library
+fn is_openzeppelin_library(source: &str) -> bool {
+    source.contains("@openzeppelin") 
+        || source.contains("OpenZeppelin")
+        || source.contains("@solady")
+        || source.contains("Solady")
+        || (source.contains("SPDX-License-Identifier: MIT")
+            && (source.contains("abstract contract") || source.contains("library ")))
+}
+
+/// Check if matched pattern is a safe OpenZeppelin pattern (only for 0-day scans)
+fn is_openzeppelin_safe_pattern(source: &str, context: &str, matched_text: &str) -> bool {
+    // First check if this is OpenZeppelin library code
+    if !is_openzeppelin_library(source) {
+        return false;
+    }
+
+    // Skip comments and documentation
+    let trimmed = context.trim_start();
+    if trimmed.starts_with("//") || trimmed.starts_with("*") {
+        return true;
+    }
+
+    // Safe unchecked blocks (OpenZeppelin uses these with overflow protection)
+    if matched_text == "unchecked" && context.contains("unchecked {") {
+        return true;
+    }
+
+    // Safe delegatecall in proxy patterns
+    if matched_text == "delegatecall" {
+        // Assembly delegatecall in proxy _delegate function
+        if context.contains("let result := delegatecall") {
+            return true;
+        }
+        // High-level delegatecall wrapper functions
+        if context.contains("target.delegatecall(data)") 
+            || context.contains("functionDelegateCall") {
+            return true;
+        }
+        // Proxy-related contexts
+        if context.contains("_implementation") 
+            || context.contains("Proxy") 
+            || context.contains("@dev This abstract contract") {
+            return true;
+        }
+    }
+
     false
 }

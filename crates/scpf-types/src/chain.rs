@@ -11,10 +11,8 @@ pub enum Chain {
     Base,
     Avalanche,
     Fantom,
-    ZkSync,
     Linea,
     Scroll,
-    Zora,
 }
 
 impl Chain {
@@ -28,28 +26,22 @@ impl Chain {
             Chain::Base => 8453,
             Chain::Avalanche => 43114,
             Chain::Fantom => 250,
-            Chain::ZkSync => 324,
             Chain::Linea => 59144,
             Chain::Scroll => 534352,
-            Chain::Zora => 7777777,
         }
     }
 
+    pub fn supports_v2_api(&self) -> bool {
+        true
+    }
+
+    pub fn requires_api_key(&self) -> bool {
+        true
+    }
+
     pub fn api_base_url(&self) -> &'static str {
-        match self {
-            Chain::Ethereum => "https://api.etherscan.io/v2/api",
-            Chain::Bsc => "https://api.bscscan.com/v2/api",
-            Chain::Polygon => "https://api.polygonscan.com/v2/api",
-            Chain::Arbitrum => "https://api.arbiscan.io/v2/api",
-            Chain::Optimism => "https://api-optimistic.etherscan.io/v2/api",
-            Chain::Base => "https://api.basescan.org/v2/api",
-            Chain::Avalanche => "https://api.snowtrace.io/v2/api",
-            Chain::Fantom => "https://api.ftmscan.com/v2/api",
-            Chain::ZkSync => "https://block-explorer-api.mainnet.zksync.io/api",
-            Chain::Linea => "https://api.lineascan.build/v2/api",
-            Chain::Scroll => "https://api.scrollscan.com/v2/api",
-            Chain::Zora => "https://explorer.zora.energy/api",
-        }
+        // Etherscan V2 Unified API - single endpoint for all supported chains
+        "https://api.etherscan.io/v2/api"
     }
 
     pub fn as_str(&self) -> &'static str {
@@ -62,10 +54,8 @@ impl Chain {
             Chain::Base => "base",
             Chain::Avalanche => "avalanche",
             Chain::Fantom => "fantom",
-            Chain::ZkSync => "zksync",
             Chain::Linea => "linea",
             Chain::Scroll => "scroll",
-            Chain::Zora => "zora",
         }
     }
 }
@@ -89,10 +79,8 @@ impl FromStr for Chain {
             "base" => Ok(Chain::Base),
             "avalanche" | "avax" => Ok(Chain::Avalanche),
             "fantom" | "ftm" => Ok(Chain::Fantom),
-            "zksync" | "zk" => Ok(Chain::ZkSync),
             "linea" => Ok(Chain::Linea),
             "scroll" => Ok(Chain::Scroll),
-            "zora" => Ok(Chain::Zora),
             _ => Err(format!("Unsupported chain: {}", s)),
         }
     }

@@ -197,24 +197,14 @@ impl ContractFetcher {
     }
 
     fn build_url_with_key(&self, address: &str, chain: Chain, key: &str) -> Result<String> {
-        // ZkSync and Zora don't use v2 API
-        if matches!(chain, Chain::ZkSync | Chain::Zora) {
-            Ok(format!(
-                "{}?module=contract&action=getsourcecode&address={}&apikey={}",
-                chain.api_base_url(),
-                address,
-                key
-            ))
-        } else {
-            // All Etherscan-based chains use v2 API with chainid
-            Ok(format!(
-                "{}?chainid={}&module=contract&action=getsourcecode&address={}&apikey={}",
-                chain.api_base_url(),
-                chain.chain_id(),
-                address,
-                key
-            ))
-        }
+        // All chains use Etherscan v2 API with chainid
+        Ok(format!(
+            "{}?chainid={}&module=contract&action=getsourcecode&address={}&apikey={}",
+            chain.api_base_url(),
+            chain.chain_id(),
+            address,
+            key
+        ))
     }
 
     /// Fetch recently deployed contracts from last N days
@@ -231,22 +221,13 @@ impl ContractFetcher {
             - (days * 24 * 60 * 60);
 
         // Get block number from N days ago
-        let block_url = if matches!(chain, Chain::ZkSync | Chain::Zora) {
-            format!(
-                "{}?module=block&action=getblocknobytime&timestamp={}&closest=before&apikey={}",
-                chain.api_base_url(),
-                cutoff_timestamp,
-                key
-            )
-        } else {
-            format!(
-                "{}?chainid={}&module=block&action=getblocknobytime&timestamp={}&closest=before&apikey={}",
-                chain.api_base_url(),
-                chain.chain_id(),
-                cutoff_timestamp,
-                key
-            )
-        };
+        let block_url = format!(
+            "{}?chainid={}&module=block&action=getblocknobytime&timestamp={}&closest=before&apikey={}",
+            chain.api_base_url(),
+            chain.chain_id(),
+            cutoff_timestamp,
+            key
+        );
 
         let response = self.client.get(&block_url).send().await?;
         let json: Value = response
@@ -263,22 +244,13 @@ impl ContractFetcher {
             .context("No block number in response")?;
 
         // Fetch contract creation events (OwnershipTransferred topic0)
-        let logs_url = if matches!(chain, Chain::ZkSync | Chain::Zora) {
-            format!(
-                "{}?module=logs&action=getLogs&fromBlock={}&toBlock=latest&topic0=0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0&page=1&offset=100&apikey={}",
-                chain.api_base_url(),
-                from_block,
-                key
-            )
-        } else {
-            format!(
-                "{}?chainid={}&module=logs&action=getLogs&fromBlock={}&toBlock=latest&topic0=0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0&page=1&offset=100&apikey={}",
-                chain.api_base_url(),
-                chain.chain_id(),
-                from_block,
-                key
-            )
-        };
+        let logs_url = format!(
+            "{}?chainid={}&module=logs&action=getLogs&fromBlock={}&toBlock=latest&topic0=0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0&page=1&offset=100&apikey={}",
+            chain.api_base_url(),
+            chain.chain_id(),
+            from_block,
+            key
+        );
 
         let response = self.client.get(&logs_url).send().await?;
         let text = response.text().await?;

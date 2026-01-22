@@ -1,9 +1,9 @@
 use anyhow::Result;
-use scpf_core::{Cache, ContractFetcher, Scanner, TemplateLoader};
-use scpf_types::ScanResult;
+use scpf_core::{ContractFetcher, TemplateLoader};
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Instant;
+
+use super::scan_common::{fetch_contracts, get_supported_chains, parse_severity, rank_and_score, scan_contracts};
 
 pub async fn scan_recent_contracts(
     days: u64,
@@ -11,39 +11,13 @@ pub async fn scan_recent_contracts(
     templates_path: &Option<PathBuf>,
 ) -> Result<()> {
     eprintln!("🔍 Scanning contracts updated in last {} days...", days);
-    eprintln!(
-        "   Severity filter: {} and above",
-        min_severity.to_uppercase()
-    );
+    eprintln!("   Severity filter: {} and above", min_severity.to_uppercase());
 
     let api_keys = crate::keys::load_api_keys_from_env();
     let fetcher = Arc::new(ContractFetcher::new(api_keys)?);
+    let chains = get_supported_chains();
 
-    let chains = vec![
-        scpf_types::Chain::Ethereum,
-        scpf_types::Chain::Bsc,
-        scpf_types::Chain::Polygon,
-        scpf_types::Chain::Arbitrum,
-        scpf_types::Chain::Optimism,
-        scpf_types::Chain::Base,
-    ];
-
-    let mut all_contracts = Vec::new();
-    for chain in &chains {
-        eprintln!("📡 Fetching from {}...", chain.as_str());
-        match fetcher.fetch_recent_contracts(*chain, days).await {
-            Ok(addresses) => {
-                eprintln!("   ✓ Found {} contracts", addresses.len());
-                for addr in addresses {
-                    all_contracts.push((addr, *chain));
-                }
-            }
-            Err(e) => {
-                eprintln!("   ✗ Failed: {}", e);
-            }
-        }
-    }
-
+    let all_contracts = fetch_contracts(&fetcher, &chains, days).await;
     if all_contracts.is_empty() {
         eprintln!("⚠️  No recent contracts found");
         return Ok(());
@@ -53,14 +27,9 @@ pub async fn scan_recent_contracts(
     eprintln!("🔎 Scanning {} contracts...", all_contracts.len());
     eprintln!();
 
-    let templates_dir = templates_path
-        .clone()
-        .unwrap_or_else(|| PathBuf::from("templates"));
-
-    // Load static templates
+    let templates_dir = templates_path.clone().unwrap_or_else(|| PathBuf::from("templates"));
     let mut templates = TemplateLoader::load_from_dir(&templates_dir).await?;
 
-    // Load 0-day templates if available
     let zeroday_dir = PathBuf::from("templates-zeroday/latest");
     if zeroday_dir.exists() {
         match TemplateLoader::load_from_dir(&zeroday_dir).await {
@@ -72,156 +41,9 @@ pub async fn scan_recent_contracts(
         }
     }
 
-    let scanner = Arc::new(tokio::sync::Mutex::new(Scanner::new(templates)?));
-
-    let cache_dir = dirs::cache_dir()
-        .map(|d| d.join("scpf"))
-        .unwrap_or_else(|| PathBuf::from(".cache"));
-    let cache = Arc::new(Cache::new(cache_dir).await?);
-
     let min_sev = parse_severity(min_severity);
-    let mut all_scan_results = Vec::new();
-
-    for (address, chain) in all_contracts {
-        let cache_key = format!("{}:{}", chain, address);
-        let source = if let Some(cached) = cache.get(&cache_key).await {
-            cached
-        } else {
-            match fetcher.fetch_source(&address, chain).await {
-                Ok(src) => {
-                    cache.set(&cache_key, &src).await?;
-                    src
-                }
-                Err(e) => {
-                    eprintln!("✗ {} - Failed: {}", &address[..10], e);
-                    continue;
-                }
-            }
-        };
-
-        let start = Instant::now();
-        let matches = scanner
-            .lock()
-            .await
-            .scan(&source, PathBuf::from(&address))?;
-        let scan_time_ms = start.elapsed().as_millis() as u64;
-
-        let filtered_matches: Vec<_> = matches
-            .into_iter()
-            .filter(|m| m.severity >= min_sev && m.severity >= scpf_types::Severity::High)
-            .collect();
-
-        // Analyze exploitability
-        let analyzed_matches: Vec<_> = filtered_matches
-            .into_iter()
-            .map(|m| {
-                let analysis = scpf_core::analyze_exploitability(&m);
-                (m, analysis)
-            })
-            .collect();
-
-        let exploitable_count = analyzed_matches
-            .iter()
-            .filter(|(_, a)| a.is_exploitable)
-            .count();
-        let false_positive_count = analyzed_matches
-            .iter()
-            .filter(|(_, a)| {
-                !a.is_exploitable && a.confidence == scpf_core::ExploitConfidence::High
-            })
-            .count();
-
-        if exploitable_count > 0 {
-            eprintln!(
-                "🚨 {} ({}) - {} exploitable, {} false positives",
-                &address[..10],
-                chain.as_str(),
-                exploitable_count,
-                false_positive_count
-            );
-        } else if !analyzed_matches.is_empty() {
-            eprintln!(
-                "⚠️  {} ({}) - {} needs review",
-                &address[..10],
-                chain.as_str(),
-                analyzed_matches.len()
-            );
-        } else {
-            eprintln!("✓ {} ({}) - Clean", &address[..10], chain.as_str());
-        }
-
-        all_scan_results.push(ScanResult {
-            address,
-            chain: chain.to_string(),
-            matches: analyzed_matches.into_iter().map(|(m, _)| m).collect(),
-            scan_time_ms,
-            solidity_version: extract_solidity_version(&source),
-        });
-    }
-
-    let mut scan_results: Vec<_> = all_scan_results
-        .into_iter()
-        .filter(|r| !r.matches.is_empty())
-        .collect();
-
-    // Sort by risk score and take top 100
-    scan_results.sort_by(|a, b| b.total_risk_score().cmp(&a.total_risk_score()));
-    let top_100: Vec<_> = scan_results.into_iter().take(100).collect();
-
-    // Calculate PoC scores and sort by exploitability
-    let mut with_poc_scores: Vec<_> = top_100
-        .into_iter()
-        .map(|r| {
-            let poc_score: f32 = r.matches.iter().map(|m| m.exploitability_score()).sum();
-            (r, poc_score)
-        })
-        .collect();
-
-    with_poc_scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-
-    // Debug: Print PoC scores
-    eprintln!("\n🎯 Top 10 by PoC Score:");
-    for (i, (r, score)) in with_poc_scores.iter().take(10).enumerate() {
-        eprintln!(
-            "  {}. {} - PoC: {:.1} (Risk: {})",
-            i + 1,
-            &r.address[..12],
-            score,
-            r.total_risk_score()
-        );
-    }
-    eprintln!();
-
-    // Keep all 100 ranked by PoC
-    let mut scan_results: Vec<_> = with_poc_scores.into_iter().map(|(r, _)| r).collect();
-
-    // Sort by exploitable count (most exploitable first)
-    scan_results.sort_by(|a, b| {
-        let a_exploitable = a
-            .matches
-            .iter()
-            .filter(|m| {
-                if let Some(_) = &m.function_context {
-                    scpf_core::analyze_exploitability(m).is_exploitable
-                } else {
-                    false
-                }
-            })
-            .count();
-        let b_exploitable = b
-            .matches
-            .iter()
-            .filter(|m| {
-                if let Some(_) = &m.function_context {
-                    scpf_core::analyze_exploitability(m).is_exploitable
-                } else {
-                    false
-                }
-            })
-            .count();
-        b_exploitable.cmp(&a_exploitable)
-    });
-
+    let all_scan_results = scan_contracts(all_contracts, templates, fetcher, min_sev).await?;
+    let scan_results = rank_and_score(all_scan_results);
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
@@ -483,23 +305,4 @@ pub async fn scan_recent_contracts(
     eprintln!("\n📝 Human-readable report: {}", txt_file.display());
 
     Ok(())
-}
-
-fn parse_severity(s: &str) -> scpf_types::Severity {
-    match s.to_lowercase().as_str() {
-        "critical" => scpf_types::Severity::Critical,
-        "high" => scpf_types::Severity::High,
-        _ => panic!(
-            "Invalid severity: {}. Only 'high' or 'critical' allowed.",
-            s
-        ),
-    }
-}
-
-fn extract_solidity_version(source: &str) -> Option<String> {
-    let pragma_regex = regex::Regex::new(r"pragma\s+solidity\s+([^;]+);").ok()?;
-    pragma_regex
-        .captures(source)
-        .and_then(|cap| cap.get(1))
-        .map(|m| m.as_str().trim().to_string())
 }
