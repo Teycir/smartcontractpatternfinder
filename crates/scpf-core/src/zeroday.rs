@@ -2,7 +2,6 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::path::Path;
 use tracing::{info, warn};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
