@@ -19,30 +19,36 @@ fn test_init_command_creates_structure() {
 }
 
 #[test]
-fn test_scan_command_no_templates() {
+fn test_templates_list_no_templates() {
     let temp_dir = TempDir::new().unwrap();
-    
+
     let mut cmd = cargo_bin_cmd!("scpf");
-    cmd.arg("scan")
-        .arg("0x1234567890123456789012345678901234567890")
+    cmd.arg("templates")
+        .arg("list")
+        .arg("--templates")
+        .arg(temp_dir.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("No templates found"));
+}
+
+#[test]
+fn test_templates_show_missing_template_fails() {
+    let temp_dir = TempDir::new().unwrap();
+
+    let mut cmd = cargo_bin_cmd!("scpf");
+    cmd.arg("templates")
+        .arg("show")
+        .arg("does-not-exist")
         .arg("--templates")
         .arg(temp_dir.path())
         .assert()
         .failure()
-        .stderr(predicate::str::contains("No templates found"));
+        .stderr(predicate::str::contains("Template 'does-not-exist' not found"));
 }
 
 #[test]
-fn test_scan_command_invalid_address() {
-    let mut cmd = cargo_bin_cmd!("scpf");
-    cmd.arg("scan")
-        .arg("invalid-address")
-        .assert()
-        .failure();
-}
-
-#[test]
-fn test_scan_with_mock_template() {
+fn test_templates_list_with_one_template() {
     let temp_dir = TempDir::new().unwrap();
     let templates_dir = temp_dir.path().join("templates");
     fs::create_dir_all(&templates_dir).unwrap();
@@ -51,7 +57,7 @@ fn test_scan_with_mock_template() {
 id: test-template
 name: Test Template
 description: Test pattern
-severity: low
+severity: high
 tags:
   - test
 patterns:
@@ -62,33 +68,12 @@ patterns:
     fs::write(templates_dir.join("test.yaml"), template_content).unwrap();
 
     let mut cmd = cargo_bin_cmd!("scpf");
-    cmd.arg("scan")
-        .arg("0x1234567890123456789012345678901234567890")
+    cmd.arg("templates")
+        .arg("list")
         .arg("--templates")
         .arg(&templates_dir)
         .assert()
         .success()
-        .stdout(predicate::str::contains("Loaded 1 templates"));
-}
-
-#[test]
-fn test_output_format_json() {
-    let mut cmd = cargo_bin_cmd!("scpf");
-    cmd.arg("scan")
-        .arg("0x1234567890123456789012345678901234567890")
-        .arg("--output")
-        .arg("json")
-        .assert()
-        .failure();
-}
-
-#[test]
-fn test_chain_argument() {
-    let mut cmd = cargo_bin_cmd!("scpf");
-    cmd.arg("scan")
-        .arg("0x1234567890123456789012345678901234567890")
-        .arg("--chain")
-        .arg("bsc")
-        .assert()
-        .failure();
+        .stdout(predicate::str::contains("Available templates"))
+        .stdout(predicate::str::contains("test-template"));
 }

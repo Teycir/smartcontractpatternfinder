@@ -39,11 +39,11 @@ pub async fn run(args: FetchZeroDayArgs) -> Result<()> {
         if let Some(loss) = exploit.loss_usd {
             println!("     💰 Loss: ${}", format_loss(loss).red());
         }
-        
+
         if let Some(chain) = &exploit.chain {
             println!("     ⛓️  Chain: {}", chain.dimmed());
         }
-        
+
         if let Some(addr) = &exploit.contract_address {
             println!("     📍 Contract: {}", addr.dimmed());
         }
@@ -53,19 +53,25 @@ pub async fn run(args: FetchZeroDayArgs) -> Result<()> {
     let output_dir = dirs::home_dir()
         .map(|h| h.join("smartcontractpatternfinder/0day-research"))
         .unwrap_or_else(|| PathBuf::from("0day-research"));
-    
+
     fs::create_dir_all(&output_dir)?;
-    
+
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_secs();
-    
+
     let report_file = output_dir.join(format!("{}_0day_news.md", timestamp));
-    
+
     let mut report = String::new();
     report.push_str("# 0-Day Exploit Research Report\n\n");
-    report.push_str(&format!("**Generated:** {}\n", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs()));
+    report.push_str(&format!(
+        "**Generated:** {}\n",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+    ));
     report.push_str(&format!("**Period:** Last {} days\n", args.days));
     report.push_str("**Purpose:** Manual template construction\n\n");
     report.push_str("---\n\n");
@@ -78,21 +84,22 @@ pub async fn run(args: FetchZeroDayArgs) -> Result<()> {
         }
 
         report.push_str(&format!("### {}\n\n", exploit.title));
-        report.push_str(&format!("**{}** | **{}**", 
-            exploit.date.format("%Y-%m-%d"), 
+        report.push_str(&format!(
+            "**{}** | **{}**",
+            exploit.date.format("%Y-%m-%d"),
             exploit.source
         ));
-        
+
         if let Some(addr) = &exploit.contract_address {
             report.push_str(&format!(" | `{}`", addr));
         }
-        
+
         if let Some(tx) = &exploit.tx_hash {
             report.push_str(&format!(" | `{}`", tx));
         }
-        
+
         report.push_str("\n\n**Links:** ");
-        
+
         if let Some(addr) = &exploit.contract_address {
             if let Some(chain) = &exploit.chain {
                 let explorer = match chain.as_str() {
@@ -106,7 +113,7 @@ pub async fn run(args: FetchZeroDayArgs) -> Result<()> {
                 report.push_str(&format!("[Contract]({}#code) | ", explorer));
             }
         }
-        
+
         if let Some(tx) = &exploit.tx_hash {
             if let Some(chain) = &exploit.chain {
                 let tx_url = match chain.as_str() {
@@ -120,20 +127,26 @@ pub async fn run(args: FetchZeroDayArgs) -> Result<()> {
                 report.push_str(&format!("[TX]({}#eventlog) | ", tx_url));
             }
         }
-        
+
         let search_query = exploit.title.replace(' ', "+");
-        report.push_str(&format!("[PoC](https://github.com/SunWeb3Sec/DeFiHackLabs/search?q={})\n\n", search_query));
+        report.push_str(&format!(
+            "[PoC](https://github.com/SunWeb3Sec/DeFiHackLabs/search?q={})\n\n",
+            search_query
+        ));
         report.push_str("**Vuln:** _TBD - analyze contract_\n\n");
         report.push_str("---\n\n");
     }
 
     // Add template creation guide
     report.push_str(TEMPLATE_GUIDE);
-    
+
     // Add summary
     report.push_str(&format!("\n## 📊 Summary\n\n"));
     report.push_str(&format!("**Total Exploits:** {}\n", exploits.len()));
-    report.push_str(&format!("**Report Location:** `{}`\n\n", report_file.display()));
+    report.push_str(&format!(
+        "**Report Location:** `{}`\n\n",
+        report_file.display()
+    ));
     report.push_str("**Workflow:**\n");
     report.push_str("1. ✅ News fetched\n");
     report.push_str("2. ⏳ Research exploits (manual)\n");
@@ -145,7 +158,11 @@ pub async fn run(args: FetchZeroDayArgs) -> Result<()> {
 
     println!();
     println!("{}", "═".repeat(50).cyan());
-    println!("{}  Report generated: {}", "✅".green(), report_file.display());
+    println!(
+        "{}  Report generated: {}",
+        "✅".green(),
+        report_file.display()
+    );
     println!();
     println!("{}  Quick Links:", "🔗".cyan());
     println!("   • DeFiHackLabs: https://github.com/SunWeb3Sec/DeFiHackLabs");

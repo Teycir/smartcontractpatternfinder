@@ -4,7 +4,7 @@
 
 set -e
 
-DAYS=${1:-7}
+DAYS=${1:-10}
 CHAIN=${2:-ethereum}
 MIN_SEVERITY=${3:-high}
 OUTPUT_DIR="results"

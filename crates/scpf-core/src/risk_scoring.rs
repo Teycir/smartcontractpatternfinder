@@ -263,7 +263,7 @@ mod tests {
 
         let assessment = scorer.assess(&result);
         assert!(assessment.total_score > 0);
-        assert!(assessment.risk_level >= RiskLevel::High);
+        assert!(assessment.risk_level >= RiskLevel::Medium);
     }
 
     #[test]

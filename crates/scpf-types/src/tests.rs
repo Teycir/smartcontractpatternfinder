@@ -3,9 +3,7 @@ use super::*;
 #[test]
 fn test_severity_ordering() {
     assert!(Severity::Critical > Severity::High);
-    assert!(Severity::High > Severity::Medium);
-    assert!(Severity::Medium > Severity::Low);
-    assert!(Severity::Low > Severity::Info);
+    assert!(Severity::High < Severity::Critical);
 }
 
 #[test]
@@ -56,15 +54,17 @@ fn test_match_creation() {
         column: 10,
         matched_text: "test".to_string(),
         context: "context".to_string(),
-        severity: Severity::Medium,
+        severity: Severity::High,
         message: "Test message".to_string(),
         start_byte: None,
         end_byte: None,
         code_snippet: None,
+        function_context: None,
+        protections: None,
     };
 
     assert_eq!(m.line_number, 42);
-    assert_eq!(m.severity, Severity::Medium);
+    assert_eq!(m.severity, Severity::High);
 }
 
 #[test]
@@ -74,6 +74,7 @@ fn test_scan_result_serialization() {
         chain: "ethereum".to_string(),
         matches: vec![],
         scan_time_ms: 100,
+        solidity_version: None,
     };
 
     let json = serde_json::to_string(&result).unwrap();

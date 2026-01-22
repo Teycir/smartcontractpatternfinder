@@ -2,13 +2,13 @@ use crate::cli::ScanArgs;
 use anyhow::Result;
 use colored::Colorize;
 
-pub async fn run_full_audit(_addresses: Vec<String>, args: ScanArgs) -> Result<()> {
+pub async fn run_full_audit(args: ScanArgs) -> Result<()> {
     println!("{}", "🔍 SCPF Security Audit (Static Only)".cyan().bold());
     println!("{}", "═".repeat(60).cyan());
     println!();
 
     println!("Running static template scan...");
-    crate::commands::scan_recent::scan_recent_contracts(10, "high", &args.templates).await?;
+    crate::commands::scan_recent::scan_recent_contracts(args).await?;
 
     println!();
     println!("{}", "═".repeat(60).cyan());

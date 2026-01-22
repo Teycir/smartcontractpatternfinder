@@ -6,23 +6,20 @@ use std::sync::Arc;
 use super::scan_common::{
     fetch_contracts, get_supported_chains, parse_severity, rank_and_score, scan_contracts,
 };
+use crate::cli::ScanArgs;
 
-pub async fn scan_recent_contracts(
-    days: u64,
-    min_severity: &str,
-    templates_path: &Option<PathBuf>,
-) -> Result<()> {
-    eprintln!("🔍 Scanning contracts updated in last {} days...", days);
+pub async fn scan_recent_contracts(args: ScanArgs) -> Result<()> {
+    eprintln!("🔍 Scanning contracts updated in last {} days...", args.days);
     eprintln!(
         "   Severity filter: {} and above",
-        min_severity.to_uppercase()
+        args.min_severity.to_uppercase()
     );
 
     let api_keys = crate::keys::load_api_keys_from_env();
     let fetcher = Arc::new(ContractFetcher::new(api_keys)?);
     let chains = get_supported_chains();
 
-    let all_contracts = fetch_contracts(&fetcher, &chains, days).await;
+    let all_contracts = fetch_contracts(&fetcher, &chains, args.days).await;
     if all_contracts.is_empty() {
         eprintln!("⚠️  No recent contracts found");
         return Ok(());
@@ -32,12 +29,12 @@ pub async fn scan_recent_contracts(
     eprintln!("🔎 Scanning {} contracts...", all_contracts.len());
     eprintln!();
 
-    let templates_dir = templates_path
+    let templates_dir = args.templates
         .clone()
         .unwrap_or_else(|| PathBuf::from("templates"));
     let templates = TemplateLoader::load_from_dir(&templates_dir).await?;
 
-    let min_sev = parse_severity(min_severity);
+    let min_sev = parse_severity(&args.min_severity);
     let all_scan_results = scan_contracts(all_contracts, templates, fetcher, min_sev).await?;
     let scan_results = rank_and_score(all_scan_results);
     let timestamp = std::time::SystemTime::now()

@@ -12,6 +12,7 @@ pragma solidity ^0.8.0;
 
 contract Test {
     bool private locked;
+    uint256 private balance;
     
     modifier nonReentrant() {
         require(!locked);
@@ -23,11 +24,13 @@ contract Test {
     // Protected - should be filtered
     function withdrawProtected() external nonReentrant {
         msg.sender.call{value: 1 ether}("");
+        balance = 0;
     }
     
     // Vulnerable - should be reported
     function withdrawVulnerable() external {
         msg.sender.call{value: 1 ether}("");
+        balance = 0;
     }
 }
 "#;
@@ -55,7 +58,14 @@ contract Test {
             "Expected 1 finding (withdrawVulnerable only), got {}",
             matches.len()
         );
-        assert_eq!(matches[0].line_number, 22, "Expected finding on line 22");
+        assert_eq!(
+            matches[0]
+                .function_context
+                .as_ref()
+                .map(|c| c.name.as_str()),
+            Some("withdrawVulnerable"),
+            "Expected finding in withdrawVulnerable()"
+        );
     }
 
     #[test]

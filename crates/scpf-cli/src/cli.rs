@@ -88,8 +88,8 @@ pub struct ScanArgs {
     // Filtering options
     #[arg(
         long,
-        default_value = "7",
-        help = "Scan contracts from last N days (fixed: 7)"
+        default_value = "10",
+        help = "Scan contracts from last N days"
     )]
     pub days: u64,
 

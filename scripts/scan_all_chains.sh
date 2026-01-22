@@ -4,7 +4,7 @@
 
 set -e
 
-DAYS=${1:-7}
+DAYS=${1:-10}
 MIN_SEVERITY=${2:-high}
 OUTPUT_DIR="results"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)

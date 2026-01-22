@@ -275,6 +275,8 @@ mod tests {
                 after: String::new(),
                 line_start: 10,
             }),
+            function_context: None,
+            protections: None,
         };
 
         let source = "function withdraw() public { msg.sender.call{value: balance}(\"\"); }";

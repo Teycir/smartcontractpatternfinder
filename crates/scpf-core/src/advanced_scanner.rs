@@ -344,6 +344,8 @@ mod tests {
             message: "Reentrancy detected".to_string(),
             start_byte: None,
             end_byte: None,
+            function_context: None,
+            protections: None,
         }];
 
         let report = scanner.deep_analysis(&findings, "contract Test {}", "Test");
