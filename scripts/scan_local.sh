@@ -21,9 +21,15 @@ mkdir -p "$OUTPUT_DIR"
 echo "📂 Scanning local .sol files..."
 if ! cargo run --release --bin scpf -- scan \
   --min-severity "$MIN_SEVERITY" \
-  --output json > "$OUTPUT_FILE"; then
+  --output json > "$OUTPUT_FILE" 2>&1; then
     echo "Error: SCPF scan failed" >&2
     exit 1
+fi
+
+# Check if file has valid JSON
+if [ ! -s "$OUTPUT_FILE" ] || ! jq empty "$OUTPUT_FILE" 2>/dev/null; then
+    echo "Warning: No valid JSON output generated" >&2
+    echo "[]" > "$OUTPUT_FILE"
 fi
 
 echo ""

@@ -30,7 +30,7 @@ patterns:
 
   # Regex: ERC20 approve
   - id: approve-frontrun-regex
-    pattern: '\.approve\s*\(\s*\w+\s*,\s*(?!0\s*\))[^)]+\)'
+    pattern: '\.approve\s*\(\s*\w+\s*,\s*[1-9][0-9]*\s*\)'
     message: "ERC20 approve() with non-zero value. Vulnerable to front-running - use increaseAllowance() or set to 0 first."
     kind: regex
 
