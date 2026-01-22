@@ -102,7 +102,7 @@ impl Scanner {
                 continue;
             }
 
-            let is_zeroday_template = compiled_template.template.id.contains("zero-day");
+            let _is_zeroday_template = compiled_template.template.id.contains("zero-day");
 
             for compiled_pattern in &compiled_template.patterns {
                 // All patterns are now regex-based
@@ -466,6 +466,7 @@ fn is_version_gte_0_8(version: &Option<String>) -> bool {
 }
 
 /// Detect if source code is OpenZeppelin library (not just imports it)
+#[allow(dead_code)]
 fn is_openzeppelin_library(source: &str) -> bool {
     // Only consider it library code if it's in a library file path or has library/abstract contract
     let has_library_indicators = source.contains("library ") || source.contains("abstract contract");
@@ -477,6 +478,7 @@ fn is_openzeppelin_library(source: &str) -> bool {
 }
 
 /// Check if matched pattern is a safe OpenZeppelin pattern (only for 0-day scans)
+#[allow(dead_code)]
 fn is_openzeppelin_safe_pattern(source: &str, context: &str, matched_text: &str) -> bool {
     // First check if this is OpenZeppelin library code
     if !is_openzeppelin_library(source) {

@@ -1,10 +1,11 @@
 use anyhow::Result;
 use std::path::PathBuf;
 
+#[allow(dead_code)]
 pub async fn scan_recent_0day_contracts(
     days: u64,
-    min_severity: &str,
-    templates_path: &Option<PathBuf>,
+    _min_severity: &str,
+    _templates_path: &Option<PathBuf>,
 ) -> Result<()> {
     eprintln!("⚠️  0-Day scanning disabled - use manual workflow");
     eprintln!("   1. Run: scpf fetch-zero-day --days {}", days);
