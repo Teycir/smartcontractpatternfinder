@@ -28,18 +28,7 @@ pub async fn scan_recent_contracts(
     eprintln!();
 
     let templates_dir = templates_path.clone().unwrap_or_else(|| PathBuf::from("templates"));
-    let mut templates = TemplateLoader::load_from_dir(&templates_dir).await?;
-
-    let zeroday_dir = PathBuf::from("templates-zeroday/latest");
-    if zeroday_dir.exists() {
-        match TemplateLoader::load_from_dir(&zeroday_dir).await {
-            Ok(zeroday_templates) => {
-                eprintln!("📡 Loaded {} 0-day templates", zeroday_templates.len());
-                templates.extend(zeroday_templates);
-            }
-            Err(e) => eprintln!("⚠️  Failed to load 0-day templates: {}", e),
-        }
-    }
+    let templates = TemplateLoader::load_from_dir(&templates_dir).await?;
 
     let min_sev = parse_severity(min_severity);
     let all_scan_results = scan_contracts(all_contracts, templates, fetcher, min_sev).await?;

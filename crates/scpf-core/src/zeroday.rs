@@ -11,21 +11,10 @@ pub struct Exploit {
     pub title: String,
     pub date: DateTime<Utc>,
     pub loss_usd: Option<u64>,
-    pub exploit_type: ExploitType,
     pub description: String,
     pub contract_address: Option<String>,
     pub tx_hash: Option<String>,
     pub chain: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ExploitType {
-    Reentrancy,
-    OracleManipulation,
-    AccessControl,
-    FlashLoan,
-    Unknown,
 }
 
 pub struct ZeroDayFetcher {
@@ -146,21 +135,31 @@ impl ZeroDayFetcher {
                 };
                 let title = message.lines().next().unwrap_or("").to_string();
 
-                // Try to get file path from commit to extract addresses from PoC
-                let files = commit.get("files").and_then(|f| f.as_array());
+                // Get commit SHA to fetch detailed info with files
+                let sha = match commit.get("sha").and_then(|s| s.as_str()) {
+                    Some(s) => s,
+                    None => continue,
+                };
+
+                // Fetch commit details to get files
+                let commit_detail_url = format!("https://api.github.com/repos/SunWeb3Sec/DeFiHackLabs/commits/{}", sha);
+                let commit_detail = match self.fetch_json::<serde_json::Value>(&commit_detail_url).await? {
+                    Some(d) => d,
+                    None => continue,
+                };
+
+                let files = commit_detail.get("files").and_then(|f| f.as_array());
                 let mut contract_address = extract_address(&title);
                 let mut tx_hash = extract_tx_hash(&title);
 
-                // If commit has files, try to fetch content for addresses
+                // Try to extract addresses from .sol files
                 if let Some(files_arr) = files {
                     for file in files_arr {
                         if let Some(filename) = file.get("filename").and_then(|f| f.as_str()) {
                             if filename.ends_with(".sol") || filename.ends_with(".t.sol") {
-                                // Try to fetch file content
                                 if let Some(raw_url) = file.get("raw_url").and_then(|u| u.as_str()) {
                                     if let Ok(resp) = self.client.get(raw_url).send().await {
                                         if let Ok(content) = resp.text().await {
-                                            // Extract addresses from PoC code
                                             if contract_address.is_none() {
                                                 contract_address = extract_address(&content);
                                             }
@@ -180,7 +179,6 @@ impl ZeroDayFetcher {
                     title: title.clone(),
                     date,
                     loss_usd: extract_loss(&title),
-                    exploit_type: classify_by_text(&title),
                     description: message.to_string(),
                     contract_address,
                     tx_hash,
@@ -295,7 +293,6 @@ impl ZeroDayFetcher {
                                 title: title.clone(),
                                 date,
                                 loss_usd: extract_loss(&title),
-                                exploit_type: classify_by_text(&title),
                                 description: message.to_string(),
                                 contract_address,
                                 tx_hash,
@@ -403,7 +400,6 @@ impl ZeroDayFetcher {
                             title: format!("{} - {}", repo_name, title),
                             date,
                             loss_usd: extract_loss(&title),
-                            exploit_type: classify_by_text(&title),
                             description: message.to_string(),
                             contract_address,
                             tx_hash,
@@ -418,59 +414,6 @@ impl ZeroDayFetcher {
         Ok(all_exploits)
     }
 
-    pub async fn generate_template(
-        &self,
-        exploits: Vec<Exploit>,
-        output_path: &Path,
-    ) -> Result<()> {
-        use scpf_types::{Pattern, Severity, Template};
-
-        let mut patterns = Vec::new();
-
-        for exploit in exploits {
-            let pattern_template = match exploit.exploit_type {
-                ExploitType::Reentrancy => REENTRANCY_PATTERN,
-                ExploitType::OracleManipulation => ORACLE_PATTERN,
-                ExploitType::AccessControl => ACCESS_CONTROL_PATTERN,
-                ExploitType::FlashLoan => FLASH_LOAN_PATTERN,
-                ExploitType::Unknown => GENERIC_VULNERABILITY_PATTERN,
-            };
-
-            patterns.push(Pattern {
-                id: format!(
-                    "{}_{}",
-                    exploit.exploit_type.to_string().to_lowercase(),
-                    exploit.date.format("%Y%m%d")
-                ),
-                pattern: pattern_template.to_string(),
-                message: format!(
-                    "{} - {} ({})",
-                    exploit.title,
-                    exploit.source,
-                    exploit.date.format("%Y-%m-%d")
-                ),
-                kind: scpf_types::PatternKind::Regex,
-            });
-        }
-
-        let template = Template {
-            id: "zero-day-live".to_string(),
-            name: "Live 0-Day Detection".to_string(),
-            description: format!(
-                "Generic patterns from last 7 days (Updated: {})",
-                Utc::now().format("%Y-%m-%d")
-            ),
-            severity: Severity::Critical,
-            tags: vec!["zero-day".to_string(), "live".to_string()],
-            patterns,
-        };
-
-        let yaml = serde_yaml::to_string(&template)?;
-        std::fs::write(output_path, yaml)?;
-
-        info!("Generated 0-day template with {} patterns", template.patterns.len());
-        Ok(())
-    }
 
     async fn fetch_rss_feeds(&self) -> Result<Vec<Exploit>> {
         info!("Fetching from RSS feeds (last 7 days)...");
@@ -525,7 +468,6 @@ fn parse_rss(xml: &str, cutoff: &DateTime<Utc>, source: &str) -> Vec<Exploit> {
                             title: title.clone(),
                             date: date_utc,
                             loss_usd: extract_loss(&title),
-                            exploit_type: classify_by_text(&title),
                             description: description.unwrap_or_default(),
                             contract_address: extract_address(&title),
                             tx_hash: extract_tx_hash(&title),
@@ -609,44 +551,6 @@ fn extract_loss(text: &str) -> Option<u64> {
     None
 }
 
-fn classify_by_text(text: &str) -> ExploitType {
-    let text_lower = text.to_lowercase();
-
-    if text_lower.contains("reentrancy") || text_lower.contains("reentrant") {
-        ExploitType::Reentrancy
-    } else if text_lower.contains("flash loan") || text_lower.contains("flashloan") {
-        ExploitType::FlashLoan
-    } else if text_lower.contains("oracle") || text_lower.contains("price manipulation") {
-        ExploitType::OracleManipulation
-    } else if text_lower.contains("access control") || text_lower.contains("unauthorized") {
-        ExploitType::AccessControl
-    } else {
-        ExploitType::Unknown
-    }
-}
-
-impl std::fmt::Display for ExploitType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ExploitType::Reentrancy => write!(f, "reentrancy"),
-            ExploitType::OracleManipulation => write!(f, "oracle_manipulation"),
-            ExploitType::AccessControl => write!(f, "access_control"),
-            ExploitType::FlashLoan => write!(f, "flash_loan"),
-            ExploitType::Unknown => write!(f, "unknown"),
-        }
-    }
-}
-
-const REENTRANCY_PATTERN: &str = r#"\.call\{value:"#;
-
-const ORACLE_PATTERN: &str = r#"(getPrice|latestAnswer|latestRoundData)\("#;
-
-const ACCESS_CONTROL_PATTERN: &str = r#"function\s+(withdraw|mint|burn|transferOwnership|setOwner)\s*\([^)]*\)\s+(public|external)"#;
-
-const FLASH_LOAN_PATTERN: &str = r#"flashLoan|borrow.*repay|address\(this\)\.balance"#;
-
-const GENERIC_VULNERABILITY_PATTERN: &str = r#"(delegatecall|selfdestruct|suicide|tx\.origin)|(unchecked\s*\{)"#;
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -698,27 +602,5 @@ mod tests {
         assert_eq!(extract_loss("No loss mentioned"), None);
     }
 
-    #[test]
-    fn test_classify_by_text() {
-        assert!(matches!(
-            classify_by_text("Reentrancy attack"),
-            ExploitType::Reentrancy
-        ));
-        assert!(matches!(
-            classify_by_text("Flash loan exploit"),
-            ExploitType::FlashLoan
-        ));
-        assert!(matches!(
-            classify_by_text("Oracle manipulation"),
-            ExploitType::OracleManipulation
-        ));
-        assert!(matches!(
-            classify_by_text("Access control bypass"),
-            ExploitType::AccessControl
-        ));
-        assert!(matches!(
-            classify_by_text("Unknown issue"),
-            ExploitType::Unknown
-        ));
-    }
+
 }

@@ -122,10 +122,10 @@ impl Scanner {
                     let context =
                         get_match_context(source, &newlines, mat.start(), mat.end(), line_number);
 
-                    // Skip OpenZeppelin safe patterns (only for 0-day templates)
-                    if is_zeroday_template && is_openzeppelin_safe_pattern(source, &context, mat.as_str()) {
-                        continue;
-                    }
+                    // OpenZeppelin whitelist disabled - was filtering too aggressively
+                    // if is_zeroday_template && is_openzeppelin_safe_pattern(source, &context, mat.as_str()) {
+                    //     continue;
+                    // }
 
                     matches.push(Match {
                         template_id: compiled_template.template.id.clone(),
@@ -465,14 +465,15 @@ fn is_version_gte_0_8(version: &Option<String>) -> bool {
     false
 }
 
-/// Detect if source code is OpenZeppelin library
+/// Detect if source code is OpenZeppelin library (not just imports it)
 fn is_openzeppelin_library(source: &str) -> bool {
-    source.contains("@openzeppelin") 
-        || source.contains("OpenZeppelin")
-        || source.contains("@solady")
-        || source.contains("Solady")
-        || (source.contains("SPDX-License-Identifier: MIT")
-            && (source.contains("abstract contract") || source.contains("library ")))
+    // Only consider it library code if it's in a library file path or has library/abstract contract
+    let has_library_indicators = source.contains("library ") || source.contains("abstract contract");
+    let has_oz_attribution = source.contains("@openzeppelin") || source.contains("OpenZeppelin");
+    let has_solady_attribution = source.contains("@solady") || source.contains("Solady");
+    
+    // Must have both library indicators AND attribution to be considered library code
+    has_library_indicators && (has_oz_attribution || has_solady_attribution)
 }
 
 /// Check if matched pattern is a safe OpenZeppelin pattern (only for 0-day scans)
