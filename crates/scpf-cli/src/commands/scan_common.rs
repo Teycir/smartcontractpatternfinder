@@ -6,11 +6,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 pub fn get_supported_chains() -> Vec<Chain> {
-    vec![
-        Chain::Ethereum,
-        Chain::Polygon,
-        Chain::Arbitrum,
-    ]
+    vec![Chain::Ethereum, Chain::Polygon, Chain::Arbitrum]
 }
 
 pub async fn fetch_contracts(

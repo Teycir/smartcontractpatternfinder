@@ -3,7 +3,9 @@ use scpf_core::{ContractFetcher, TemplateLoader};
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use super::scan_common::{fetch_contracts, get_supported_chains, parse_severity, rank_and_score, scan_contracts};
+use super::scan_common::{
+    fetch_contracts, get_supported_chains, parse_severity, rank_and_score, scan_contracts,
+};
 
 pub async fn scan_recent_contracts(
     days: u64,
@@ -11,7 +13,10 @@ pub async fn scan_recent_contracts(
     templates_path: &Option<PathBuf>,
 ) -> Result<()> {
     eprintln!("🔍 Scanning contracts updated in last {} days...", days);
-    eprintln!("   Severity filter: {} and above", min_severity.to_uppercase());
+    eprintln!(
+        "   Severity filter: {} and above",
+        min_severity.to_uppercase()
+    );
 
     let api_keys = crate::keys::load_api_keys_from_env();
     let fetcher = Arc::new(ContractFetcher::new(api_keys)?);
@@ -27,7 +32,9 @@ pub async fn scan_recent_contracts(
     eprintln!("🔎 Scanning {} contracts...", all_contracts.len());
     eprintln!();
 
-    let templates_dir = templates_path.clone().unwrap_or_else(|| PathBuf::from("templates"));
+    let templates_dir = templates_path
+        .clone()
+        .unwrap_or_else(|| PathBuf::from("templates"));
     let templates = TemplateLoader::load_from_dir(&templates_dir).await?;
 
     let min_sev = parse_severity(min_severity);
