@@ -26,12 +26,7 @@ async fn main() -> Result<()> {
         .init();
 
     let result = match cli.command {
-        Commands::Audit(args) => {
-            if args.addresses.is_empty() {
-                anyhow::bail!("Audit command requires contract addresses\nUsage: scpf audit 0x... 0x... --chain ethereum");
-            }
-            commands::audit::run_full_audit(args.addresses.clone(), args).await
-        }
+        Commands::Audit(args) => commands::audit::run_full_audit(args.addresses.clone(), args).await,
         Commands::Scan(args) => commands::scan_recent::scan_recent_contracts(args.days, &args.min_severity, &args.templates).await,
         Commands::Init(args) => commands::init::run(args).await,
         Commands::Templates(args) => match args.command {

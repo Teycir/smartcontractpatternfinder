@@ -56,13 +56,18 @@ pub async fn run(args: FetchZeroDayArgs) -> Result<()> {
         return Ok(());
     }
 
-    // Generate template
+    // Generate templates
     let output_path = args
         .output
         .unwrap_or_else(|| PathBuf::from("templates/zero_day_live.yaml"));
 
     println!("{}  Generating detection patterns...", "🔨".cyan());
     fetcher.generate_template(exploits, &output_path).await?;
+    println!(
+        "  {} 0-day patterns: {}",
+        "✓".green(),
+        output_path.display()
+    );
 
     println!();
     println!(

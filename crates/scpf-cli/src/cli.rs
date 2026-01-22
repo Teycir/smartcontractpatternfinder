@@ -165,7 +165,7 @@ pub struct TemplatesArgs {
 #[derive(Args)]
 pub struct FetchZeroDayArgs {
     #[arg(
-        short,
+        short = 'd',
         long,
         default_value = "7",
         help = "Fetch exploits from last N days"

@@ -13,7 +13,7 @@ echo ""
 # Create timestamped directory
 mkdir -p "${ZERODAY_DIR}"
 
-# Fetch 0-day patterns
+# Fetch 0-day patterns (7 days, all sources: GitHub + RSS)
 cargo run --release --bin scpf -- fetch-zero-day --days 7 --output "${ZERODAY_DIR}/zeroday.yaml"
 
 if [ -f "${ZERODAY_DIR}/zeroday.yaml" ]; then

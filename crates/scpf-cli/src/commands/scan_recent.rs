@@ -56,10 +56,10 @@ pub async fn scan_recent_contracts(
     let templates_dir = templates_path
         .clone()
         .unwrap_or_else(|| PathBuf::from("templates"));
-    
+
     // Load static templates
     let mut templates = TemplateLoader::load_from_dir(&templates_dir).await?;
-    
+
     // Load 0-day templates if available
     let zeroday_dir = PathBuf::from("templates-zeroday/latest");
     if zeroday_dir.exists() {
@@ -71,7 +71,7 @@ pub async fn scan_recent_contracts(
             Err(e) => eprintln!("⚠️  Failed to load 0-day templates: {}", e),
         }
     }
-    
+
     let scanner = Arc::new(tokio::sync::Mutex::new(Scanner::new(templates)?));
 
     let cache_dir = dirs::cache_dir()

@@ -33,3 +33,5 @@ Cargo.lock
 .env
 .env.local
 .env.*.local
+templates-zeroday
+audit_results

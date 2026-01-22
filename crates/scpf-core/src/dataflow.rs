@@ -80,7 +80,6 @@ impl DataFlowAnalyzer for ReentrancyAnalyzer {
                 severity: match risk.severity {
                     RiskSeverity::Critical => DataFlowSeverity::Critical,
                     RiskSeverity::High => DataFlowSeverity::High,
-                    RiskSeverity::High => DataFlowSeverity::High,
                 },
                 context: risk.call_method.clone(),
             })
