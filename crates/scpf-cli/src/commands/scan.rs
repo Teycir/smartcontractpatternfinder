@@ -284,14 +284,35 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
         .and_then(|s| s.parse::<usize>().ok())
         .unwrap_or(10);
     
+    let extract_by_risk = std::env::var("SCPF_EXTRACT_BY_RISK")
+        .ok()
+        .map(|s| s == "1" || s.to_lowercase() == "true")
+        .unwrap_or(false);
+    
+    // Extract exploitable contracts OR top by risk score
     if exploitable_count > 0 {
-        eprintln!("\n📄 Extracting top {} contract sources...", top_n);
+        eprintln!("\n📄 Extracting top {} exploitable contracts...", top_n);
         let mut sorted_exploitable: Vec<_> = exploitable_contracts.iter().map(|idx| (*idx, scan_results[*idx].total_risk_score())).collect();
         sorted_exploitable.sort_by(|a, b| b.1.cmp(&a.1));
         
         for (count, (idx, risk_score)) in sorted_exploitable.iter().take(top_n).enumerate() {
             let result = &scan_results[*idx];
             let cache_key = format!("{}:{}", result.chain, result.address);
+            
+            if let Some(source) = cache.get(&cache_key).await {
+                let output_file = root_dir.join(format!("{}_{}_risk{}.sol", count + 1, result.address, risk_score));
+                let lines = source.lines().count();
+                std::fs::write(&output_file, &source)?;
+                let size = std::fs::metadata(&output_file)?.len();
+                eprintln!("   ✅ [{}] {} - Risk: {} ({} KB, {} lines)", count + 1, &result.address[..12], risk_score, size / 1024, lines);
+            }
+        }
+    } else if extract_by_risk && !scan_results.is_empty() {
+        eprintln!("\n📄 Extracting top {} contracts by risk score...", top_n);
+        
+        for (count, result) in scan_results.iter().take(top_n).enumerate() {
+            let cache_key = format!("{}:{}", result.chain, result.address);
+            let risk_score = result.total_risk_score();
             
             if let Some(source) = cache.get(&cache_key).await {
                 let output_file = root_dir.join(format!("{}_{}_risk{}.sol", count + 1, result.address, risk_score));
