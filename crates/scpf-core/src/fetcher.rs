@@ -214,57 +214,114 @@ impl ContractFetcher {
             anyhow::bail!("No API keys configured for {}", chain.as_str());
         }
 
-        let key = &keys[0];
         let cutoff_timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)?
             .as_secs()
             - (days * 24 * 60 * 60);
 
-        let block_url = format!(
-            "{}?chainid={}&module=block&action=getblocknobytime&timestamp={}&closest=before&apikey={}",
-            chain.api_base_url(),
-            chain.chain_id(),
-            cutoff_timestamp,
-            key
-        );
+        let mut last_error = None;
 
-        let response = self.client.get(&block_url).send().await?;
-        let json: Value = response.json().await.context("Failed to decode block response")?;
+        for (idx, key) in keys.iter().enumerate() {
+            let block_url = format!(
+                "{}?chainid={}&module=block&action=getblocknobytime&timestamp={}&closest=before&apikey={}",
+                chain.api_base_url(),
+                chain.chain_id(),
+                cutoff_timestamp,
+                key
+            );
 
-        if json["status"].as_str() != Some("1") {
-            anyhow::bail!("Failed to get block number: {:?}", json["message"]);
-        }
+            let response = match self.client.get(&block_url).send().await {
+                Ok(r) => r,
+                Err(e) => {
+                    last_error = Some(anyhow::anyhow!("Request failed: {}", e));
+                    continue;
+                }
+            };
 
-        let from_block = json["result"].as_str().context("No block number in response")?;
+            let json: Value = match response.json().await {
+                Ok(j) => j,
+                Err(e) => {
+                    last_error = Some(anyhow::anyhow!("Failed to decode response: {}", e));
+                    continue;
+                }
+            };
 
-        // Fetch contract creation events (OwnershipTransferred topic0)
-        let logs_url = format!(
-            "{}?chainid={}&module=logs&action=getLogs&fromBlock={}&toBlock=latest&topic0=0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0&page=1&offset=100&apikey={}",
-            chain.api_base_url(),
-            chain.chain_id(),
-            from_block,
-            key
-        );
-
-        let response = self.client.get(&logs_url).send().await?;
-        let text = response.text().await?;
-        let json: Value = serde_json::from_str(&text).with_context(|| {
-            format!("Failed to decode logs response. Body: {}", &text[..text.len().min(500)])
-        })?;
-
-        if json["status"].as_str() != Some("1") {
-            anyhow::bail!("Failed to get logs: {:?}", json["message"]);
-        }
-
-        let logs = json["result"].as_array().context("No logs in response")?;
-
-        let mut addresses = std::collections::HashSet::new();
-        for log in logs {
-            if let Some(addr) = log["address"].as_str() {
-                addresses.insert(addr.to_string());
+            if json["status"].as_str() != Some("1") {
+                last_error = Some(anyhow::anyhow!("Failed to get block number: {:?}", json["message"]));
+                if idx < keys.len() - 1 {
+                    tracing::warn!("API key {} failed for block fetch, trying next key", idx + 1);
+                    continue;
+                }
+                break;
             }
+
+            let from_block = match json["result"].as_str() {
+                Some(b) => b,
+                None => {
+                    last_error = Some(anyhow::anyhow!("No block number in response"));
+                    continue;
+                }
+            };
+
+            let logs_url = format!(
+                "{}?chainid={}&module=logs&action=getLogs&fromBlock={}&toBlock=latest&topic0=0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0&page=1&offset=100&apikey={}",
+                chain.api_base_url(),
+                chain.chain_id(),
+                from_block,
+                key
+            );
+
+            let response = match self.client.get(&logs_url).send().await {
+                Ok(r) => r,
+                Err(e) => {
+                    last_error = Some(anyhow::anyhow!("Logs request failed: {}", e));
+                    continue;
+                }
+            };
+
+            let text = match response.text().await {
+                Ok(t) => t,
+                Err(e) => {
+                    last_error = Some(anyhow::anyhow!("Failed to read response: {}", e));
+                    continue;
+                }
+            };
+
+            let json: Value = match serde_json::from_str(&text) {
+                Ok(j) => j,
+                Err(e) => {
+                    last_error = Some(anyhow::anyhow!("Failed to parse JSON: {}", e));
+                    continue;
+                }
+            };
+
+            if json["status"].as_str() != Some("1") {
+                last_error = Some(anyhow::anyhow!("Failed to get logs: {:?}", json["message"]));
+                if idx < keys.len() - 1 {
+                    tracing::warn!("API key {} failed for logs fetch, trying next key", idx + 1);
+                    continue;
+                }
+                break;
+            }
+
+            let logs = match json["result"].as_array() {
+                Some(l) => l,
+                None => {
+                    last_error = Some(anyhow::anyhow!("No logs in response"));
+                    continue;
+                }
+            };
+
+            let mut addresses = std::collections::HashSet::new();
+            for log in logs {
+                if let Some(addr) = log["address"].as_str() {
+                    addresses.insert(addr.to_string());
+                }
+            }
+
+            return Ok(addresses.into_iter().collect());
         }
 
-        Ok(addresses.into_iter().collect())
+        Err(last_error.unwrap_or_else(|| anyhow::anyhow!("All API keys failed for {}", chain.as_str())))
     }
 }
