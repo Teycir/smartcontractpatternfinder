@@ -422,14 +422,14 @@ fn get_match_context(
     match_end: usize,
     line_number: usize,
 ) -> String {
-    const MAX_CONTEXT_CHARS: usize = 1000;
-    const CONTEXT_LINES: usize = 10;
+    const MAX_CONTEXT_CHARS: usize = 1500;
+    const CONTEXT_LINES: usize = 15;
 
     let match_len = match_end - match_start;
 
     if match_len > MAX_CONTEXT_CHARS {
-        let raw_start = match_start.saturating_sub(100);
-        let raw_end = (match_end + 100).min(source.len());
+        let raw_start = match_start.saturating_sub(150);
+        let raw_end = (match_end + 150).min(source.len());
         let start = adjust_to_char_boundary_start(source, raw_start);
         let end = adjust_to_char_boundary_end(source, raw_end);
         source[start..end].to_string()
