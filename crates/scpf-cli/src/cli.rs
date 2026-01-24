@@ -86,11 +86,7 @@ pub struct ScanArgs {
     pub update_templates: Option<i64>,
 
     // Filtering options
-    #[arg(
-        long,
-        default_value = "10",
-        help = "Scan contracts from last N days"
-    )]
+    #[arg(long, default_value = "10", help = "Scan contracts from last N days")]
     pub days: u64,
 
     #[arg(
@@ -165,12 +161,12 @@ pub struct TemplatesArgs {
 #[derive(Args)]
 pub struct FetchZeroDayArgs {
     #[arg(
-        short = 'd',
+        short,
         long,
         default_value = "7",
         help = "Fetch exploits from last N days"
     )]
-    pub days: i64,
+    pub days: u32,
 
     #[arg(short, long, help = "Output path for generated template")]
     pub output: Option<PathBuf>,

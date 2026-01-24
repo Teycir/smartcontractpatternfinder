@@ -367,6 +367,54 @@ fn compile_template(
     }))
 }
 
+/// Ensures the given index is at a valid UTF-8 character boundary by walking backward if needed.
+/// If the index is already at a boundary, returns it unchanged.
+/// If the index is beyond the string length, returns the string length.
+fn adjust_to_char_boundary_start(source: &str, index: usize) -> usize {
+    if index >= source.len() {
+        return source.len();
+    }
+
+    // If already at a valid boundary, return as-is
+    if source.is_char_boundary(index) {
+        return index;
+    }
+
+    // Walk backward to find a valid boundary
+    for i in (0..index).rev() {
+        if source.is_char_boundary(i) {
+            return i;
+        }
+    }
+
+    // If nothing found walking backward, return 0
+    0
+}
+
+/// Ensures the given index is at a valid UTF-8 character boundary by walking forward if needed.
+/// If the index is already at a boundary, returns it unchanged.
+/// If the index is beyond the string length, returns the string length.
+fn adjust_to_char_boundary_end(source: &str, index: usize) -> usize {
+    if index >= source.len() {
+        return source.len();
+    }
+
+    // If already at a valid boundary, return as-is
+    if source.is_char_boundary(index) {
+        return index;
+    }
+
+    // Walk forward to find a valid boundary
+    for i in (index + 1)..=source.len() {
+        if source.is_char_boundary(i) {
+            return i;
+        }
+    }
+
+    // If nothing found walking forward, return string length
+    source.len()
+}
+
 fn get_match_context(
     source: &str,
     newlines: &[usize],
@@ -380,8 +428,13 @@ fn get_match_context(
     let match_len = match_end - match_start;
 
     if match_len > MAX_CONTEXT_CHARS {
-        let start = match_start.saturating_sub(CONTEXT_PADDING);
-        let end = (match_end + CONTEXT_PADDING).min(source.len());
+        let raw_start = match_start.saturating_sub(CONTEXT_PADDING);
+        let raw_end = (match_end + CONTEXT_PADDING).min(source.len());
+
+        // Adjust to valid UTF-8 boundaries
+        let start = adjust_to_char_boundary_start(source, raw_start);
+        let end = adjust_to_char_boundary_end(source, raw_end);
+
         source[start..end].to_string()
     } else {
         let context_start = if line_number > 1 {

@@ -94,12 +94,24 @@ fn bench_scan_scaling(c: &mut Criterion) {
 }
 
 fn bench_line_index(c: &mut Criterion) {
-    let scanner = Scanner::new(vec![create_test_template()]).unwrap();
     let source = generate_contract(1000);
+    
+    // Build newlines vector (same as Scanner does internally)
+    let newlines: Vec<usize> = source.match_indices('\n').map(|(i, _)| i).collect();
+    
+    // Generate random byte positions to look up
+    let positions: Vec<usize> = (0..100)
+        .map(|i| (i * source.len()) / 100)
+        .collect();
     
     c.bench_function("line_index_lookup", |b| {
         b.iter(|| {
-            scanner.scan(black_box(&source), PathBuf::from("test.sol")).unwrap()
+            // Benchmark the line-number lookup operation using partition_point
+            for &pos in black_box(&positions) {
+                let line_number = newlines.partition_point(|&nl_pos| nl_pos < pos) + 1;
+                // Use the result to prevent optimization
+                black_box(line_number);
+            }
         })
     });
 }

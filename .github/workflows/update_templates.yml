@@ -11,6 +11,10 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
+      - name: Generate date
+        id: date
+        run: echo "value=$(date +%Y-%m-%d)" >> $GITHUB_OUTPUT
+      
       - name: Checkout repository
         uses: actions/checkout@v4
         
@@ -39,7 +43,7 @@ jobs:
         uses: peter-evans/create-pull-request@v5
         with:
           commit-message: 'feat: add 0-day patterns from security feeds'
-          title: '🚨 Live 0-Day Patterns - {{ date }}'
+          title: '🚨 Live 0-Day Patterns - ${{ steps.date.outputs.value }}'
           body: |
             **Auto-generated 0-day patterns from security feeds**
             
@@ -60,6 +64,6 @@ jobs:
             ```bash
             scpf scan <address> --templates templates/zero_day_live.yaml
             ```
-          branch: 0day-patterns-{{ date }}
+          branch: 0day-patterns-${{ steps.date.outputs.value }}
           delete-branch: true
           labels: security,0-day,auto-generated

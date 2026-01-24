@@ -45,7 +45,8 @@ async fn main() -> Result<()> {
 
     if let Err(e) = &result {
         eprintln!("{}", error_helper::format_error_with_help(e));
+        std::process::exit(1);
     }
 
-    result
+    Ok(())
 }

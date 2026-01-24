@@ -9,7 +9,10 @@ use super::scan_common::{
 use crate::cli::ScanArgs;
 
 pub async fn scan_recent_contracts(args: ScanArgs) -> Result<()> {
-    eprintln!("🔍 Scanning contracts updated in last {} days...", args.days);
+    eprintln!(
+        "🔍 Scanning contracts updated in last {} days...",
+        args.days
+    );
     eprintln!(
         "   Severity filter: {} and above",
         args.min_severity.to_uppercase()
@@ -29,7 +32,8 @@ pub async fn scan_recent_contracts(args: ScanArgs) -> Result<()> {
     eprintln!("🔎 Scanning {} contracts...", all_contracts.len());
     eprintln!();
 
-    let templates_dir = args.templates
+    let templates_dir = args
+        .templates
         .clone()
         .unwrap_or_else(|| PathBuf::from("templates"));
     let templates = TemplateLoader::load_from_dir(&templates_dir).await?;
