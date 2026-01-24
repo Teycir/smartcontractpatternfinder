@@ -1,7 +1,19 @@
 #!/bin/bash
+# SCPF Full Report Generator
+#
+# Usage:
+#   ./scripts/run_full_report.sh [DAYS] [TOP_N]
+#
+# Examples:
+#   ./scripts/run_full_report.sh              # Default: 10 days, top 10 contracts
+#   ./scripts/run_full_report.sh 7            # 7 days, top 10 contracts
+#   ./scripts/run_full_report.sh 10 5         # 10 days, top 5 contracts
+#   ./scripts/run_full_report.sh 30 20        # 30 days, top 20 contracts
+
 set -e
 
 DAYS=${1:-10}
+EXTRACT_TOP_N=${2:-10}
 TIMESTAMP=$(date +%s)
 REPORT_DIR="/home/teycir/smartcontractpatternfinderReports/report_${TIMESTAMP}"
 LOG_FILE="$REPORT_DIR/run.log"
@@ -13,6 +25,7 @@ echo "╭───────────────────────�
 echo "│  SCPF - Smart Contract Pattern Finder                     │"
 echo "╰────────────────────────────────────────────────────────────╯"
 echo "📅 Period: Last $DAYS days"
+echo "📄 Extract Top: $EXTRACT_TOP_N contracts"
 echo "🕒 Start: $START_TIME"
 echo "📂 Report: $REPORT_DIR"
 echo ""
@@ -29,6 +42,7 @@ echo ""
 
 export SCPF_REPORT_DIR="$REPORT_DIR"
 export SCPF_TIMESTAMP="$TIMESTAMP"
+export SCPF_EXTRACT_TOP_N="$EXTRACT_TOP_N"
 cargo run --release --bin scpf -- fetch-zero-day --days "$DAYS" 2>&1 | tee -a "$LOG_FILE"
 
 echo ""
