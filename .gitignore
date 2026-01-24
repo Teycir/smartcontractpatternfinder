@@ -36,3 +36,4 @@ Cargo.lock
 templates-zeroday
 audit_results
 .waylog
+.trunk/trunk.yaml
