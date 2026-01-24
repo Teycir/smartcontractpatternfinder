@@ -422,28 +422,29 @@ fn get_match_context(
     match_end: usize,
     line_number: usize,
 ) -> String {
-    const MAX_CONTEXT_CHARS: usize = 200;
-    const CONTEXT_PADDING: usize = 50;
+    const MAX_CONTEXT_CHARS: usize = 1000;
+    const CONTEXT_LINES: usize = 10;
 
     let match_len = match_end - match_start;
 
     if match_len > MAX_CONTEXT_CHARS {
-        let raw_start = match_start.saturating_sub(CONTEXT_PADDING);
-        let raw_end = (match_end + CONTEXT_PADDING).min(source.len());
-
-        // Adjust to valid UTF-8 boundaries
+        let raw_start = match_start.saturating_sub(100);
+        let raw_end = (match_end + 100).min(source.len());
         let start = adjust_to_char_boundary_start(source, raw_start);
         let end = adjust_to_char_boundary_end(source, raw_end);
-
         source[start..end].to_string()
     } else {
-        let context_start = if line_number > 1 {
-            newlines[line_number - 2] + 1
+        // Include CONTEXT_LINES before and after for better detection
+        let start_line = line_number.saturating_sub(CONTEXT_LINES);
+        let end_line = (line_number + CONTEXT_LINES).min(newlines.len());
+        
+        let context_start = if start_line > 1 {
+            newlines.get(start_line - 2).copied().unwrap_or(0) + 1
         } else {
             0
         };
         let context_end = newlines
-            .get(line_number - 1)
+            .get(end_line.saturating_sub(1))
             .copied()
             .unwrap_or(source.len());
         source[context_start..context_end].to_string()
