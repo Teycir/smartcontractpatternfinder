@@ -6,13 +6,13 @@ use std::fs;
 use std::path::PathBuf;
 
 pub async fn run(args: FetchZeroDayArgs) -> Result<()> {
-    println!("{}", "🔍 SCPF 0-Day News Extractor".cyan().bold());
-    println!("{}", "═".repeat(50).cyan());
-    println!();
+    eprintln!("{}", "🔍 SCPF 0-Day News Extractor".cyan().bold());
+    eprintln!("{}", "═".repeat(50).cyan());
+    eprintln!();
 
     let fetcher = ZeroDayFetcher::new()?;
 
-    println!(
+    eprintln!(
         "{}  Fetching exploits from last {} days...",
         "📡".cyan(),
         args.days
@@ -20,33 +20,13 @@ pub async fn run(args: FetchZeroDayArgs) -> Result<()> {
     let exploits = fetcher.fetch_recent_exploits(args.days as i64).await?;
 
     if exploits.is_empty() {
-        println!("{}  No recent exploits found", "⚠️".yellow());
+        eprintln!("{}  No recent exploits found", "⚠️".yellow());
         return Ok(());
     }
 
-    println!("{}  Found {} recent exploits:", "✓".green(), exploits.len());
-    println!();
-
-    for exploit in &exploits {
-        println!(
-            "  📰 {} - {} ({})",
-            exploit.title.bright_white(),
-            exploit.source.dimmed(),
-            exploit.date.format("%Y-%m-%d").to_string().dimmed()
-        );
-
-        if let Some(loss) = exploit.loss_usd {
-            println!("     💰 Loss: ${}", format_loss(loss).red());
-        }
-
-        if let Some(chain) = &exploit.chain {
-            println!("     ⛓️  Chain: {}", chain.dimmed());
-        }
-
-        if let Some(addr) = &exploit.contract_address {
-            println!("     📍 Contract: {}", addr.dimmed());
-        }
-    }
+    eprintln!("{}  Found {} recent exploits", "✓".green(), exploits.len());
+    eprintln!("⏳ Processing exploits...");
+    eprintln!();
 
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -125,14 +105,15 @@ pub async fn run(args: FetchZeroDayArgs) -> Result<()> {
     
     fs::write(&zeroday_summary, summary)?;
 
-    println!();
-    println!("{}", "═".repeat(50).cyan());
-    println!(
+    eprintln!("✅ Processing complete");
+    eprintln!();
+    eprintln!("{}", "═".repeat(50).cyan());
+    eprintln!(
         "{}  0-Day summary: {}",
         "✅".green(),
         zeroday_summary.display()
     );
-    println!();
+    eprintln!();
 
     Ok(())
 }

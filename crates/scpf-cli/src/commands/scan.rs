@@ -52,8 +52,11 @@ async fn scan_contracts(
     let cache = Arc::new(Cache::new(cache_dir).await?);
 
     let mut all_scan_results = Vec::new();
+    let total = contracts.len();
 
-    for (address, chain) in contracts {
+    eprintln!("⏳ Scanning {} contracts...", total);
+
+    for (_idx, (address, chain)) in contracts.into_iter().enumerate() {
         let cache_key = format!("{}:{}", chain, address);
         let source = if let Some(cached) = cache.get(&cache_key).await {
             cached
@@ -64,7 +67,7 @@ async fn scan_contracts(
                     src
                 }
                 Err(e) => {
-                    eprintln!("✗ {} - Failed: {}", &address[..10], e);
+                    eprintln!("✗ Error fetching {} ({}): {}", &address[..10], chain.as_str(), e);
                     continue;
                 }
             }
@@ -90,29 +93,6 @@ async fn scan_contracts(
             })
             .collect();
 
-        let exploitable_count = analyzed_matches
-            .iter()
-            .filter(|(_, a)| a.is_exploitable)
-            .count();
-
-        if exploitable_count > 0 {
-            eprintln!(
-                "🚨 {} ({}) - {} exploitable",
-                &address[..10],
-                chain.as_str(),
-                exploitable_count
-            );
-        } else if !analyzed_matches.is_empty() {
-            eprintln!(
-                "⚠️  {} ({}) - {} needs review",
-                &address[..10],
-                chain.as_str(),
-                analyzed_matches.len()
-            );
-        } else {
-            eprintln!("✓ {} ({}) - Clean", &address[..10], chain.as_str());
-        }
-
         all_scan_results.push(ScanResult {
             address,
             chain: chain.to_string(),
@@ -121,6 +101,8 @@ async fn scan_contracts(
             solidity_version: extract_solidity_version(&source),
         });
     }
+    
+    eprintln!("✅ Scanning complete\n");
 
     Ok(all_scan_results)
 }
@@ -220,9 +202,7 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     }
 
     eprintln!();
-    eprintln!("🔎 Scanning {} contracts...", all_contracts.len());
-    eprintln!();
-
+    eprintln!("⏳ Loading templates...");
     let templates_dir = args
         .templates
         .clone()
