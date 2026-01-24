@@ -17,7 +17,7 @@ pub async fn run(args: FetchZeroDayArgs) -> Result<()> {
         "📡".cyan(),
         args.days
     );
-    let exploits = fetcher.fetch_recent_exploits(args.days).await?;
+    let exploits = fetcher.fetch_recent_exploits(args.days as i64).await?;
 
     if exploits.is_empty() {
         println!("{}  No recent exploits found", "⚠️".yellow());

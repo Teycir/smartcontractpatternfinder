@@ -24,7 +24,7 @@ patterns:
 
   # Regex: Block-based randomness
   - id: block-randomness-regex
-    pattern: '(?:keccak256|sha256)\s*\(\s*(?:abi\.)?(?:encode|encodePacked)\s*\([^)]*block\.(?:timestamp|number|difficulty|prevrandao)'
+    pattern: '(?:keccak256|sha256)\s*\(\s*abi\.(?:encode|encodePacked)\s*\([^)]{0,100}block\.(?:timestamp|number|difficulty|prevrandao)'
     message: "Using block properties for randomness is predictable. Use verifiable randomness (VRF)."
     kind: regex
 
