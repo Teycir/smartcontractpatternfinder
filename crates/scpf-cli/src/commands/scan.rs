@@ -469,44 +469,32 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     std::fs::write(&txt_file, txt_output)?;
     eprintln!("\n📝 Human-readable report: {}", txt_file.display());
 
-    // Generate single executive summary at root
+    // Generate vulnerability summary at root
     let root_dir = PathBuf::from("/home/teycir/smartcontractpatternfinderReports");
-    let exec_summary = root_dir.join("EXECUTIVE_SUMMARY.md");
+    let vuln_summary = root_dir.join(format!("vuln_summary_{}_run.md", timestamp));
     
     let mut summary = String::new();
-    summary.push_str("# 🚨 SCPF Full Security Report\n\n");
+    summary.push_str("# 🚨 Vulnerability Scan Summary\n\n");
     summary.push_str(&format!("**Generated:** {}\n", timestamp));
     summary.push_str(&format!("**Period:** Last {} days\n\n", args.days));
     summary.push_str("---\n\n");
-    
-    // Include 0-day info if available
-    let zeroday_dir = root_dir.join("0days");
-    if let Ok(entries) = std::fs::read_dir(&zeroday_dir) {
-        if let Some(latest) = entries.filter_map(|e| e.ok()).filter(|e| e.path().extension().map_or(false, |ext| ext == "md")).max_by_key(|e| e.metadata().ok().and_then(|m| m.modified().ok()).unwrap_or(std::time::SystemTime::UNIX_EPOCH)) {
-            if let Ok(content) = std::fs::read_to_string(latest.path()) {
-                if let Some(exploits_section) = content.split("## 📰 Recent Exploits").nth(1) {
-                    summary.push_str("## 🔥 Recent 0-Day Exploits\n\n");
-                    summary.push_str("## 📰 Recent Exploits");
-                    summary.push_str(&exploits_section.lines().take(50).collect::<Vec<_>>().join("\n"));
-                    summary.push_str("\n\n---\n\n");
-                }
-            }
-        }
-    }
-    
-    summary.push_str("## 📊 Vulnerability Scan Results\n\n");
+    summary.push_str("## 📊 Scan Results\n\n");
     summary.push_str(&format!("- **Contracts Scanned:** {}\n", scan_results.len()));
     summary.push_str(&format!("- **Exploitable Contracts:** {}\n", exploitable_count));
     summary.push_str(&format!("- **Total Findings:** {}\n\n", stats.exploitable.len() + stats.false_positives.len() + stats.needs_review.len()));
     
     if exploitable_count > 0 {
-        summary.push_str("## 🚨 CRITICAL: Exploitable Contracts\n\n");
-        for idx in &exploitable_contracts {
-            let result = &scan_results[*idx];
-            let exploitable: Vec<_> = stats.exploitable.iter().filter(|(i, _, _)| i == idx).collect();
+        summary.push_str("## 🚨 CRITICAL: Exploitable Contracts (Ranked by Risk Score)\n\n");
+        
+        let mut sorted_exploitable: Vec<_> = exploitable_contracts.iter().map(|idx| (*idx, scan_results[*idx].total_risk_score())).collect();
+        sorted_exploitable.sort_by(|a, b| b.1.cmp(&a.1));
+        
+        for (idx, risk_score) in sorted_exploitable {
+            let result = &scan_results[idx];
+            let exploitable: Vec<_> = stats.exploitable.iter().filter(|(i, _, _)| *i == idx).collect();
             
             summary.push_str(&format!("### {} ({})", result.address, result.chain));
-            summary.push_str(&format!(" - Risk Score: {}\n\n", result.total_risk_score()));
+            summary.push_str(&format!(" - Risk Score: {}\n\n", risk_score));
             
             for (_, m, analysis) in &exploitable {
                 if let Some(ctx) = &m.function_context {
@@ -522,11 +510,10 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     
     summary.push_str("\n---\n\n");
     summary.push_str("## 📂 Full Reports\n\n");
-    summary.push_str(&format!("- 0-Day News: `{}/0days/`\n", root_dir.display()));
-    summary.push_str(&format!("- Vulnerability Scans: `{}/scans/`\n", root_dir.display()));
+    summary.push_str(&format!("- Detailed Scans: `{}/scans/`\n", root_dir.display()));
     
-    std::fs::write(&exec_summary, summary)?;
-    eprintln!("📊 Executive summary: {}", exec_summary.display());
+    std::fs::write(&vuln_summary, summary)?;
+    eprintln!("📊 Vulnerability summary: {}", vuln_summary.display());
 
     Ok(())
 }
