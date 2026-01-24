@@ -93,12 +93,15 @@ async fn scan_contracts(
             })
             .collect();
 
+        let source_size_kb = source.len() as f64 / 1024.0;
+        
         all_scan_results.push(ScanResult {
             address,
             chain: chain.to_string(),
             matches: analyzed_matches.into_iter().map(|(m, _)| m).collect(),
             scan_time_ms,
             solidity_version: extract_solidity_version(&source),
+            source_size_kb: Some(source_size_kb),
         });
     }
     
@@ -109,7 +112,20 @@ async fn scan_contracts(
 
 fn rank_and_score(mut scan_results: Vec<ScanResult>) -> Vec<ScanResult> {
     scan_results.retain(|r| !r.matches.is_empty());
-    scan_results.sort_by_key(|b| std::cmp::Reverse(b.total_risk_score()));
+    
+    // Deduplicate by size (3 decimal precision)
+    let mut seen_sizes = std::collections::HashSet::new();
+    scan_results.retain(|r| {
+        if let Some(size) = r.source_size_kb {
+            let size_key = (size * 1000.0).round() as i64;
+            seen_sizes.insert(size_key)
+        } else {
+            true
+        }
+    });
+    
+    // Sort by weighted risk score (normalized by size)
+    scan_results.sort_by(|a, b| b.weighted_risk_score().partial_cmp(&a.weighted_risk_score()).unwrap());
 
     let top_100: Vec<_> = scan_results.into_iter().take(100).collect();
     let mut with_poc_scores: Vec<_> = top_100
@@ -124,11 +140,13 @@ fn rank_and_score(mut scan_results: Vec<ScanResult>) -> Vec<ScanResult> {
 
     eprintln!("\n🎯 Top 10 by PoC Score:");
     for (i, (r, score)) in with_poc_scores.iter().take(10).enumerate() {
+        let weighted = r.weighted_risk_score();
         eprintln!(
-            "  {}. {} - PoC: {:.1} (Risk: {})",
+            "  {}. {} - PoC: {:.1} (Weighted Risk: {:.1}, Raw: {})",
             i + 1,
             &r.address[..12],
             score,
+            weighted,
             r.total_risk_score()
         );
     }
@@ -249,17 +267,17 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     summary.push_str(&format!("- **Total Findings:** {}\n\n", stats.exploitable.len() + stats.false_positives.len() + stats.needs_review.len()));
     
     if exploitable_count > 0 {
-        summary.push_str("## 🚨 CRITICAL: Exploitable Contracts (Ranked by Risk Score)\n\n");
+        summary.push_str("## 🚨 CRITICAL: Exploitable Contracts (Ranked by Weighted Risk Score)\n\n");
         
-        let mut sorted_exploitable: Vec<_> = exploitable_contracts.iter().map(|idx| (*idx, scan_results[*idx].total_risk_score())).collect();
-        sorted_exploitable.sort_by(|a, b| b.1.cmp(&a.1));
+        let mut sorted_exploitable: Vec<_> = exploitable_contracts.iter().map(|idx| (*idx, scan_results[*idx].weighted_risk_score())).collect();
+        sorted_exploitable.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
         
-        for (idx, risk_score) in sorted_exploitable {
+        for (idx, weighted_risk) in sorted_exploitable {
             let result = &scan_results[idx];
             let exploitable: Vec<_> = stats.exploitable.iter().filter(|(i, _, _)| *i == idx).collect();
             
             summary.push_str(&format!("### {} ({})", result.address, result.chain));
-            summary.push_str(&format!(" - Risk Score: {}\n\n", risk_score));
+            summary.push_str(&format!(" - Weighted Risk: {:.1} (Raw: {})\n\n", weighted_risk, result.total_risk_score()));
             
             for (_, m, analysis) in &exploitable {
                 if let Some(ctx) = &m.function_context {
@@ -292,19 +310,19 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     // Extract exploitable contracts OR top by risk score
     if exploitable_count > 0 {
         eprintln!("\n📄 Extracting top {} exploitable contracts...", top_n);
-        let mut sorted_exploitable: Vec<_> = exploitable_contracts.iter().map(|idx| (*idx, scan_results[*idx].total_risk_score())).collect();
-        sorted_exploitable.sort_by(|a, b| b.1.cmp(&a.1));
+        let mut sorted_exploitable: Vec<_> = exploitable_contracts.iter().map(|idx| (*idx, scan_results[*idx].weighted_risk_score())).collect();
+        sorted_exploitable.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
         
-        for (count, (idx, risk_score)) in sorted_exploitable.iter().take(top_n).enumerate() {
+        for (count, (idx, weighted_risk)) in sorted_exploitable.iter().take(top_n).enumerate() {
             let result = &scan_results[*idx];
             let cache_key = format!("{}:{}", result.chain, result.address);
             
             if let Some(source) = cache.get(&cache_key).await {
-                let output_file = root_dir.join(format!("{}_{}_risk{}.sol", count + 1, result.address, risk_score));
+                let output_file = root_dir.join(format!("{}_{}_risk{:.0}.sol", count + 1, result.address, weighted_risk));
                 let lines = source.lines().count();
                 std::fs::write(&output_file, &source)?;
                 let size = std::fs::metadata(&output_file)?.len();
-                eprintln!("   ✅ [{}] {} - Risk: {} ({} KB, {} lines)", count + 1, &result.address[..12], risk_score, size / 1024, lines);
+                eprintln!("   ✅ [{}] {} - Weighted Risk: {:.1} ({} KB, {} lines)", count + 1, &result.address[..12], weighted_risk, size / 1024, lines);
             }
         }
     } else if extract_by_risk && !scan_results.is_empty() {
@@ -312,14 +330,14 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
         
         for (count, result) in scan_results.iter().take(top_n).enumerate() {
             let cache_key = format!("{}:{}", result.chain, result.address);
-            let risk_score = result.total_risk_score();
+            let weighted_risk = result.weighted_risk_score();
             
             if let Some(source) = cache.get(&cache_key).await {
-                let output_file = root_dir.join(format!("{}_{}_risk{}.sol", count + 1, result.address, risk_score));
+                let output_file = root_dir.join(format!("{}_{}_risk{:.0}.sol", count + 1, result.address, weighted_risk));
                 let lines = source.lines().count();
                 std::fs::write(&output_file, &source)?;
                 let size = std::fs::metadata(&output_file)?.len();
-                eprintln!("   ✅ [{}] {} - Risk: {} ({} KB, {} lines)", count + 1, &result.address[..12], risk_score, size / 1024, lines);
+                eprintln!("   ✅ [{}] {} - Weighted Risk: {:.1} ({} KB, {} lines)", count + 1, &result.address[..12], weighted_risk, size / 1024, lines);
             }
         }
     }

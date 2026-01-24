@@ -180,6 +180,8 @@ pub struct ScanResult {
     pub scan_time_ms: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub solidity_version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_size_kb: Option<f64>,
 }
 
 impl ScanResult {
@@ -189,6 +191,20 @@ impl ScanResult {
     /// Weights: CRITICAL=100, HIGH=10 (Medium/Low/Info excluded)
     pub fn total_risk_score(&self) -> u32 {
         self.matches.iter().map(|m| m.risk_score()).sum()
+    }
+
+    /// Calculate size-weighted risk score (normalized per 100KB)
+    /// 
+    /// Formula: (total_risk_score / size_kb) × 100
+    /// This normalizes risk by contract size to avoid bias toward larger contracts
+    pub fn weighted_risk_score(&self) -> f64 {
+        let base_score = self.total_risk_score() as f64;
+        if let Some(size_kb) = self.source_size_kb {
+            if size_kb > 0.0 {
+                return (base_score / size_kb) * 100.0;
+            }
+        }
+        base_score
     }
 
     /// Get risk level based on total score
