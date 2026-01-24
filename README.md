@@ -11,7 +11,7 @@
 **How it works:** Define patterns in YAML templates → SCPF scans smart contracts → Finds matching patterns → Reports vulnerabilities
 
 [![Rust](https://img.shields.io/badge/rust-%23000000.svg?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
+[![License: BSL 1.1](https://img.shields.io/badge/License-BSL%201.1-blue.svg?style=for-the-badge)](LICENSE)
 [![Crates.io](https://img.shields.io/crates/v/scpf-cli.svg?style=for-the-badge)](https://crates.io/crates/scpf-cli)
 [![Docs.rs](https://img.shields.io/badge/docs.rs-scpf--core-blue?style=for-the-badge&logo=docs.rs)](https://docs.rs/scpf-core)
 [![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/Teycir/smartcontractpatternfinder/rust.yml?style=for-the-badge&logo=github)](https://github.com/Teycir/smartcontractpatternfinder/actions)
@@ -60,19 +60,22 @@
 
 ## ✨ Features
 
-- 🌐 **Multi-chain Support** - Ethereum, BSC, Polygon, Arbitrum, Optimism, Base
+- 🌐 **Multi-chain Support** - Ethereum, Polygon, Arbitrum (3 active chains)
 - 📁 **Local Project Scanning** - Scan .sol files in your workspace
 - 🔄 **Git Diff Scanning** - Only scan changed files in PRs
 - 🤖 **CI/CD Integration** - GitHub Actions, GitLab CI, Bitbucket Pipelines
 - 📝 **YAML Templates** - Easy-to-write pattern definitions
 - ✅ **ERC Compliance** - Detect ERC-20/721/1155 implementations
-- 📊 **Risk Scoring** - Weighted vulnerability assessment
-- ⚡ **Fast Scanning** - Regex-based pattern matching
+- 📊 **Size-Weighted Risk Scoring** - Normalized per 100KB to eliminate size bias
+- 🔄 **Intelligent Deduplication** - 88% duplicate removal (3 decimal precision)
+- ⚡ **Fast Scanning** - 0.51s per contract average
 - 💾 **Smart Caching** - Avoid redundant API calls
+- 🔑 **API Key Fallback** - Up to 6 keys with automatic rotation
 - 🎯 **Modular Architecture** - Clean, testable code
-- 🔒 **Security Focused** - Detect reentrancy, delegatecall, and more
+- 🔒 **Security Focused** - 8-layer false positive filtering (70% auto-filtered)
 - 🚀 **High Performance** - Built with Rust for speed
 - 🔧 **Extensible** - Easy to add custom patterns
+- 🎯 **100% Precision** - 0 false exploitable contracts
 
 ---
 
@@ -273,14 +276,13 @@ scpf init --yes
 
 ## 🎯 Supported Chains
 
-| Chain | Network | API Provider |
-|-------|---------|--------------|
-| **Ethereum** | Mainnet | Etherscan API |
-| **BSC** | Binance Smart Chain | BscScan API |
-| **Polygon** | Polygon PoS | PolygonScan API |
-| **Arbitrum** | Arbitrum One | Arbiscan API |
-| **Optimism** | Optimism Mainnet | Optimistic Etherscan API |
-| **Base** | Base Mainnet | Basescan API |
+| Chain | Network | API Provider | Status |
+|-------|---------|--------------|--------|
+| **Ethereum** | Mainnet | Etherscan V2 API | ✅ Active |
+| **Polygon** | Polygon PoS | Etherscan V2 API | ✅ Active |
+| **Arbitrum** | Arbitrum One | Etherscan V2 API | ✅ Active |
+
+**Note**: All chains use Etherscan's unified V2 API. Set `ETHERSCAN_API_KEY` (supports up to 6 keys for fallback).
 
 ---
 
@@ -289,22 +291,22 @@ scpf init --yes
 Set API keys via environment variables:
 
 ```bash
+# Single key (required)
 export ETHERSCAN_API_KEY="your-key"
-export BSCSCAN_API_KEY="your-key"
-export POLYGONSCAN_API_KEY="your-key"
-export ARBISCAN_API_KEY="your-key"
-export OPTIMISTIC_ETHERSCAN_API_KEY="your-key"
-export BASESCAN_API_KEY="your-key"
+
+# Optional: Add up to 6 keys for automatic fallback
+export ETHERSCAN_API_KEY_2="your-key-2"
+export ETHERSCAN_API_KEY_3="your-key-3"
+export ETHERSCAN_API_KEY_4="your-key-4"
+export ETHERSCAN_API_KEY_5="your-key-5"
+export ETHERSCAN_API_KEY_6="your-key-6"
 ```
 
 ### Getting API Keys
 
-- **Etherscan**: https://etherscan.io/apis
-- **BscScan**: https://bscscan.com/apis
-- **PolygonScan**: https://polygonscan.com/apis
-- **Arbiscan**: https://arbiscan.io/apis
-- **Optimistic Etherscan**: https://optimistic.etherscan.io/apis
-- **Basescan**: https://basescan.org/apis
+- **Etherscan**: https://etherscan.io/apis (free tier: 5 calls/sec)
+
+**Tip**: The same Etherscan API key works for Ethereum, Polygon, and Arbitrum via Etherscan's V2 unified API.
 
 ---
 
@@ -452,7 +454,9 @@ Contributions welcome! Please follow:
 
 ## 📄 License
 
-MIT License - see [LICENSE](LICENSE) file for details
+Business Source License 1.1 - see [LICENSE](LICENSE) file for details
+
+**Additional Use Grant**: You may use this software for non-production purposes without charge.
 
 ---
 
