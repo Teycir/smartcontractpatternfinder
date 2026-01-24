@@ -237,112 +237,7 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
         .unwrap()
         .as_secs();
 
-    let report_dir = PathBuf::from("/home/teycir/smartcontractpatternfinderReports/scans");
-    std::fs::create_dir_all(&report_dir)?;
-
-    let output_file = report_dir.join(format!("{}_scan.json", timestamp));
-    let txt_file = report_dir.join(format!("{}_scan.txt", timestamp));
-
     let stats = categorize_findings(&scan_results);
-
-    let enriched_results: Vec<_> = scan_results
-        .iter()
-        .map(|result| {
-            let exploitable: Vec<_> = stats
-                .exploitable
-                .iter()
-                .filter(|(idx, _, _)| scan_results[*idx].address == result.address)
-                .map(|(_, m, a)| {
-                    serde_json::json!({
-                        "pattern_id": m.pattern_id,
-                        "template_id": m.template_id,
-                        "severity": format!("{:?}", m.severity),
-                        "line_number": m.line_number,
-                        "message": m.message,
-                        "matched_text": m.matched_text,
-                        "function": m.function_context.as_ref().map(|ctx| serde_json::json!({
-                            "name": ctx.name,
-                            "visibility": format!("{:?}", ctx.visibility),
-                            "mutability": format!("{:?}", ctx.mutability),
-                            "modifiers": ctx.modifiers,
-                        })),
-                        "exploitability": {
-                            "is_exploitable": a.is_exploitable,
-                            "confidence": format!("{:?}", a.confidence),
-                            "reason": a.reason,
-                        }
-                    })
-                })
-                .collect();
-
-            let fps: Vec<_> = stats
-                .false_positives
-                .iter()
-                .filter(|(idx, _, _)| scan_results[*idx].address == result.address)
-                .map(|(_, m, a)| {
-                    serde_json::json!({
-                        "pattern_id": m.pattern_id,
-                        "severity": format!("{:?}", m.severity),
-                        "line_number": m.line_number,
-                        "exploitability": { "reason": a.reason }
-                    })
-                })
-                .collect();
-
-            let review: Vec<_> = stats
-                .needs_review
-                .iter()
-                .filter(|(idx, _, _)| scan_results[*idx].address == result.address)
-                .map(|(_, m, a)| {
-                    serde_json::json!({
-                        "pattern_id": m.pattern_id,
-                        "severity": format!("{:?}", m.severity),
-                        "line_number": m.line_number,
-                        "exploitability": { "reason": a.reason }
-                    })
-                })
-                .collect();
-
-            serde_json::json!({
-                "address": result.address,
-                "chain": result.chain,
-                "risk_score": result.total_risk_score(),
-                "solidity_version": result.solidity_version,
-                "scan_time_ms": result.scan_time_ms,
-                "summary": {
-                    "exploitable": exploitable.len(),
-                    "false_positives": fps.len(),
-                    "needs_review": review.len(),
-                    "total": result.matches.len(),
-                },
-                "findings": {
-                    "exploitable": exploitable,
-                    "false_positives": fps,
-                    "needs_review": review,
-                }
-            })
-        })
-        .collect();
-
-    std::fs::write(
-        &output_file,
-        serde_json::to_string_pretty(&enriched_results)?,
-    )?;
-    eprintln!("\n📊 Results saved to: {}", output_file.display());
-    eprintln!(
-        "📋 Found {} vulnerable contracts (High/Critical only)\n",
-        scan_results.len()
-    );
-
-    let mut txt_output = String::new();
-    txt_output.push_str(&format!(
-        "Smart Contract Pattern Finder - Scan Report\nTimestamp: {}\nTotal Contracts: {}\n\n{}\n\n",
-        timestamp,
-        scan_results.len(),
-        "=".repeat(80)
-    ));
-    txt_output.push_str("🌳 EXPLOITABLE CONTRACTS (sorted by exploitable count)\n\n");
-    eprintln!("🌳 Exploitable Contracts (sorted by exploitable count):\n");
 
     let mut exploitable_contracts = std::collections::HashSet::new();
     for (idx, _, _) in &stats.exploitable {
@@ -351,127 +246,17 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
 
     let exploitable_count = exploitable_contracts.len();
 
-    for idx in &exploitable_contracts {
-        let result = &scan_results[*idx];
-        let exploitable: Vec<_> = stats
-            .exploitable
-            .iter()
-            .filter(|(i, _, _)| i == idx)
-            .collect();
-        let fps: Vec<_> = stats
-            .false_positives
-            .iter()
-            .filter(|(i, _, _)| i == idx)
-            .collect();
-        let review: Vec<_> = stats
-            .needs_review
-            .iter()
-            .filter(|(i, _, _)| i == idx)
-            .collect();
+    eprintln!("🌳 Exploitable Contracts:\n");
+    eprintln!("📈 Summary:");
+    eprintln!("   🚨 Exploitable: {} contracts with {} findings", exploitable_count, stats.exploitable.len());
+    eprintln!("   ❌ False Positives: {} findings", stats.false_positives.len());
+    eprintln!("   ⚠️  Needs Review: {} findings", stats.needs_review.len());
+    eprintln!("   📊 Total: {} findings across {} contracts\n", stats.exploitable.len() + stats.false_positives.len() + stats.needs_review.len(), scan_results.len());
 
-        let header = format!("{}. 🚨 {} ({})", idx + 1, result.address, result.chain);
-        let stats_line = format!(
-            "   Risk Score: {} | Exploitable: {} | False Positives: {} | Needs Review: {}",
-            result.total_risk_score(),
-            exploitable.len(),
-            fps.len(),
-            review.len()
-        );
-
-        eprintln!("{}", header);
-        eprintln!("{}", stats_line);
-        eprintln!();
-        txt_output.push_str(&format!("{}\n{}\n\n", header, stats_line));
-
-        for (i, (_, m, analysis)) in exploitable.iter().enumerate() {
-            let is_last = i == exploitable.len() - 1 && fps.is_empty() && review.is_empty();
-            let prefix = if is_last { "   └─" } else { "   ├─" };
-
-            if let Some(ctx) = &m.function_context {
-                let lines = vec![
-                    format!(
-                        "{} ✅ EXPLOITABLE (confidence: {:?})",
-                        prefix, analysis.confidence
-                    ),
-                    format!("   │  Function: {}() [{:?}]", ctx.name, ctx.visibility),
-                    format!("   │  Vulnerability: {} ({:?})", m.pattern_id, m.severity),
-                    format!("   │  Line: {} | Message: {}", m.line_number, m.message),
-                    format!("   │  Assessment: {}", analysis.reason),
-                ];
-
-                for line in &lines {
-                    eprintln!("{}", line);
-                    txt_output.push_str(&format!("{}\n", line));
-                }
-
-                if !is_last {
-                    eprintln!("   │");
-                    txt_output.push_str("   │\n");
-                }
-            }
-        }
-
-        if !fps.is_empty() {
-            eprintln!("   │");
-            eprintln!("   ├─ ❌ {} FALSE POSITIVES", fps.len());
-            txt_output.push_str(&format!("   │\n   ├─ ❌ {} FALSE POSITIVES\n", fps.len()));
-
-            for (_, m, analysis) in fps.iter().take(2) {
-                if let Some(ctx) = &m.function_context {
-                    let line = format!(
-                        "   │  • {}() - {} ({})",
-                        ctx.name, m.pattern_id, analysis.reason
-                    );
-                    eprintln!("{}", line);
-                    txt_output.push_str(&format!("{}\n", line));
-                }
-            }
-            if fps.len() > 2 {
-                let line = format!("   │  • ... and {} more", fps.len() - 2);
-                eprintln!("{}", line);
-                txt_output.push_str(&format!("{}\n", line));
-            }
-        }
-
-        if !review.is_empty() {
-            eprintln!("   │");
-            eprintln!("   └─ ⚠️  {} NEEDS REVIEW", review.len());
-            txt_output.push_str(&format!("   │\n   └─ ⚠️  {} NEEDS REVIEW\n", review.len()));
-
-            for (_, m, analysis) in review.iter().take(2) {
-                if let Some(ctx) = &m.function_context {
-                    let line = format!(
-                        "      • {}() - {} ({})",
-                        ctx.name, m.pattern_id, analysis.reason
-                    );
-                    eprintln!("{}", line);
-                    txt_output.push_str(&format!("{}\n", line));
-                }
-            }
-            if review.len() > 2 {
-                let line = format!("      • ... and {} more", review.len() - 2);
-                eprintln!("{}", line);
-                txt_output.push_str(&format!("{}\n", line));
-            }
-        }
-
-        eprintln!();
-        txt_output.push('\n');
-    }
-
-    let summary = format!("\n📈 Summary:\n   🚨 Exploitable: {} contracts with {} findings\n   ❌ False Positives: {} findings\n   ⚠️  Needs Review: {} findings\n   📊 Total: {} findings across {} contracts",
-        exploitable_count, stats.exploitable.len(), stats.false_positives.len(), stats.needs_review.len(),
-        stats.exploitable.len() + stats.false_positives.len() + stats.needs_review.len(), scan_results.len());
-
-    eprintln!("{}", summary);
-    txt_output.push_str(&format!("\n{}\n\n{}", "=".repeat(80), summary));
-
-    std::fs::write(&txt_file, txt_output)?;
-    eprintln!("\n📝 Human-readable report: {}", txt_file.display());
-
-    // Generate vulnerability summary at root
-    let root_dir = PathBuf::from("/home/teycir/smartcontractpatternfinderReports");
-    let vuln_summary = root_dir.join(format!("vuln_summary_{}_run.md", timestamp));
+    let root_dir = std::env::var("SCPF_REPORT_DIR")
+        .unwrap_or_else(|_| format!("/home/teycir/smartcontractpatternfinderReports/report_{}", timestamp));
+    let root_dir = PathBuf::from(root_dir);
+    let vuln_summary = root_dir.join("vuln_summary.md");
     
     let mut summary = String::new();
     summary.push_str("# 🚨 Vulnerability Scan Summary\n\n");
@@ -509,8 +294,6 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     }
     
     summary.push_str("\n---\n\n");
-    summary.push_str("## 📂 Full Reports\n\n");
-    summary.push_str(&format!("- Detailed Scans: `{}/scans/`\n", root_dir.display()));
     
     std::fs::write(&vuln_summary, summary)?;
     eprintln!("📊 Vulnerability summary: {}", vuln_summary.display());
