@@ -8,7 +8,7 @@ pub async fn run_full_audit(args: ScanArgs) -> Result<()> {
     println!();
 
     println!("Running static template scan...");
-    crate::commands::scan_recent::scan_recent_contracts(args).await?;
+    crate::commands::scan::scan_vulnerabilities(args).await?;
 
     println!();
     println!("{}", "═".repeat(60).cyan());

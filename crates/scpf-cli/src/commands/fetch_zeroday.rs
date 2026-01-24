@@ -50,10 +50,7 @@ pub async fn run(args: FetchZeroDayArgs) -> Result<()> {
     }
 
     // Generate markdown report
-    let output_dir = dirs::home_dir()
-        .map(|h| h.join("smartcontractpatternfinder/0day-research"))
-        .unwrap_or_else(|| PathBuf::from("0day-research"));
-
+    let output_dir = PathBuf::from("/home/teycir/smartcontractpatternfinderReports/0days");
     fs::create_dir_all(&output_dir)?;
 
     let timestamp = std::time::SystemTime::now()
@@ -155,6 +152,48 @@ pub async fn run(args: FetchZeroDayArgs) -> Result<()> {
     report.push_str("5. ⏳ Deploy to production\n");
 
     fs::write(&report_file, report)?;
+
+    // Update root executive summary with 0-day info
+    let root_dir = PathBuf::from("/home/teycir/smartcontractpatternfinderReports");
+    let exec_summary = root_dir.join("EXECUTIVE_SUMMARY.md");
+    
+    let mut summary = String::new();
+    summary.push_str("# 🚨 SCPF Full Security Report\n\n");
+    summary.push_str(&format!("**Generated:** {}\n", timestamp));
+    summary.push_str(&format!("**Period:** Last {} days\n\n", args.days));
+    summary.push_str("---\n\n");
+    summary.push_str("## 🔥 Recent 0-Day Exploits\n\n");
+    summary.push_str(&format!("**Total Exploits Found:** {}\n\n", exploits.len()));
+    
+    for exploit in exploits.iter().take(10) {
+        summary.push_str(&format!("### {}\n\n", exploit.title));
+        summary.push_str(&format!("- **Date:** {}\n", exploit.date.format("%Y-%m-%d")));
+        summary.push_str(&format!("- **Source:** {}\n", exploit.source));
+        if let Some(loss) = exploit.loss_usd {
+            summary.push_str(&format!("- **Loss:** ${}\n", format_loss(loss)));
+        }
+        if let Some(chain) = &exploit.chain {
+            summary.push_str(&format!("- **Chain:** {}\n", chain));
+        }
+        if let Some(addr) = &exploit.contract_address {
+            summary.push_str(&format!("- **Contract:** `{}`\n", addr));
+        }
+        summary.push_str("\n");
+    }
+    
+    if exploits.len() > 10 {
+        summary.push_str(&format!("_...and {} more exploits_\n\n", exploits.len() - 10));
+    }
+    
+    summary.push_str("---\n\n");
+    summary.push_str("## 📊 Vulnerability Scan Results\n\n");
+    summary.push_str("_Awaiting scan completion..._\n\n");
+    summary.push_str("---\n\n");
+    summary.push_str("## 📂 Full Reports\n\n");
+    summary.push_str(&format!("- 0-Day News: `{}/0days/`\n", root_dir.display()));
+    summary.push_str(&format!("- Vulnerability Scans: `{}/scans/`\n", root_dir.display()));
+    
+    std::fs::write(&exec_summary, summary)?;
 
     println!();
     println!("{}", "═".repeat(50).cyan());

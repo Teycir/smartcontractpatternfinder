@@ -220,7 +220,6 @@ impl ContractFetcher {
             .as_secs()
             - (days * 24 * 60 * 60);
 
-        // Get block number from N days ago
         let block_url = format!(
             "{}?chainid={}&module=block&action=getblocknobytime&timestamp={}&closest=before&apikey={}",
             chain.api_base_url(),
@@ -230,18 +229,13 @@ impl ContractFetcher {
         );
 
         let response = self.client.get(&block_url).send().await?;
-        let json: Value = response
-            .json()
-            .await
-            .context("Failed to decode block response")?;
+        let json: Value = response.json().await.context("Failed to decode block response")?;
 
         if json["status"].as_str() != Some("1") {
             anyhow::bail!("Failed to get block number: {:?}", json["message"]);
         }
 
-        let from_block = json["result"]
-            .as_str()
-            .context("No block number in response")?;
+        let from_block = json["result"].as_str().context("No block number in response")?;
 
         // Fetch contract creation events (OwnershipTransferred topic0)
         let logs_url = format!(
@@ -255,10 +249,7 @@ impl ContractFetcher {
         let response = self.client.get(&logs_url).send().await?;
         let text = response.text().await?;
         let json: Value = serde_json::from_str(&text).with_context(|| {
-            format!(
-                "Failed to decode logs response. Body: {}",
-                &text[..text.len().min(500)]
-            )
+            format!("Failed to decode logs response. Body: {}", &text[..text.len().min(500)])
         })?;
 
         if json["status"].as_str() != Some("1") {

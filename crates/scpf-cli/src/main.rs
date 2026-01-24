@@ -27,7 +27,7 @@ async fn main() -> Result<()> {
 
     let result = match cli.command {
         Commands::Audit(args) => commands::audit::run_full_audit(args).await,
-        Commands::Scan(args) => commands::scan_recent::scan_recent_contracts(args).await,
+        Commands::Scan(args) => commands::scan::scan_vulnerabilities(args).await,
         Commands::Init(args) => commands::init::run(args).await,
         Commands::Templates(args) => match args.command {
             cli::TemplatesCommand::List { templates } => commands::templates::list(templates).await,
