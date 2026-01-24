@@ -4,7 +4,7 @@
 
 set -e
 
-RESULTS_FILE=${1:-$(find results -name "scan_*.json" -type f -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)}
+RESULTS_FILE=${1:-$(find "$HOME/scpf-reports" -name "scan_*.json" -type f -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)}
 
 if [ -z "$RESULTS_FILE" ] || [ ! -f "$RESULTS_FILE" ]; then
     echo "❌ No results file found"

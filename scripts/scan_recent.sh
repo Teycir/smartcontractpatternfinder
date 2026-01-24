@@ -7,9 +7,9 @@ set -e
 DAYS=${1:-10}
 CHAIN=${2:-ethereum}
 MIN_SEVERITY=${3:-high}
-OUTPUT_DIR="results"
+OUTPUT_DIR="$HOME/scpf-reports"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-OUTPUT_FILE="${OUTPUT_DIR}/scan_${CHAIN}_${DAYS}days_${TIMESTAMP}.json"
+OUTPUT_FILE="${OUTPUT_DIR}/scan_${CHAIN}_${DAYS}days_${TIMESTAMP}_scan_recent.json"
 
 echo "🔍 SCPF - Recent Contracts Scan"
 echo "================================"

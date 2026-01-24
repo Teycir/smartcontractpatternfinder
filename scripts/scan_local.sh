@@ -5,9 +5,9 @@
 set -e
 
 MIN_SEVERITY=${1:-high}
-OUTPUT_DIR="results"
+OUTPUT_DIR="$HOME/scpf-reports"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-OUTPUT_FILE="${OUTPUT_DIR}/scan_local_${TIMESTAMP}.json"
+OUTPUT_FILE="${OUTPUT_DIR}/scan_local_${TIMESTAMP}_scan_local.json"
 
 echo "🔍 SCPF - Local Project Scan"
 echo "============================="
