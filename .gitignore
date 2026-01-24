@@ -35,3 +35,4 @@ Cargo.lock
 .env.*.local
 templates-zeroday
 audit_results
+.waylog
