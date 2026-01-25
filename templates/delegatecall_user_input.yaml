@@ -10,6 +10,6 @@ tags:
   - SWC-112
 patterns:
   - id: delegatecall-to-input
-    pattern: '\.delegatecall\s*\('
+    pattern: '(?:\.|\s)delegatecall\s*\('
     message: "Delegatecall usage detected. Ensure the target address and data are trusted."
     kind: regex

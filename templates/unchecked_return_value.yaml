@@ -24,3 +24,8 @@ patterns:
     kind: regex
     pattern: '\(bool\s+\w+\s*,\s*\)\s*=.*\.call'
     message: Low-level call return declared but may not be checked - verify success is validated
+
+  - id: arbitrary-call-with-data
+    kind: regex
+    pattern: '\.call\{value:\s*\w+\}\s*\(\s*\w*data\w*\s*\)'
+    message: Low-level call with arbitrary data parameter - implement whitelist validation for target address

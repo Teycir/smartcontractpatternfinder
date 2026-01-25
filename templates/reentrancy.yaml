@@ -7,8 +7,12 @@ tags:
   - reentrancy
   - SWC-107
 patterns:
-  # Only flag .call{value:} - delegatecall is separate template
   - id: external-call-with-value
     kind: regex
     pattern: '\.call\{value:'
     message: External call with value - verify reentrancy protection
+
+  - id: erc20-transferfrom-before-state
+    kind: regex
+    pattern: '(?:baseToken|token|IERC20|ERC20)\s*\.\s*transferFrom\s*\('
+    message: ERC20 transferFrom call - verify state changes occur before external call (CEI pattern)

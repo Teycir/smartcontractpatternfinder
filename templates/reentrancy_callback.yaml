@@ -1,0 +1,31 @@
+id: reentrancy-callback
+name: Reentrancy via Token Callbacks
+description: |
+  Detects reentrancy vulnerabilities through ERC721/ERC1155/ERC777 callback functions.
+  Attackers can reenter during onERC721Received, onERC1155Received, or tokensReceived callbacks.
+severity: critical
+tags:
+  - security
+  - reentrancy
+  - callback
+  - SWC-107
+patterns:
+  - id: erc721-callback
+    kind: regex
+    pattern: 'function\s+onERC721Received\s*\('
+    message: ERC721 callback - verify reentrancy protection and checks-effects-interactions pattern
+
+  - id: erc1155-callback
+    kind: regex
+    pattern: 'function\s+onERC1155Received\s*\('
+    message: ERC1155 callback - verify reentrancy protection and checks-effects-interactions pattern
+
+  - id: erc1155-batch-callback
+    kind: regex
+    pattern: 'function\s+onERC1155BatchReceived\s*\('
+    message: ERC1155 batch callback - verify reentrancy protection
+
+  - id: erc777-callback
+    kind: regex
+    pattern: 'function\s+tokensReceived\s*\('
+    message: ERC777 callback - verify reentrancy protection and checks-effects-interactions pattern

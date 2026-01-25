@@ -114,13 +114,8 @@ impl Scanner {
                                 }
                             }
                         }
-                        // Check for require statements (checks-effects pattern)
-                        if let Some(ref regex) = self.checks_effects_regex {
-                            if regex.is_match(&context).unwrap_or(false) {
-                                // Has require checks, likely safe
-                                continue;
-                            }
-                        }
+                        // REMOVED: require check - too aggressive, causes false negatives
+                        // The presence of require() doesn't guarantee safety
                     }
                     
                     // Check for pausable modifier
