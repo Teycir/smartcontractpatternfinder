@@ -1,8 +1,8 @@
-id: unchecked-return-value-v4
+id: unchecked-return-value-v5
 name: Unchecked Low-Level Call Return Value
 description: |
-  Detects ONLY truly unchecked low-level calls where return value is ignored.
-  Requires negative lookahead to ensure no checking is present.
+  Detects unchecked low-level calls where return value is ignored or declared but not checked.
+  Includes (bool success,) = ... pattern where success is not subsequently verified.
 severity: high
 tags:
   - security
@@ -10,13 +10,17 @@ tags:
   - SWC-104
 
 patterns:
-  # Only flag if call is NOT assigned and NOT in require/if
   - id: unchecked-call-statement
+    kind: regex
     pattern: '^\s*(?!.*(?:bool|require|if|assert)).*\.(?:call|delegatecall)\s*[\({]'
-    message: "Unchecked low-level call - return value ignored"
-    kind: regex
+    message: Unchecked low-level call - return value ignored
 
-  - id: unchecked-send-statement  
-    pattern: '^\s*(?!.*(?:require|if|assert))\w+\.send\([^)]+?\)\s*;'
-    message: "Unchecked .send() - return value ignored"
+  - id: unchecked-send-statement
     kind: regex
+    pattern: '^\s*(?!.*(?:require|if|assert))\w+\.send\([^)]+?\)\s*;'
+    message: Unchecked .send() - return value ignored
+
+  - id: declared-but-unchecked
+    kind: regex
+    pattern: '\(bool\s+\w+\s*,\s*\)\s*=.*\.call'
+    message: Low-level call return declared but may not be checked - verify success is validated

@@ -1,0 +1,26 @@
+id: weak-randomness-v1
+name: Weak Randomness Source
+description: |
+  Detects use of blockhash() and block.timestamp for randomness.
+  These are miner-exploitable and should be replaced with Chainlink VRF.
+severity: critical
+tags:
+  - security
+  - randomness
+  - SWC-120
+
+patterns:
+  - id: blockhash-randomness
+    kind: regex
+    pattern: 'blockhash\s*\('
+    message: "Weak randomness: blockhash() is miner-exploitable"
+
+  - id: timestamp-modulo
+    kind: regex
+    pattern: 'block\.timestamp\s*%'
+    message: "Weak randomness: block.timestamp % is predictable"
+
+  - id: blocknumber-randomness
+    kind: regex
+    pattern: 'block\.number\s*%'
+    message: "Weak randomness: block.number % is predictable"

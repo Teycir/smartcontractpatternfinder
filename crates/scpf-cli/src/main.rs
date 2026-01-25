@@ -23,6 +23,7 @@ async fn main() -> Result<()> {
             2 => tracing::Level::DEBUG,
             _ => tracing::Level::TRACE,
         })
+        .with_ansi(false)
         .init();
 
     let result = match cli.command {

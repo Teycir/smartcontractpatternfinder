@@ -1,0 +1,26 @@
+id: timelock-missing-v1
+name: Missing Timelock on Privileged Functions
+description: |
+  Detects owner-only functions without timelock protection.
+  Critical operations should have 48-72 hour timelock to prevent rug pulls.
+severity: high
+tags:
+  - security
+  - centralization
+  - timelock
+
+patterns:
+  - id: onlyowner-no-timelock
+    kind: regex
+    pattern: 'function\s+\w+.*onlyOwner(?!.*timelock)'
+    message: Privileged function lacks timelock protection
+
+  - id: upgrade-no-timelock
+    kind: regex
+    pattern: 'function\s+upgrade\w*\s*\([^)]*\).*(?!timelock)'
+    message: Upgrade function should have timelock
+
+  - id: setimplementation-no-timelock
+    kind: regex
+    pattern: 'function\s+setImplementation\s*\([^)]*\).*(?!timelock)'
+    message: Implementation change should have timelock
