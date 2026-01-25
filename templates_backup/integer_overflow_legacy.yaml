@@ -1,0 +1,21 @@
+id: integer-overflow-risk
+name: Integer Overflow/Underflow Risk
+description: |
+  Arithmetic operations without validation (before Solidity 0.8.x) can overflow.
+severity: high
+tags:
+  - security
+  - overflow
+  - SWC-101
+patterns:
+  # Regex: Division before multiplication (precision loss)
+  - id: multiply-before-divide
+    kind: regex
+    pattern: '\w+\s*/\s*\w+\s*\*\s*\w+'
+    message: "Division before multiplication causes precision loss - reorder to multiply first"
+
+  # Regex: Array length decrement
+  - id: array-length-decrement
+    kind: regex
+    pattern: '\w+\.length\s*--'
+    message: "Dangerous array length decrement - can cause underflow."

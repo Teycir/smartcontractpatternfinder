@@ -1,0 +1,36 @@
+id: price-manipulation
+name: Price Oracle Manipulation
+description: Detects price manipulation vulnerabilities from DRLVaultV3, NGP, d3xai, PDZ, YuliAI, GradientMakerPool exploits (2025)
+severity: critical
+tags:
+  - defi
+  - oracle
+  - price
+  - flash-loan
+  - 0-day-2025
+patterns:
+  - id: spot-price-from-reserves
+
+    pattern: '(reserve0|reserve1)[^\n]{0,50}\*[^\n]{0,50}1e18[^\n]{0,50}\/[^\n]{0,50}reserve'
+    message: Spot price calculation from reserves - flash loan manipulation
+  - id: balanceof-this-pricing
+    pattern: 'balanceOf\(address\(this\)\)[^\n]{0,50}\/[^\n]{0,50}totalSupply'
+    message: Price from contract balance - flash loan attack vector
+  - id: single-oracle-no-fallback
+    pattern: 'function\s+get[^{]{0,50}Price[^{]{0,50}\{[^}]{0,200}\}'
+    message: Single price source without fallback oracle
+  - id: chainlink-no-staleness-check
+    pattern: 'latestRoundData\(\)[^\n]{0,20}\n'
+    message: Chainlink without staleness check (updatedAt validation missing)
+  - id: uniswap-getamountout-no-twap
+    pattern: 'getAmountOut\([^)]{0,50}\)'
+    message: UniswapV2 getAmountOut without TWAP - manipulation vulnerable
+  - id: price-from-single-pool
+    pattern: 'price\s*=[^\n]{0,50}pair\.get'
+    message: Price from single pool - no cross-pool validation
+  - id: sqrt-price-no-bounds
+    pattern: 'sqrtPriceX96'
+    message: UniswapV3 sqrtPrice without bounds check - manipulation risk
+  - id: flash-loan-price-query
+    pattern: 'flash[Ll]oan[^{]{0,50}\{[^}]{0,500}(getPrice|getReserves|balanceOf)'
+    message: Flash loan with price query - manipulation risk

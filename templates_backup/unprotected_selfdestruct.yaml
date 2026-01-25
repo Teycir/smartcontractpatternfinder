@@ -1,0 +1,33 @@
+id: unprotected-selfdestruct-v2
+name: Selfdestruct Usage Detection
+description: |
+  Detects all uses of selfdestruct/suicide. This operation:
+  - Permanently destroys the contract
+  - Sends all ETH to specified recipient
+  - Cannot be undone
+  
+  CRITICAL: Verify access control exists (onlyOwner, multi-sig, etc.)
+  
+  Note: selfdestruct is deprecated (EIP-6049) and behavior may change
+  in future hard forks.
+
+severity: critical
+
+tags:
+  - security
+  - selfdestruct
+  - SWC-106
+  - access-control
+
+patterns:
+  # Regex: Any selfdestruct
+  - id: selfdestruct-regex
+    pattern: '(?:selfdestruct|suicide)\s*\('
+    message: "selfdestruct/suicide usage detected. Contract will be permanently destroyed."
+    kind: regex
+
+  # Regex: selfdestruct in public function
+  - id: selfdestruct-public-regex
+    pattern: 'function\s+\w+\s*\([^)]{0,200}\)\s*(?:public|external)[^{]{0,100}\{[^}]{0,1000}(?:selfdestruct|suicide)\s*\('
+    message: "CRITICAL: selfdestruct in public/external function. Verify access control modifier."
+    kind: regex

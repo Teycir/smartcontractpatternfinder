@@ -1,14 +1,12 @@
-use crate::analysis::{classify_modifiers, is_vulnerable_reentrancy, SymbolCollector};
-use crate::dataflow::{DataFlowRegistry, DataFlowSeverity};
 use crate::regex_validator::RegexValidator;
 use anyhow::Result;
-use regex::RegexBuilder;
-use scpf_types::{ContractContext, Match, Pattern, Template};
+use fancy_regex::RegexBuilder;
+use scpf_types::{Match, Pattern, Template};
 use std::path::PathBuf;
 use tracing::warn;
 
 struct CompiledPattern {
-    regex: regex::Regex,
+    regex: fancy_regex::Regex,
     pattern: Pattern,
     index: u32,
 }
@@ -20,8 +18,10 @@ struct CompiledTemplate {
 
 pub struct Scanner {
     templates: Vec<CompiledTemplate>,
-    dataflow_registry: DataFlowRegistry,
-    pub contextual_enabled: bool,
+    reentrancy_guard_regex: Option<fancy_regex::Regex>,
+    access_control_regex: Option<fancy_regex::Regex>,
+    pausable_regex: Option<fancy_regex::Regex>,
+    checks_effects_regex: Option<fancy_regex::Regex>,
 }
 
 impl Scanner {
@@ -37,8 +37,10 @@ impl Scanner {
 
         Ok(Self {
             templates: compiled_templates,
-            dataflow_registry: DataFlowRegistry::with_default_analyzers(),
-            contextual_enabled: true,
+            reentrancy_guard_regex: fancy_regex::Regex::new(r"\b(nonReentrant|ReentrancyGuard|noReentrancy|lock|mutex)\b").ok(),
+            access_control_regex: fancy_regex::Regex::new(r"\b(onlyOwner|onlyRole|onlyAdmin|requireOwner|requireRole|AccessControl|Ownable|auth|authorized)\b").ok(),
+            pausable_regex: fancy_regex::Regex::new(r"\b(whenNotPaused|whenPaused|Pausable|notPaused)\b").ok(),
+            checks_effects_regex: fancy_regex::Regex::new(r"\brequire\s*\(").ok(),
         })
     }
 
@@ -52,50 +54,10 @@ impl Scanner {
         let mut seen = std::collections::HashSet::new();
         let mut dedup_set = std::collections::HashSet::new();
 
-        // Parse AST once for dataflow analysis
-        let parsed_tree = crate::semantic::SemanticScanner::new()
-            .ok()
-            .and_then(|mut s| s.parse(source).ok());
-
-        // Run all registered dataflow analyzers
-        if let Some(ref tree) = parsed_tree {
-            let findings = self.dataflow_registry.analyze_all(tree, source);
-
-            for finding in findings {
-                let line_start = if finding.line > 1 {
-                    newlines.get(finding.line - 2).copied().unwrap_or(0) + 1
-                } else {
-                    0
-                };
-                let line_end = newlines
-                    .get(finding.line - 1)
-                    .copied()
-                    .unwrap_or(source.len());
-                let context = source[line_start..line_end].to_string();
-
-                let severity = match finding.severity {
-                    DataFlowSeverity::Critical => scpf_types::Severity::Critical,
-                    DataFlowSeverity::High => scpf_types::Severity::High,
-                };
-
-                matches.push(Match {
-                    template_id: finding.analyzer_id,
-                    pattern_id: finding.pattern_id,
-                    file_path: file_path.clone(),
-                    line_number: finding.line,
-                    column: 0,
-                    matched_text: finding.context,
-                    context,
-                    code_snippet: extract_code_snippet(source, &newlines, finding.line),
-                    severity,
-                    message: finding.message,
-                    start_byte: None,
-                    end_byte: None,
-                    function_context: None,
-                    protections: None,
-                });
-            }
-        }
+        // Fast regex-based protection detection (compiled once at init)
+        let has_reentrancy_guard = self.reentrancy_guard_regex.as_ref().map(|r| r.is_match(source).unwrap_or(false)).unwrap_or(false);
+        let has_access_control = self.access_control_regex.as_ref().map(|r| r.is_match(source).unwrap_or(false)).unwrap_or(false);
+        let has_pausable = self.pausable_regex.as_ref().map(|r| r.is_match(source).unwrap_or(false)).unwrap_or(false);
 
         for compiled_template in &self.templates {
             if is_modern_solidity && compiled_template.template.id.contains("integer_overflow") {
@@ -107,6 +69,10 @@ impl Scanner {
             for compiled_pattern in &compiled_template.patterns {
                 // All patterns are now regex-based
                 for mat in compiled_pattern.regex.find_iter(source) {
+                    let mat = match mat {
+                        Ok(m) => m,
+                        Err(_) => continue,
+                    };
                     let key = (mat.start(), mat.end(), compiled_pattern.index);
                     if !seen.insert(key) {
                         continue;
@@ -122,10 +88,46 @@ impl Scanner {
                     let context =
                         get_match_context(source, &newlines, mat.start(), mat.end(), line_number);
 
-                    // OpenZeppelin whitelist disabled - was filtering too aggressively
-                    // if is_zeroday_template && is_openzeppelin_safe_pattern(source, &context, mat.as_str()) {
-                    //     continue;
-                    // }
+                    // Fast regex-based false positive filtering
+                    if self.is_reentrancy_pattern(&compiled_template.template.id) {
+                        // Check for reentrancy guards in function context
+                        if has_reentrancy_guard {
+                            if let Some(ref regex) = self.reentrancy_guard_regex {
+                                if regex.is_match(&context).unwrap_or(false) {
+                                    continue;
+                                }
+                            }
+                        }
+                        // Check for access control modifiers
+                        if has_access_control {
+                            if let Some(ref regex) = self.access_control_regex {
+                                if regex.is_match(&context).unwrap_or(false) {
+                                    continue;
+                                }
+                            }
+                        }
+                        // Check for require statements (checks-effects pattern)
+                        if let Some(ref regex) = self.checks_effects_regex {
+                            if regex.is_match(&context).unwrap_or(false) {
+                                // Has require checks, likely safe
+                                continue;
+                            }
+                        }
+                    }
+                    
+                    // Check for pausable modifier
+                    if has_pausable {
+                        if let Some(ref regex) = self.pausable_regex {
+                            if regex.is_match(&context).unwrap_or(false) {
+                                continue;
+                            }
+                        }
+                    }
+
+                    // OpenZeppelin whitelist for library code
+                    if is_openzeppelin_library(source) && is_openzeppelin_safe_pattern(source, &context, mat.as_str()) {
+                        continue;
+                    }
 
                     matches.push(Match {
                         template_id: compiled_template.template.id.clone(),
@@ -157,113 +159,7 @@ impl Scanner {
             dedup_set.insert(key)
         });
 
-        // Apply contextual filtering if enabled
-        if self.contextual_enabled {
-            let tree_for_context = parsed_tree.or_else(|| {
-                crate::semantic::SemanticScanner::new()
-                    .ok()
-                    .and_then(|mut s| s.parse(source).ok())
-            });
-
-            if let Some(ref tree) = tree_for_context {
-                let ctx = self.build_context(source, tree);
-
-                matches.retain(|m| {
-                    if self.is_reentrancy_pattern(&m.template_id) {
-                        is_vulnerable_reentrancy(tree, source, m.line_number)
-                    } else {
-                        true
-                    }
-                });
-
-                matches = self.filter_findings(matches, &ctx);
-                matches = self.enrich_with_context(matches, &ctx);
-            }
-        }
-
         Ok(matches)
-    }
-
-    /// Build semantic context from AST
-    fn build_context(&self, source: &str, tree: &tree_sitter::Tree) -> ContractContext {
-        let collector = SymbolCollector::new(source, tree);
-        let mut ctx = collector.collect();
-        classify_modifiers(&mut ctx);
-
-        let function_data: Vec<(String, Vec<String>)> = ctx
-            .functions
-            .iter()
-            .map(|(name, func)| (name.clone(), func.modifiers.clone()))
-            .collect();
-
-        let modifiers_map: std::collections::HashMap<_, _> =
-            ctx.modifiers.clone().into_iter().collect();
-
-        for (name, modifiers) in function_data {
-            if let Some(func) = ctx.functions.get_mut(&name) {
-                func.protections = Self::compute_protections_static(&modifiers, &modifiers_map);
-            }
-        }
-
-        ctx
-    }
-
-    /// Filter findings based on semantic context
-    fn filter_findings(&self, matches: Vec<Match>, ctx: &ContractContext) -> Vec<Match> {
-        matches
-            .into_iter()
-            .filter(|m| self.should_report_finding(m, ctx))
-            .collect()
-    }
-
-    /// Enrich matches with function context for Opus analysis
-    fn enrich_with_context(&self, mut matches: Vec<Match>, ctx: &ContractContext) -> Vec<Match> {
-        for m in &mut matches {
-            if let Some(func) = self.find_function_at_line(ctx, m.line_number) {
-                m.function_context = Some(func.clone());
-                m.protections = Some(func.protections.clone());
-            }
-        }
-        matches
-    }
-
-    /// Determine if finding should be reported based on protections
-    fn should_report_finding(&self, finding: &Match, ctx: &ContractContext) -> bool {
-        let func = self.find_function_at_line(ctx, finding.line_number);
-
-        if let Some(func) = func {
-            // Filter reentrancy findings if function has reentrancy guard OR access control
-            if self.is_reentrancy_pattern(&finding.template_id)
-                && (func.protections.has_reentrancy_guard || func.protections.has_access_control)
-            {
-                return false;
-            }
-
-            // Filter access control findings if function has access control
-            if self.is_access_control_pattern(&finding.template_id)
-                && func.protections.has_access_control
-            {
-                return false;
-            }
-
-            // Filter if function is pausable
-            if func.protections.has_pausable {
-                return false;
-            }
-        }
-
-        true
-    }
-
-    /// Find function containing the given line number
-    fn find_function_at_line<'a>(
-        &self,
-        ctx: &'a ContractContext,
-        line: usize,
-    ) -> Option<&'a scpf_types::FunctionContext> {
-        ctx.functions
-            .values()
-            .find(|f| f.start_line <= line && line <= f.end_line)
     }
 
     /// Check if template is reentrancy-related
@@ -271,39 +167,6 @@ impl Scanner {
         template_id.contains("reentrancy")
             || template_id.contains("external-call")
             || template_id.contains("low-level-call")
-    }
-
-    /// Check if template is access-control-related
-    fn is_access_control_pattern(&self, template_id: &str) -> bool {
-        template_id.contains("access")
-            || template_id.contains("authorization")
-            || template_id.contains("permission")
-    }
-
-    fn compute_protections_static(
-        modifiers: &[String],
-        modifiers_map: &std::collections::HashMap<String, scpf_types::ModifierContext>,
-    ) -> scpf_types::ProtectionSet {
-        let mut protections = scpf_types::ProtectionSet::default();
-
-        for mod_name in modifiers {
-            if let Some(mod_ctx) = modifiers_map.get(mod_name) {
-                match mod_ctx.modifier_type {
-                    scpf_types::ModifierType::ReentrancyGuard => {
-                        protections.has_reentrancy_guard = true;
-                    }
-                    scpf_types::ModifierType::AccessControl => {
-                        protections.has_access_control = true;
-                    }
-                    scpf_types::ModifierType::Pausable => {
-                        protections.has_pausable = true;
-                    }
-                    _ => {}
-                }
-            }
-        }
-
-        protections
     }
 }
 
@@ -322,8 +185,6 @@ fn compile_pattern(pattern: &Pattern, template_id: &str, index: u32) -> Result<C
     })?;
 
     let regex = RegexBuilder::new(&pattern.pattern)
-        .multi_line(true)
-        .dot_matches_new_line(true)
         .build()
         .map_err(|e| {
             warn!(
@@ -486,9 +347,9 @@ fn extract_code_snippet(
 
 /// Extract Solidity version from pragma statement
 fn extract_solidity_version(source: &str) -> Option<String> {
-    let pragma_regex = regex::Regex::new(r"pragma\s+solidity\s+([^;]+);").ok()?;
+    let pragma_regex = fancy_regex::Regex::new(r"pragma\s+solidity\s+([^;]+);").ok()?;
     pragma_regex
-        .captures(source)
+        .captures(source).ok()?
         .and_then(|cap| cap.get(1))
         .map(|m| m.as_str().trim().to_string())
 }
@@ -501,9 +362,9 @@ fn is_version_gte_0_8(version: &Option<String>) -> bool {
     };
 
     // Extract major.minor from version string (e.g., "^0.8.0" -> "0.8")
-    let version_regex = regex::Regex::new(r"(\d+)\.(\d+)").ok();
+    let version_regex = fancy_regex::Regex::new(r"(\d+)\.(\d+)").ok();
     if let Some(regex) = version_regex {
-        if let Some(cap) = regex.captures(version) {
+        if let Some(cap) = regex.captures(version).ok().flatten() {
             if let (Some(major), Some(minor)) = (cap.get(1), cap.get(2)) {
                 if let (Ok(maj), Ok(min)) =
                     (major.as_str().parse::<u32>(), minor.as_str().parse::<u32>())

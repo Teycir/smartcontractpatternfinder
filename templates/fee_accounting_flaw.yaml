@@ -1,0 +1,28 @@
+id: fee-accounting-flaw
+name: Fee Accounting and Unit Mismatch
+description: Detects fee calculation errors and unit mismatches that led to MTToken ($37K) and FutureSwap ($433K) exploits in Jan 2026
+severity: critical
+tags:
+  - fee
+  - accounting
+  - unit-mismatch
+  - 0-day-2026
+patterns:
+  - id: unbounded-fee-loop
+    pattern: 'for\s*\([^)]{0,100}\)\s*\{[^}]{0,200}fee[^}]{0,100}\+='
+    message: MTToken pattern - unbounded fee accumulation without post-loop validation
+  - id: fee-unit-mismatch-wad-bps
+    pattern: '(feeRateWad|feeBasisPoints|bps)[^\n]{0,50}\/\s*1e18'
+    message: FutureSwap pattern - fee unit mismatch (WAD vs BPS confusion)
+  - id: fee-no-max-validation
+    pattern: 'function\s+set[Ff]ee[^{]{0,100}\([^)]{0,50}uint[^)]{0,50}\)[^{]{0,50}\{'
+    message: Missing MAX_FEE validation - allows 100%+ fees
+  - id: transfer-fee-no-balance-check
+    pattern: '(amount|balance)[^\n]{0,50}[\-\*][^\n]{0,50}(fee|feeAmount)[^\n]{0,50}transfer'
+    message: Fee deduction without balance validation - underflow risk
+  - id: fee-recipient-array-no-sum-check
+    pattern: 'address\[\][^\n]{0,50}fee[^\n]{0,50}for\s*\('
+    message: Multiple fee recipients without total validation
+  - id: fee-calculation-precision-loss
+    pattern: '(fee|feeAmount)\s*=\s*(amount|balance)\s*\/\s*\d+\s*\*'
+    message: Division before multiplication in fee calc - precision loss

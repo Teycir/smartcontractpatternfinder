@@ -498,14 +498,14 @@ fn extract_xml_tag(content: &str, tag: &str) -> Option<String> {
 
 fn extract_address(text: &str) -> Option<String> {
     // Extract Ethereum address: 0x followed by 40 hex chars
-    let re = regex::Regex::new(r"0x[a-fA-F0-9]{40}").ok()?;
-    re.find(text).map(|m| m.as_str().to_string())
+    let re = fancy_regex::Regex::new(r"0x[a-fA-F0-9]{40}").ok()?;
+    re.find(text).ok()?.map(|m| m.as_str().to_string())
 }
 
 fn extract_tx_hash(text: &str) -> Option<String> {
     // Extract transaction hash: 0x followed by 64 hex chars
-    let re = regex::Regex::new(r"0x[a-fA-F0-9]{64}").ok()?;
-    re.find(text).map(|m| m.as_str().to_string())
+    let re = fancy_regex::Regex::new(r"0x[a-fA-F0-9]{64}").ok()?;
+    re.find(text).ok()?.map(|m| m.as_str().to_string())
 }
 
 fn extract_chain(text: &str) -> Option<String> {

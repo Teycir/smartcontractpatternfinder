@@ -1,0 +1,34 @@
+id: access-control-bypass
+name: Access Control Bypass
+description: Detects missing access control from TokenHolder, SuperRare, MetaPool, Corkprotocol and 10+ other 2025 exploits
+severity: critical
+tags:
+  - access-control
+  - authorization
+  - privilege
+  - 0-day-2025
+patterns:
+  - id: public-withdraw-no-auth
+    pattern: 'function\s+withdraw.*public(?!.*onlyOwner|.*require.*msg\.sender|.*only[A-Z]|.*_checkRole)'
+    message: TokenHolder pattern - public withdraw without access control
+  - id: external-mint-no-modifier
+    pattern: 'function\s+mint\([^)]*\)\s*external(?!.*only[A-Z]|.*_checkRole|.*require.*msg\.sender)'
+    message: Public mint without access control - unlimited minting
+  - id: external-burn-no-modifier
+    pattern: 'function\s+burn\([^)]*\)\s*external(?!.*only[A-Z]|.*_checkRole)'
+    message: Public burn without access control
+  - id: setowner-no-auth
+    pattern: 'function\s+setOwner.*external(?!.*onlyOwner|.*require.*owner|.*only[A-Z])'
+    message: setOwner without access control - ownership takeover
+  - id: unprotected-initialize
+    pattern: 'function\s+initialize.*public(?!.*initializer|.*initialized|.*Initializable)'
+    message: SuperRare pattern - unprotected initialize (proxy takeover)
+  - id: arbitrary-call-no-check
+    pattern: '\.call\{value:.*\}\([^)]*\)(?!.*onlyOwner|.*require.*msg\.sender|.*only[A-Z])'
+    message: Arbitrary call without access control - fund drainage
+  - id: delegatecall-no-whitelist
+    pattern: 'delegatecall\([^)]*\)(?!.*onlyOwner|.*whitelist|.*approved|.*only[A-Z])'
+    message: Delegatecall without whitelist - arbitrary code execution
+  - id: selfdestruct-no-auth
+    pattern: 'selfdestruct\([^)]*\)(?!.*onlyOwner|.*only[A-Z])'
+    message: Unprotected selfdestruct - contract destruction

@@ -1,0 +1,40 @@
+id: tx-origin-auth-v2
+version: "2.0.0"
+name: "tx.origin Authentication"
+description: "Detects tx.origin used for access control (phishing vulnerability)"
+severity: high
+tags:
+  - security
+  - tx-origin
+  - SWC-115
+
+patterns:
+  # Match tx.origin in authentication contexts
+  - id: tx-origin-require
+    pattern: 'require\s*\(\s*.*?tx\.origin\s*[!=]='
+    message: |
+      tx.origin used for authentication.
+      
+      tx.origin returns the original sender of a transaction, which can be 
+      exploited in phishing attacks where a malicious contract tricks users 
+      into calling it.
+      
+      Replace with: require(msg.sender == owner);
+    kind: regex
+
+  - id: tx-origin-if-auth
+    pattern: 'if\s*\(\s*.*?tx\.origin\s*[!=]=.*?\)\s*(?:revert|require)'
+    message: "tx.origin used in authentication check"
+    kind: regex
+
+  - id: tx-origin-assert
+    pattern: 'assert\s*\(\s*.*?tx\.origin'
+    message: "tx.origin used in assert statement"
+    kind: regex
+
+  # Contract detection pattern (lower severity)
+  - id: tx-origin-contract-detection
+    kind: regex
+    pattern: 'require\s*\(\s*tx\.origin\s*==\s*msg\.sender'
+    message: "tx.origin == msg.sender used for contract call detection (valid but worth noting)"
+    severity: info

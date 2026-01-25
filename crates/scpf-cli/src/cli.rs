@@ -132,6 +132,9 @@ pub struct ScanArgs {
     #[arg(long, help = "Only use specific templates by ID (comma-separated)")]
     pub only_templates: Option<String>,
 
+    #[arg(long, help = "Enable fast mode (skip semantic analysis for speed)")]
+    pub fast: bool,
+
     #[arg(
         long,
         help = "Sort vulnerabilities by exploitability score (PoC success probability)"

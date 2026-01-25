@@ -1,4 +1,4 @@
-use regex::Regex;
+use fancy_regex::Regex;
 
 #[derive(Debug, Clone)]
 pub struct GeneratedInvariant {
@@ -48,7 +48,9 @@ impl InvariantGenerator {
                 .unwrap();
 
         for cap in balance_re.captures_iter(&self.source_code) {
-            if let Some(var_name) = cap.get(1) {
+            match cap {
+                Ok(captures) => {
+                    if let Some(var_name) = captures.get(1) {
                 invariants.push(GeneratedInvariant {
                     name: format!("sum_{}_conservation", var_name.as_str()),
                     description: format!(
@@ -65,6 +67,9 @@ impl InvariantGenerator {
                     confidence: 0.7,
                     category: InvariantCategory::BalanceConservation,
                 });
+                    }
+                }
+                _ => {}
             }
         }
         invariants
@@ -131,7 +136,7 @@ function invariant_{0}Monotonic() public returns (bool) {{
 
         for pattern in &access_patterns {
             let re = Regex::new(&format!(r"\b{}\b", pattern)).unwrap();
-            if re.is_match(&self.source_code) {
+            if re.is_match(&self.source_code).unwrap_or(false) {
                 invariants.push(GeneratedInvariant {
                     name: format!("{}_not_zero", pattern),
                     description: format!("{} should never be zero address", pattern),

@@ -1,0 +1,76 @@
+id: denial-of-service
+name: Denial of Service Vulnerabilities
+description: |
+  Detects DoS vectors:
+  - Block gas limit issues
+  - Griefing attacks
+  - Unbounded operations
+  - External call failures
+  - Resource exhaustion
+severity: high
+tags:
+  - DoS
+  - griefing
+  - gas
+  - availability
+
+patterns:
+  # Push to unbounded array
+  - id: unbounded-array-push
+    kind: regex
+    pattern: '\w+\s*\.\s*push\s*\('
+    message: "Unbounded array push - iteration may exceed block gas limit"
+
+  # Array iteration without limit
+  - id: array-iteration-unbounded
+    kind: regex
+    pattern: 'for\s*\([^)]{1,200}\.length[^)]{0,100}\)'
+    message: "Full array iteration - add pagination or max iteration limit"
+
+  # External call in loop
+  - id: loop-external-call
+    pattern: 'for\s*\([^)]+\)[^{]*\{[^}]{0,500}(?:call|transfer|send|delegatecall)\s*\('
+    message: "External call in loop - single failure can DoS entire function"
+    kind: regex
+
+  # Revert in loop
+  - id: revert-in-loop
+    pattern: 'for\s*\([^)]+\)[^{]*\{[^}]{0,500}(?:require|revert|assert)\s*\('
+    message: "Revert inside loop - consider try/catch or continue on failure"
+    kind: regex
+
+  # Ether transfer to contract
+  - id: dos-ether-transfer
+    pattern: '\.\s*(?:transfer|send)\s*\('
+    message: "Ether transfer to address - receiving contract can revert and DoS sender"
+    kind: regex
+
+  # Return bomb attack
+  - id: return-bomb
+    kind: regex
+    pattern: '\.call\s*\{[^}]*\}\s*\([^)]*\)'
+    message: "Low-level call - verify return data handling and size limits"
+
+  # Griefing via selfdestruct
+  - id: griefing-selfdestruct
+    pattern: 'require\s*\([^)]*\.balance\s*[=!<>]'
+    message: "Balance check can be griefed via selfdestruct - attacker can force-send ETH"
+    kind: regex
+
+  # String concatenation in loop
+  - id: string-concat-loop
+    kind: regex
+    pattern: 'for\s*\([^)]+\)[^{]*\{[^}]*\.concat\s*\('
+    message: "String concatenation in loop - O(n²) gas cost, may exceed block limit"
+
+  # Vulnerable to block stuffing
+  - id: block-stuffing-vulnerable
+    kind: regex
+    pattern: 'require\s*\([^)]*block\.(timestamp|number)'
+    message: "Block-dependent timing - attacker can stuff blocks to manipulate deadline"
+
+  # Pull over push pattern missing
+  - id: push-payment-pattern
+    kind: regex
+    pattern: 'for\s*\([^)]+\)[^{]*\{[^}]*\.transfer\s*\('
+    message: "Push payments in loop - use pull pattern (let users withdraw) instead"
