@@ -37,5 +37,6 @@ templates-zeroday
 audit_results
 .waylog
 .trunk/trunk.yaml
-foundry-security-poc
-foundry-poc
+
+# Reports
+reports/
