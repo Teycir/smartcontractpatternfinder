@@ -5,16 +5,16 @@
 #   ./scripts/run_full_report.sh [DAYS] [TOP_N] [EXTRACT_BY_RISK] [SKIP_0DAY]
 #
 # Examples:
-#   ./scripts/run_full_report.sh              # Default: 10 days, top 10 exploitable, with 0-day
-#   ./scripts/run_full_report.sh 7            # 7 days, top 10 exploitable, with 0-day
+#   ./scripts/run_full_report.sh              # Default: 100 days, top 20 exploitable, with 0-day
+#   ./scripts/run_full_report.sh 7            # 7 days, top 20 exploitable, with 0-day
 #   ./scripts/run_full_report.sh 10 5         # 10 days, top 5 exploitable, with 0-day
 #   ./scripts/run_full_report.sh 50 20 1      # 50 days, top 20 by risk, with 0-day
 #   ./scripts/run_full_report.sh 10 10 0 1    # 10 days, scan only (skip 0-day)
 
 set -e
 
-DAYS=${1:-10}
-EXTRACT_TOP_N=${2:-10}
+DAYS=${1:-100}
+EXTRACT_TOP_N=${2:-20}
 EXTRACT_BY_RISK=${3:-0}
 SKIP_0DAY=${4:-0}
 TIMESTAMP=$(date +%s)

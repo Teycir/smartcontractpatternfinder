@@ -1,0 +1,21 @@
+id: honeypot-detection
+name: Honeypot Detection
+description: Detects honeypot scams that prevent users from selling tokens
+severity: critical
+tags:
+  - honeypot
+  - scam
+  - transfer-restriction
+patterns:
+  - id: sell-block-pattern
+    pattern: 'if\s*\(\s*_isSuper\s*\(\s*recipient\s*\)\s*\)\s*return\s+false'
+    message: Blocks transfers to DEX pair (prevents selling)
+  - id: asymmetric-transfer-logic
+    pattern: 'function\s+_canTransfer.*return\s+false'
+    message: Transfer restriction that may prevent selling
+  - id: transfer-whitelist-only
+    pattern: 'require\s*\(\s*_whitelist\[.*\]\s*\|\|\s*_whitelist\[.*\]\s*,'
+    message: Only whitelisted addresses can transfer
+  - id: hidden-sell-tax
+    pattern: 'if\s*\(.*pair.*\).*\{.*sellTax\s*=\s*(100|99|98|97|96|95)'
+    message: Extremely high sell tax (honeypot indicator)

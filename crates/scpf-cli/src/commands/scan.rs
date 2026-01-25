@@ -56,7 +56,20 @@ async fn scan_contracts(
 
     eprintln!("⏳ Scanning {} contracts...", total);
 
-    for (_idx, (address, chain)) in contracts.into_iter().enumerate() {
+    for (idx, (address, chain)) in contracts.into_iter().enumerate() {
+        // Progress reporting every 10 contracts
+        if idx > 0 && idx % 10 == 0 {
+            eprint!("\r   Progress: {}/{} contracts ({:.1}%)...   ", idx, total, (idx as f64 / total as f64) * 100.0);
+            use std::io::Write;
+            std::io::stderr().flush().ok();
+        }
+        
+        // Rate limiting: 100ms delay every 3 contracts (balance speed vs rate limits)
+        // With 6 keys @ 5 calls/sec each = 30 calls/sec theoretical
+        // This gives ~10 calls/sec actual to stay under limits
+        if idx > 0 && idx % 3 == 0 {
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        }
         let cache_key = format!("{}:{}", chain, address);
         let source = if let Some(cached) = cache.get(&cache_key).await {
             cached
@@ -85,6 +98,11 @@ async fn scan_contracts(
             .filter(|m| m.severity >= min_severity && m.severity >= Severity::High)
             .collect();
 
+        // Show progress for contracts with findings
+        if !filtered_matches.is_empty() {
+            eprintln!("\r   ✓ {} ({}) - {} findings                    ", &address[..12], chain.as_str(), filtered_matches.len());
+        }
+
         let analyzed_matches: Vec<_> = filtered_matches
             .into_iter()
             .map(|m| {
@@ -105,7 +123,7 @@ async fn scan_contracts(
         });
     }
     
-    eprintln!("✅ Scanning complete\n");
+    eprintln!("\n✅ Scanning complete\n");
 
     Ok((all_scan_results, cache))
 }

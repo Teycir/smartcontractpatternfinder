@@ -56,6 +56,11 @@ impl ContractFetcher {
         let mut last_error = None;
 
         for (idx, key) in keys.iter().enumerate() {
+            // Small delay between key attempts (50ms)
+            if idx > 0 {
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+            
             let _permit = self
                 .rate_limiter
                 .acquire()
@@ -229,63 +234,67 @@ impl ContractFetcher {
                 }
             };
 
-            let logs_url = format!(
-                "{}?chainid={}&module=logs&action=getLogs&fromBlock={}&toBlock=latest&topic0=0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0&page=1&offset=100&apikey={}",
-                chain.api_base_url(),
-                chain.chain_id(),
-                from_block,
-                key
-            );
+            // Paginate through results to get up to 10,000 contracts
+            let mut all_addresses = std::collections::HashSet::new();
+            let max_pages = 100; // 100 pages × 100 = 10,000 contracts
+            
+            for page in 1..=max_pages {
+                let logs_url = format!(
+                    "{}?chainid={}&module=logs&action=getLogs&fromBlock={}&toBlock=latest&topic0=0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0&page={}&offset=100&apikey={}",
+                    chain.api_base_url(),
+                    chain.chain_id(),
+                    from_block,
+                    page,
+                    key
+                );
 
-            let response = match self.client.get(&logs_url).send().await {
-                Ok(r) => r,
-                Err(e) => {
-                    last_error = Some(anyhow::anyhow!("Logs request failed: {}", e));
-                    continue;
-                }
-            };
+                let response = match self.client.get(&logs_url).send().await {
+                    Ok(r) => r,
+                    Err(e) => {
+                        tracing::warn!("Page {} failed: {}", page, e);
+                        break; // Stop pagination on error
+                    }
+                };
 
-            let text = match response.text().await {
-                Ok(t) => t,
-                Err(e) => {
-                    last_error = Some(anyhow::anyhow!("Failed to read response: {}", e));
-                    continue;
-                }
-            };
+                let text = match response.text().await {
+                    Ok(t) => t,
+                    Err(e) => {
+                        tracing::warn!("Page {} read failed: {}", page, e);
+                        break;
+                    }
+                };
 
-            let json: Value = match serde_json::from_str(&text) {
-                Ok(j) => j,
-                Err(e) => {
-                    last_error = Some(anyhow::anyhow!("Failed to parse JSON: {}", e));
-                    continue;
-                }
-            };
+                let json: Value = match serde_json::from_str(&text) {
+                    Ok(j) => j,
+                    Err(e) => {
+                        tracing::warn!("Page {} parse failed: {}", page, e);
+                        break;
+                    }
+                };
 
-            if json["status"].as_str() != Some("1") {
-                last_error = Some(anyhow::anyhow!("Failed to get logs: {:?}", json["message"]));
-                if idx < keys.len() - 1 {
-                    tracing::warn!("API key {} failed for logs fetch, trying next key", idx + 1);
-                    continue;
+                if json["status"].as_str() != Some("1") {
+                    // No more results or error
+                    break;
                 }
-                break;
+
+                let logs = match json["result"].as_array() {
+                    Some(l) if !l.is_empty() => l,
+                    _ => break, // No more results
+                };
+
+                for log in logs {
+                    if let Some(addr) = log["address"].as_str() {
+                        all_addresses.insert(addr.to_string());
+                    }
+                }
+
+                // If we got less than 100 results, we've reached the end
+                if logs.len() < 100 {
+                    break;
+                }
             }
 
-            let logs = match json["result"].as_array() {
-                Some(l) => l,
-                None => {
-                    last_error = Some(anyhow::anyhow!("No logs in response"));
-                    continue;
-                }
-            };
-
-            let mut addresses = std::collections::HashSet::new();
-            for log in logs {
-                if let Some(addr) = log["address"].as_str() {
-                    addresses.insert(addr.to_string());
-                }
-            }
-
-            return Ok(addresses.into_iter().collect());
+            return Ok(all_addresses.into_iter().collect());
         }
 
         Err(last_error.unwrap_or_else(|| anyhow::anyhow!("All API keys failed for {}", chain.as_str())))
