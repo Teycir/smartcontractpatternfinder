@@ -61,6 +61,7 @@ fn test_match_creation() {
         code_snippet: None,
         function_context: None,
         protections: None,
+        filtered: false,
     };
 
     assert_eq!(m.line_number, 42);

@@ -1,41 +1,11 @@
 id: front-running-v2
-name: Front-Running Vulnerabilities (v2)
-description: |
-  Detects patterns vulnerable to front-running (MEV) attacks:
-  - Hash reveals without commit phase
-  - Block-based randomness
-  - Unprotected approve() calls
-  - First-come-first-served rewards
-  
-  Mitigations: commit-reveal, Flashbots, private mempools, slippage checks.
+name: Critical Front-Running
+description: Only the most dangerous MEV patterns
 severity: high
 tags:
-  - security
   - front-running
-  - SWC-114
   - MEV
-
 patterns:
-  # Regex: Hash comparison
-  - id: hash-comparison-regex
-    kind: regex
-    pattern: '(keccak256|sha256|sha3)\s*\([^)]+\)\s*==\s*\S+'
-    message: "Hash comparison detected. Vulnerable to front-running if input is user-provided."
-
-  # Regex: Block-based randomness
-  - id: block-randomness-regex
+  - id: block-randomness
     pattern: '(?:keccak256|sha256)\s*\(\s*abi\.(?:encode|encodePacked)\s*\([^)]{0,100}block\.(?:timestamp|number|difficulty|prevrandao)'
-    message: "Using block properties for randomness is predictable. Use verifiable randomness (VRF)."
-    kind: regex
-
-  # Regex: ERC20 approve
-  - id: approve-frontrun-regex
-    pattern: '\.approve\s*\(\s*\w+\s*,\s*[1-9][0-9]*\s*\)'
-    message: "ERC20 approve() with non-zero value. Vulnerable to front-running - use increaseAllowance() or set to 0 first."
-    kind: regex
-
-  # Regex: Conditional reward pattern
-  - id: conditional-transfer-regex
-    kind: regex
-    pattern: 'if\s*\([^)]*==\s*[^)]+\)\s*\{[^}]*\.(transfer|send|call)\s*[\({]'
-    message: "Conditional transfer on equality check. Review for front-running if condition involves secrets."
+    message: Block properties used for randomness - predictable and manipulable

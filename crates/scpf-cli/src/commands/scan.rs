@@ -131,7 +131,7 @@ fn rank_and_score(mut scan_results: Vec<ScanResult>) -> Vec<ScanResult> {
     let mut with_poc_scores: Vec<_> = top_100
         .into_iter()
         .map(|r| {
-            let poc_score: f32 = r.matches.iter().map(|m| m.exploitability_score()).sum();
+            let poc_score: f32 = r.weighted_risk_score() as f32;
             (r, poc_score)
         })
         .collect();

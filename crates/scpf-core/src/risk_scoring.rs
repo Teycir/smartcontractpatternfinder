@@ -244,6 +244,7 @@ mod tests {
             code_snippet: None,
             function_context: None,
             protections: None,
+            filtered: false,
         }
     }
 

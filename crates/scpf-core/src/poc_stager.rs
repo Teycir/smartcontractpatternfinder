@@ -277,6 +277,7 @@ mod tests {
             }),
             function_context: None,
             protections: None,
+            filtered: false,
         };
 
         let source = "function withdraw() public { msg.sender.call{value: balance}(\"\"); }";

@@ -135,6 +135,8 @@ pub struct Match {
     pub function_context: Option<FunctionContext>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub protections: Option<ProtectionSet>,
+    #[serde(default)]
+    pub filtered: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -147,28 +149,15 @@ pub struct CodeSnippet {
 
 impl Match {
     /// Calculate risk score for this match
-    /// 
-    /// Formula:
-    /// - CRITICAL: 100 points
-    /// - HIGH: 10 points
+    /// Formula: CRITICAL=30, HIGH=1 (0 if filtered)
     pub fn risk_score(&self) -> u32 {
-        match self.severity {
-            Severity::Critical => 100,
-            Severity::High => 10,
+        if self.filtered {
+            return 0;
         }
-    }
-
-    /// Calculate exploitability score for PoC generation priority
-    /// Formula: Base Severity × PoC Difficulty Multiplier
-    pub fn exploitability_score(&self) -> f32 {
-        let base = self.risk_score() as f32;
-        let exploitability = Exploitability::from_pattern(&self.pattern_id);
-        base * exploitability.multiplier()
-    }
-
-    /// Get exploitability level for this vulnerability
-    pub fn exploitability(&self) -> Exploitability {
-        Exploitability::from_pattern(&self.pattern_id)
+        match self.severity {
+            Severity::Critical => 30,
+            Severity::High => 1,
+        }
     }
 }
 
@@ -185,18 +174,14 @@ pub struct ScanResult {
 }
 
 impl ScanResult {
-    /// Calculate total risk score for all matches
-    /// 
-    /// Formula: Σ(severity_weight × count)
-    /// Weights: CRITICAL=100, HIGH=10 (Medium/Low/Info excluded)
+    /// Calculate total risk score
+    /// Formula: Σ(CRITICAL×30 + HIGH×1)
     pub fn total_risk_score(&self) -> u32 {
         self.matches.iter().map(|m| m.risk_score()).sum()
     }
 
     /// Calculate size-weighted risk score (normalized per 100KB)
-    /// 
-    /// Formula: (total_risk_score / size_kb) × 100
-    /// This normalizes risk by contract size to avoid bias toward larger contracts
+    /// Formula: (CRITICAL×30 + HIGH×1) / size_kb × 100
     pub fn weighted_risk_score(&self) -> f64 {
         let base_score = self.total_risk_score() as f64;
         if let Some(size_kb) = self.source_size_kb {
@@ -208,19 +193,13 @@ impl ScanResult {
     }
 
     /// Get risk level based on total score
-    /// 
-    /// Thresholds (High/Critical only):
-    /// - 0: None ✅
-    /// - 1-50: Low ✅ (1-5 High issues)
-    /// - 51-200: Medium ⚠️ (6-20 High issues or 1-2 Critical)
-    /// - 201-500: High 🔴 (20+ High or 3-5 Critical)
-    /// - 500+: Critical 🚨 (5+ Critical issues)
+    /// Thresholds: 0=None, 1-5=Low, 6-20=Medium, 21-50=High, 50+=Critical
     pub fn risk_level(&self) -> &'static str {
         match self.total_risk_score() {
             0 => "None",
-            1..=50 => "Low",
-            51..=200 => "Medium",
-            201..=500 => "High",
+            1..=5 => "Low",
+            6..=20 => "Medium",
+            21..=50 => "High",
             _ => "Critical",
         }
     }
@@ -229,9 +208,9 @@ impl ScanResult {
     pub fn risk_emoji(&self) -> &'static str {
         match self.total_risk_score() {
             0 => "✅",
-            1..=50 => "✅",
-            51..=200 => "⚠️",
-            201..=500 => "🔴",
+            1..=5 => "✅",
+            6..=20 => "⚠️",
+            21..=50 => "🔴",
             _ => "🚨",
         }
     }
@@ -256,19 +235,19 @@ pub struct SeverityBreakdown {
 }
 
 impl SeverityBreakdown {
-    /// Calculate risk score from breakdown (High/Critical only)
+    /// Calculate risk score: CRITICAL×30 + HIGH×1
     pub fn risk_score(&self) -> u32 {
-        (self.critical as u32 * 100) + (self.high as u32 * 10)
+        (self.critical as u32 * 30) + (self.high as u32 * 1)
     }
 
     /// Format breakdown as string
     pub fn format(&self) -> String {
         format!(
-            "CRITICAL: {} × 100 = {}\n  HIGH: {} × 10 = {}",
+            "CRITICAL: {} × 30 = {}\n  HIGH: {} × 1 = {}",
             self.critical,
-            self.critical * 100,
+            self.critical * 30,
             self.high,
-            self.high * 10
+            self.high * 1
         )
     }
 }

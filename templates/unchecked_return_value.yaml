@@ -1,32 +1,22 @@
 id: unchecked-return-value-v4
 name: Unchecked Low-Level Call Return Value
 description: |
-  Detects low-level calls (call, delegatecall, staticcall, send) where the
-  boolean return value is discarded. These functions return false on failure
-  rather than reverting.
-  
-  Safe patterns NOT flagged:
-  - (bool success, ) = addr.call{...}(...);
-  - require(addr.send(amount), "failed");
-  - if (addr.call(...)) { ... }
-  
-  Note: .transfer() reverts on failure and is not flagged.
+  Detects ONLY truly unchecked low-level calls where return value is ignored.
+  Requires negative lookahead to ensure no checking is present.
 severity: high
 tags:
   - security
   - unchecked-return
   - SWC-104
-  - error-handling
 
 patterns:
-  # Regex: Expression statement with low-level call (no assignment)
-  - id: unchecked-call-regex
-    pattern: '^\s*[^=\n]*?\.(?:call|delegatecall|staticcall|send)\s*[\({]'
-    message: "Unchecked low-level call detected. Return value should be verified."
+  # Only flag if call is NOT assigned and NOT in require/if
+  - id: unchecked-call-statement
+    pattern: '^\s*(?!.*(?:bool|require|if|assert)).*\.(?:call|delegatecall)\s*[\({]'
+    message: "Unchecked low-level call - return value ignored"
     kind: regex
 
-  # send without assignment or require - returns false on failure instead of reverting
-  - id: unchecked-send-regex
-    pattern: '^\s*\w+\.send\([^)]+?\)\s*;'
-    message: "'.send()' return not checked - fails silently. Use require(addr.send(amount)) or .transfer()."
+  - id: unchecked-send-statement  
+    pattern: '^\s*(?!.*(?:require|if|assert))\w+\.send\([^)]+?\)\s*;'
+    message: "Unchecked .send() - return value ignored"
     kind: regex

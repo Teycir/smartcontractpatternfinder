@@ -1,31 +1,15 @@
 id: precision-loss
-name: Arithmetic Precision Loss
-description: Detects precision loss vulnerabilities from BalancerV2 ($120M) and FutureSwap ($433K) exploits
-severity: high
+name: Critical Precision Loss
+description: Only the most dangerous precision loss patterns from real exploits
+severity: critical
 tags:
   - arithmetic
   - precision
-  - rounding
-  - 0-day-2025
+  - 0-day
 patterns:
   - id: division-before-multiplication
     pattern: '(amount|balance|fee|reward|share)\s*\/\s*\w+\s*\*\s*\w+'
-    message: BalancerV2 pattern - division before multiplication (precision loss)
-  - id: decimal-mismatch-1e18-1e6
-    pattern: '(amount|balance)[^\n]{0,50}1e18[^\n]{0,50}[\+\-][^\n]{0,50}1e6'
-    message: Mixing 18-decimal and 6-decimal tokens without conversion
-  - id: unsafe-downcast-uint256-uint128
+    message: Division before multiplication - precision loss (BalancerV2 $120M exploit)
+  - id: unsafe-downcast
     pattern: 'uint128\([^)]{0,50}uint256'
     message: Unsafe uint256→uint128 downcast without overflow check
-  - id: unchecked-large-block
-    pattern: 'unchecked\s*\{[^}]{150,}'
-    message: Large unchecked block (>150 chars) - overflow/underflow risk
-  - id: percentage-calculation-truncation
-    pattern: '(amount|balance)\s*\*\s*\d+\s*\/\s*100'
-    message: Percentage with /100 instead of /10000 - precision loss
-  - id: wei-to-token-no-decimals
-    pattern: '(amount|balance)\s*\/\s*1e18'
-    message: Hardcoded 1e18 division - assumes 18 decimals
-  - id: mulDiv-reimplementation
-    pattern: 'function\s+mulDiv'
-    message: Custom mulDiv implementation - use audited library (FullMath/PRBMath)

@@ -346,6 +346,7 @@ mod tests {
             end_byte: None,
             function_context: None,
             protections: None,
+            filtered: false,
         }];
 
         let report = scanner.deep_analysis(&findings, "contract Test {}", "Test");

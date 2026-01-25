@@ -1,17 +1,12 @@
 id: missing-access-control
-name: Missing Access Control for Critical Functions
-description: |
-  Critical functions (like withdraw, mint, owner change) should have access control modifiers.
-  Contextual filtering will exclude functions with access control modifiers.
-severity: high
+name: Missing Access Control
+description: Critical functions without access control modifiers
+severity: critical
 tags:
   - security
   - access-control
   - SWC-105
-
 patterns:
-  # Critical functions - contextual filtering handles modifier checks
-  - id: critical-function-no-auth
-    pattern: 'function\s+(?:withdraw|mint|burn|setOwner|transferOwnership|pause|unpause|upgrade|initialize)\s*\([^)]*\)\s+(?:public|external)'
-    message: "Critical function without access control - add onlyOwner or equivalent modifier to prevent unauthorized access"
-    kind: regex
+  - id: critical-function-no-modifier
+    pattern: 'function\s+(?:withdraw|mint|setOwner|transferOwnership|upgrade|initialize)\s*\([^)]*\)\s+(?:public|external)(?!.*(?:onlyOwner|onlyRole|onlyAdmin))'
+    message: Critical function without access control modifier

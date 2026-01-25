@@ -25,6 +25,7 @@ pub struct Scanner {
     oz_address_lib_regex: Option<fancy_regex::Regex>,
     proxy_pattern_regex: Option<fancy_regex::Regex>,
     safe_nft_pattern_regex: Option<fancy_regex::Regex>,
+    timestamp_pattern_regex: Option<fancy_regex::Regex>,
 }
 
 impl Scanner {
@@ -47,6 +48,7 @@ impl Scanner {
             oz_address_lib_regex: fancy_regex::Regex::new(r"(sendValue|functionCall|functionCallWithValue|functionStaticCall|functionDelegateCall)\s*\(").ok(),
             proxy_pattern_regex: fancy_regex::Regex::new(r"\b(Proxy|ERC1967|TransparentUpgradeable|BeaconProxy|_implementation|_delegate|_fallback)\b").ok(),
             safe_nft_pattern_regex: fancy_regex::Regex::new(r"\b(ERC721|ERC1155|_mint|_burn|_transfer|_safeMint|tokenId|balanceOf)\b").ok(),
+            timestamp_pattern_regex: fancy_regex::Regex::new(r"\b(block\.timestamp|block\.number|now)\b").ok(),
         })
     }
 
@@ -135,17 +137,19 @@ impl Scanner {
                         continue;
                     }
 
+                    let mut filtered = false;
+
                     // Filter OpenZeppelin Address library functions
                     if let Some(ref regex) = self.oz_address_lib_regex {
                         if regex.is_match(&context).unwrap_or(false) {
-                            continue;
+                            filtered = true;
                         }
                     }
 
                     // Filter standard proxy patterns
                     if let Some(ref regex) = self.proxy_pattern_regex {
                         if regex.is_match(&context).unwrap_or(false) {
-                            continue;
+                            filtered = true;
                         }
                     }
 
@@ -154,8 +158,15 @@ impl Scanner {
                         if regex.is_match(&context).unwrap_or(false) {
                             // Additional check: ensure it's in a standard NFT function
                             if context.contains("_mint") || context.contains("_burn") || context.contains("_transfer") {
-                                continue;
+                                filtered = true;
                             }
+                        }
+                    }
+
+                    // Filter timestamp dependence patterns (low severity)
+                    if let Some(ref regex) = self.timestamp_pattern_regex {
+                        if regex.is_match(&context).unwrap_or(false) {
+                            filtered = true;
                         }
                     }
 
@@ -174,6 +185,7 @@ impl Scanner {
                         end_byte: None,
                         function_context: None,
                         protections: None,
+                        filtered,
                     });
                 }
             }
