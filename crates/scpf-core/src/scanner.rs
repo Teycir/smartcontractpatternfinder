@@ -22,6 +22,9 @@ pub struct Scanner {
     access_control_regex: Option<fancy_regex::Regex>,
     pausable_regex: Option<fancy_regex::Regex>,
     checks_effects_regex: Option<fancy_regex::Regex>,
+    oz_address_lib_regex: Option<fancy_regex::Regex>,
+    proxy_pattern_regex: Option<fancy_regex::Regex>,
+    safe_nft_pattern_regex: Option<fancy_regex::Regex>,
 }
 
 impl Scanner {
@@ -41,6 +44,9 @@ impl Scanner {
             access_control_regex: fancy_regex::Regex::new(r"\b(onlyOwner|onlyRole|onlyAdmin|requireOwner|requireRole|AccessControl|Ownable|auth|authorized)\b").ok(),
             pausable_regex: fancy_regex::Regex::new(r"\b(whenNotPaused|whenPaused|Pausable|notPaused)\b").ok(),
             checks_effects_regex: fancy_regex::Regex::new(r"\brequire\s*\(").ok(),
+            oz_address_lib_regex: fancy_regex::Regex::new(r"(sendValue|functionCall|functionCallWithValue|functionStaticCall|functionDelegateCall)\s*\(").ok(),
+            proxy_pattern_regex: fancy_regex::Regex::new(r"\b(Proxy|ERC1967|TransparentUpgradeable|BeaconProxy|_implementation|_delegate|_fallback)\b").ok(),
+            safe_nft_pattern_regex: fancy_regex::Regex::new(r"\b(ERC721|ERC1155|_mint|_burn|_transfer|_safeMint|tokenId|balanceOf)\b").ok(),
         })
     }
 
@@ -127,6 +133,30 @@ impl Scanner {
                     // OpenZeppelin whitelist for library code
                     if is_openzeppelin_library(source) && is_openzeppelin_safe_pattern(source, &context, mat.as_str()) {
                         continue;
+                    }
+
+                    // Filter OpenZeppelin Address library functions
+                    if let Some(ref regex) = self.oz_address_lib_regex {
+                        if regex.is_match(&context).unwrap_or(false) {
+                            continue;
+                        }
+                    }
+
+                    // Filter standard proxy patterns
+                    if let Some(ref regex) = self.proxy_pattern_regex {
+                        if regex.is_match(&context).unwrap_or(false) {
+                            continue;
+                        }
+                    }
+
+                    // Filter safe NFT patterns (ERC721/ERC1155 standard functions)
+                    if let Some(ref regex) = self.safe_nft_pattern_regex {
+                        if regex.is_match(&context).unwrap_or(false) {
+                            // Additional check: ensure it's in a standard NFT function
+                            if context.contains("_mint") || context.contains("_burn") || context.contains("_transfer") {
+                                continue;
+                            }
+                        }
                     }
 
                     matches.push(Match {
