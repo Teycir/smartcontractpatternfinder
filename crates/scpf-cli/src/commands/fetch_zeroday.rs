@@ -12,12 +12,15 @@ pub async fn run(args: FetchZeroDayArgs) -> Result<()> {
 
     let fetcher = ZeroDayFetcher::new()?;
 
+    // Use 30 days minimum to ensure we get data
+    let days_to_fetch = if args.days < 30 { 30 } else { args.days };
+
     eprintln!(
         "{}  Fetching exploits from last {} days...",
         "📡".cyan(),
-        args.days
+        days_to_fetch
     );
-    let exploits = fetcher.fetch_recent_exploits(args.days as i64).await?;
+    let mut exploits = fetcher.fetch_recent_exploits(days_to_fetch as i64).await?;
 
     if exploits.is_empty() {
         eprintln!("{}  No recent exploits found", "⚠️".yellow());
@@ -25,54 +28,72 @@ pub async fn run(args: FetchZeroDayArgs) -> Result<()> {
     }
 
     eprintln!("{}  Found {} recent exploits", "✓".green(), exploits.len());
+    
+    // Sort by date (newest first)
+    exploits.sort_by(|a, b| b.date.cmp(&a.date));
+    
+    let with_addr = exploits.iter().filter(|e| e.contract_address.is_some()).count();
+    eprintln!("   ✓ {} with addresses, {} without", with_addr, exploits.len() - with_addr);
+    
     eprintln!("⏳ Processing exploits...");
     eprintln!();
 
+    let root_dir = if let Some(output_path) = &args.output {
+        output_path.parent().unwrap().to_path_buf()
+    } else {
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        PathBuf::from(std::env::var("SCPF_REPORT_DIR").unwrap_or_else(|_| {
+            format!(
+                "/home/teycir/smartcontractpatternfinderReports/report_{}",
+                timestamp
+            )
+        }))
+    };
+    std::fs::create_dir_all(&root_dir)?;
+    let zeroday_summary = args.output.clone().unwrap_or_else(|| root_dir.join("0day_summary.md"));
+
+    let mut summary = String::new();
+    summary.push_str("# 🔥 0-Day Exploit Summary\n\n");
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_secs();
-
-    let root_dir = std::env::var("SCPF_REPORT_DIR").unwrap_or_else(|_| {
-        format!(
-            "/home/teycir/smartcontractpatternfinderReports/report_{}",
-            timestamp
-        )
-    });
-    let root_dir = PathBuf::from(root_dir);
-    std::fs::create_dir_all(&root_dir)?;
-    let zeroday_summary = root_dir.join("0day_summary.md");
-
-    let mut summary = String::new();
-    summary.push_str("# 🔥 0-Day Exploit Summary\n\n");
     summary.push_str(&format!("**Generated:** {}\n", timestamp));
-    summary.push_str(&format!("**Period:** Last {} days\n\n", args.days));
+    summary.push_str(&format!("**Period:** Last {} days (fetched {})
+
+", args.days, days_to_fetch));
     summary.push_str("---\n\n");
+    let with_address: Vec<_> = exploits.iter().filter(|e| e.contract_address.is_some()).collect();
+
     summary.push_str(&format!(
-        "## 📊 Overview\n\n**Total Exploits Found:** {}\n\n",
-        exploits.len()
+        "## 📊 Overview\n\n- **Total Exploits:** {}\n- **With Contract Address:** {}\n\n",
+        exploits.len(),
+        with_address.len()
     ));
-    summary.push_str("## 📰 Recent Exploits\n\n");
 
-    for exploit in &exploits {
-        if exploit.contract_address.is_none() {
-            continue;
-        }
+    summary.push_str("## 📰 Exploits with Contract Addresses\n\n");
 
+    for exploit in &with_address {
         summary.push_str(&format!("### {}\n\n", exploit.title));
-        summary.push_str(&format!(
-            "**{}** | **{}",
-            exploit.date.format("%Y-%m-%d"),
-            exploit.source
-        ));
+        summary.push_str(&format!("**Date:** {} | **Source:** {}\n\n", exploit.date.format("%Y-%m-%d"), exploit.source));
 
         if let Some(addr) = &exploit.contract_address {
-            summary.push_str(&format!(" | `{}`", addr));
+            summary.push_str(&format!("**Contract:** `{}`\n\n", addr));
         }
         if let Some(tx) = &exploit.tx_hash {
-            summary.push_str(&format!(" | `{}`", tx));
+            summary.push_str(&format!("**TX Hash:** `{}`\n\n", tx));
         }
-        summary.push_str("\n\n**Links:** ");
+        if let Some(chain) = &exploit.chain {
+            summary.push_str(&format!("**Chain:** {}\n\n", chain));
+        }
+        if let Some(loss) = exploit.loss_usd {
+            summary.push_str(&format!("**Loss:** ${}\n\n", format_loss(loss)));
+        }
+
+        summary.push_str("**Links:**\n\n");
 
         if let Some(addr) = &exploit.contract_address {
             if let Some(chain) = &exploit.chain {
@@ -84,7 +105,7 @@ pub async fn run(args: FetchZeroDayArgs) -> Result<()> {
                     "base" => format!("https://basescan.org/address/{}", addr),
                     _ => format!("https://etherscan.io/address/{}", addr),
                 };
-                summary.push_str(&format!("[Contract]({}#code) | ", explorer));
+                summary.push_str(&format!("- [View Contract on Explorer]({}#code)\n", explorer));
             }
         }
 
@@ -98,27 +119,19 @@ pub async fn run(args: FetchZeroDayArgs) -> Result<()> {
                     "base" => format!("https://basescan.org/tx/{}", tx),
                     _ => format!("https://etherscan.io/tx/{}", tx),
                 };
-                summary.push_str(&format!("[TX]({}#eventlog) | ", tx_url));
+                summary.push_str(&format!("- [View Transaction]({}#eventlog)\n", tx_url));
             }
         }
 
         let search_query = exploit.title.replace(' ', "+");
-        summary.push_str(&format!(
-            "[PoC](https://github.com/SunWeb3Sec/DeFiHackLabs/search?q={})\n\n",
-            search_query
-        ));
+        summary.push_str(&format!("- [Search PoC on DeFiHackLabs](https://github.com/SunWeb3Sec/DeFiHackLabs/search?q={})\n", search_query));
 
-        if let Some(loss) = exploit.loss_usd {
-            summary.push_str(&format!("**Loss:** ${}\n\n", format_loss(loss)));
-        }
-        if let Some(chain) = &exploit.chain {
-            summary.push_str(&format!("**Chain:** {}\n\n", chain));
-        }
-
-        summary.push_str("---\n\n");
+        summary.push_str("\n---\n\n");
     }
 
     fs::write(&zeroday_summary, summary)?;
+
+
 
     eprintln!("✅ Processing complete");
     eprintln!();

@@ -221,8 +221,9 @@
   height: 8px;
   background: #21262d;
   border-radius: 4px;
-  overflow: hidden;
+  overflow: visible;
   margin-bottom: 0.75rem;
+  position: relative;
 }
 
 .progress-bar-fill {
@@ -230,6 +231,16 @@
   background: linear-gradient(90deg, #238636, #2ea043);
   border-radius: 4px;
   transition: width 0.3s ease;
+}
+
+.progress-bar-text {
+  position: absolute;
+  right: 4px;
+  top: -2px;
+  font-size: 0.7rem;
+  color: #8b949e;
+  font-weight: 600;
+  pointer-events: none;
 }
 
 .progress-current {

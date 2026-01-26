@@ -27,9 +27,9 @@ struct AppState {
 struct ScanProgress {
     contracts_scanned: AtomicU32,
     contracts_total: AtomicU32,
-    vulnerabilities_found: AtomicU32,
     contracts_extracted: AtomicU32,
     current_contract: RwLock<Option<String>>,
+    current_contract_name: RwLock<Option<String>>,
 }
 
 impl Default for ScanProgress {
@@ -37,9 +37,9 @@ impl Default for ScanProgress {
         Self {
             contracts_scanned: AtomicU32::new(0),
             contracts_total: AtomicU32::new(0),
-            vulnerabilities_found: AtomicU32::new(0),
             contracts_extracted: AtomicU32::new(0),
             current_contract: RwLock::new(None),
+            current_contract_name: RwLock::new(None),
         }
     }
 }
@@ -48,21 +48,24 @@ impl ScanProgress {
     fn reset(&self) {
         self.contracts_scanned.store(0, Ordering::SeqCst);
         self.contracts_total.store(0, Ordering::SeqCst);
-        self.vulnerabilities_found.store(0, Ordering::SeqCst);
         self.contracts_extracted.store(0, Ordering::SeqCst);
         if let Ok(mut current) = self.current_contract.try_write() {
             *current = None;
+        }
+        if let Ok(mut name) = self.current_contract_name.try_write() {
+            *name = None;
         }
     }
     
     fn to_json(&self) -> serde_json::Value {
         let total = self.contracts_total.load(Ordering::SeqCst);
         let current = self.current_contract.try_read().ok().and_then(|c| c.clone());
+        let current_name = self.current_contract_name.try_read().ok().and_then(|c| c.clone());
         serde_json::json!({
             "contracts_scanned": self.contracts_scanned.load(Ordering::SeqCst),
             "contracts_total": if total > 0 { Some(total) } else { None },
             "current_contract": current,
-            "vulnerabilities_found": self.vulnerabilities_found.load(Ordering::SeqCst),
+            "current_contract_name": current_name,
             "contracts_extracted": self.contracts_extracted.load(Ordering::SeqCst)
         })
     }
@@ -620,6 +623,18 @@ fn parse_and_update_progress(state: &AppState, line: &str) {
                             if let Ok(mut current_contract) = state.progress.current_contract.try_write() {
                                 *current_contract = Some(addr.to_string());
                             }
+                            // Try to extract contract name from line (format: "Scanning ContractName (0x...)")
+                            if let Some(scanning_pos) = line.find("Scanning") {
+                                let after_scanning = &line[scanning_pos + 8..].trim_start();
+                                if let Some(paren_pos) = after_scanning.find('(') {
+                                    let name = after_scanning[..paren_pos].trim();
+                                    if !name.is_empty() && name.len() < 50 {
+                                        if let Ok(mut current_name) = state.progress.current_contract_name.try_write() {
+                                            *current_name = Some(name.to_string());
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                     return;
@@ -644,37 +659,7 @@ fn parse_and_update_progress(state: &AppState, line: &str) {
             }
         }
     }
-    
-    // Pattern: "N findings" - extract findings count
-    if line.contains("findings") || line.contains("finding") {
-        // Look for pattern like "4 findings" or "1 finding"
-        let words: Vec<&str> = line.split_whitespace().collect();
-        for (i, word) in words.iter().enumerate() {
-            if (*word == "findings" || *word == "finding") && i > 0 {
-                if let Ok(n) = words[i - 1].parse::<u32>() {
-                    if n > 0 {
-                        let new_total = state.progress.vulnerabilities_found.fetch_add(n, Ordering::SeqCst) + n;
-                        tracing::debug!("Found {} findings, total now: {}", n, new_total);
-                    }
-                    return;
-                }
-            }
-        }
-    }
-    
-    // Pattern: "Exploitable: X contracts with Y findings" - final summary
-    if let Some(caps) = regex_lite::Regex::new(r"Exploitable:\s*\d+\s+contracts?\s+with\s+(\d+)\s+findings?")
-        .ok()
-        .and_then(|re| re.captures(line))
-    {
-        if let Some(findings) = caps.get(1) {
-            if let Ok(n) = findings.as_str().parse::<u32>() {
-                state.progress.vulnerabilities_found.store(n, Ordering::SeqCst);
-            }
-        }
-        return;
-    }
-    
+
     // Pattern: "Extracted N contract sources" - track extraction count
     if line.contains("Extracted") && line.contains("contract sources") {
         if let Some(extracted_pos) = line.find("Extracted") {

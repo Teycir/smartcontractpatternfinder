@@ -12,7 +12,7 @@ const Scanner = () => {
     contracts_scanned: 0,
     contracts_total: null,
     current_contract: null,
-    vulnerabilities_found: 0,
+    current_contract_name: null,
     contracts_extracted: 0,
   })
   const [config, setConfig] = useState({
@@ -119,7 +119,7 @@ const Scanner = () => {
         extract_sources: config.extract_sources && parseInt(config.extract_sources, 10) > 0
           ? parseInt(config.extract_sources, 10)
           : null,
-        fetch_zero_day: config.fetch_zero_day ? 7 : null,
+        fetch_zero_day: config.fetch_zero_day ? 30 : null,
       }
 
       await axios.post('/api/start', payload, { timeout: 10000 })
@@ -176,7 +176,7 @@ const Scanner = () => {
         contracts_scanned: 0,
         contracts_total: null,
         current_contract: null,
-        vulnerabilities_found: 0,
+        current_contract_name: null,
         contracts_extracted: 0,
       })
     } catch (err) {
@@ -286,10 +286,16 @@ const Scanner = () => {
         <div className="progress-section">
           <div className="progress-header">
             <span className="progress-label">
-              📊 {progress.contracts_scanned} contracts scanned
+              📊 {progress.contracts_scanned}
+              {progress.contracts_total ? ` / ${progress.contracts_total}` : ''} contracts scanned
+              {progress.contracts_total > 0 && (
+                <strong style={{ marginLeft: '0.5rem' }}>
+                  ({((progress.contracts_scanned / progress.contracts_total) * 100).toFixed(1)}%)
+                </strong>
+              )}
               {progress.contracts_extracted > 0 && (
                 <span style={{ marginLeft: '0.5rem' }}>
-                  • {progress.contracts_extracted} riskiest extracted
+                  • {progress.contracts_extracted} extracted
                 </span>
               )}
               {status === 'idle' && progress.contracts_scanned > 0 && progress.contracts_scanned < progress.contracts_total && (
@@ -298,9 +304,6 @@ const Scanner = () => {
               {status === 'idle' && progress.contracts_scanned > 0 && progress.contracts_scanned >= progress.contracts_total && (
                 <span style={{ color: '#22c55e', marginLeft: '0.5rem' }}>✅ Complete</span>
               )}
-            </span>
-            <span className="progress-vulns">
-              🔴 {progress.vulnerabilities_found} vulnerabilities found
             </span>
           </div>
           {progress.contracts_total && progress.contracts_total > 0 && (
@@ -312,11 +315,14 @@ const Scanner = () => {
                   backgroundColor: status === 'paused' ? '#f59e0b' : (status === 'idle' ? '#6b7280' : undefined)
                 }}
               />
+              <div className="progress-bar-text">
+                {progress.contracts_scanned} / {progress.contracts_total}
+              </div>
             </div>
           )}
-          {progress.current_contract && status === 'running' && (
+          {progress.current_contract_name && status === 'running' && (
             <div className="progress-current">
-              🔄 Currently scanning: <code>{progress.current_contract}</code>
+              🔄 Currently scanning: <code>{progress.current_contract_name}</code>
             </div>
           )}
         </div>
@@ -407,7 +413,7 @@ const Scanner = () => {
               onChange={handleInputChange}
               disabled={isControlsDisabled}
             />
-            <span>Fetch 0-day exploits <small style={{ opacity: 0.6, fontSize: '0.85em' }}>(last 7 days)</small></span>
+            <span>Fetch 0-day exploits <small style={{ opacity: 0.6, fontSize: '0.85em' }}>(last 30 days)</small></span>
           </label>
         </div>
 

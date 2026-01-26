@@ -378,7 +378,7 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     });
     let root_dir = PathBuf::from(root_dir);
 
-    // Create report directory if it doesn't exist
+    // Create report directory
     std::fs::create_dir_all(&root_dir)?;
 
     let vuln_summary = root_dir.join("vuln_summary.md");
