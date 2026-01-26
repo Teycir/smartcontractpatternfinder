@@ -76,6 +76,7 @@ fn test_scan_result_serialization() {
         matches: vec![],
         scan_time_ms: 100,
         solidity_version: None,
+        source_size_kb: None,
     };
 
     let json = serde_json::to_string(&result).unwrap();

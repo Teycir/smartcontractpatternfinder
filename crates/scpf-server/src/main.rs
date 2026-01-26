@@ -19,6 +19,8 @@ struct AppState {
     child_pid: Arc<Mutex<Option<u32>>>,
     progress: Arc<ScanProgress>,
     log_tx: Arc<RwLock<Vec<mpsc::UnboundedSender<String>>>>,
+    results: Arc<RwLock<Vec<String>>>,
+    report_path: Arc<RwLock<Option<std::path::PathBuf>>>,
 }
 
 // Use atomics for progress to avoid lock contention
@@ -112,6 +114,8 @@ async fn main() {
         child_pid: Arc::new(Mutex::new(None)),
         progress: Arc::new(ScanProgress::default()),
         log_tx: Arc::new(RwLock::new(Vec::new())),
+        results: Arc::new(RwLock::new(Vec::new())),
+        report_path: Arc::new(RwLock::new(None)),
     };
 
     let app = Router::new()
@@ -122,6 +126,8 @@ async fn main() {
         .route("/api/resume", post(resume_scan))
         .route("/api/stop", post(stop_scan))
         .route("/api/logs", get(stream_logs))
+        .route("/api/results", get(get_results))
+        .route("/api/export", get(export_results))
         .layer(CorsLayer::permissive())
         .with_state(state);
 
@@ -166,6 +172,16 @@ async fn start_scan(
 
     // Reset progress for new scan
     state.progress.reset();
+    
+    // Clear previous results
+    {
+        let mut results = state.results.write().await;
+        results.clear();
+    }
+    {
+        let mut report_path = state.report_path.write().await;
+        *report_path = None;
+    }
     
     {
         let mut status = state.scan_status.write().await;
@@ -326,6 +342,43 @@ async fn stop_scan(State(state): State<AppState>) -> impl IntoResponse {
         StatusCode::OK,
         Json(serde_json::json!({"message": "Scan stopped"})),
     )
+}
+
+async fn get_results(State(state): State<AppState>) -> impl IntoResponse {
+    let results = state.results.read().await;
+    Json(serde_json::json!({
+        "count": results.len(),
+        "findings": results.clone()
+    }))
+}
+
+async fn export_results(State(state): State<AppState>) -> impl IntoResponse {
+    let report_path = state.report_path.read().await;
+    
+    if let Some(path) = report_path.as_ref() {
+        if path.exists() {
+            match tokio::fs::read_to_string(path).await {
+                Ok(content) => {
+                    return (
+                        StatusCode::OK,
+                        [("Content-Type", "text/markdown")],
+                        content
+                    ).into_response();
+                }
+                Err(e) => {
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(serde_json::json!({"error": format!("Failed to read report: {}", e)}))
+                    ).into_response();
+                }
+            }
+        }
+    }
+    
+    (
+        StatusCode::NOT_FOUND,
+        Json(serde_json::json!({"error": "No report available"}))
+    ).into_response()
 }
 
 async fn stream_logs(
@@ -528,6 +581,29 @@ async fn run_scan(state: AppState, config: ScanConfig) {
 
 /// Parse log lines to extract progress information (non-async, uses atomics)
 fn parse_and_update_progress(state: &AppState, line: &str) {
+    // Store findings incrementally
+    if line.contains("findings") || line.contains("Exploitable") || line.contains("✓") {
+        if let Ok(mut results) = state.results.try_write() {
+            results.push(line.to_string());
+        }
+    }
+    
+    // Capture report path
+    if line.contains("Vulnerability summary:") || line.contains("vuln_summary.md") {
+        if let Some(path_start) = line.rfind('/') {
+            if let Some(path_end) = line[path_start..].find(char::is_whitespace) {
+                let path_str = &line[..path_start + path_end];
+                if let Ok(mut report_path) = state.report_path.try_write() {
+                    *report_path = Some(std::path::PathBuf::from(path_str));
+                }
+            } else {
+                let path_str = line[..].trim();
+                if let Ok(mut report_path) = state.report_path.try_write() {
+                    *report_path = Some(std::path::PathBuf::from(path_str));
+                }
+            }
+        }
+    }
     // Pattern: "[851/10553]" - extract progress from contract scanning lines
     // Using simple string parsing for reliability
     if let Some(bracket_start) = line.find('[') {

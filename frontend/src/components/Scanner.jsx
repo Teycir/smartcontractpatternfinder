@@ -24,7 +24,7 @@ const Scanner = () => {
     contract_type: '',
     sort_by_exploitability: false,
     update_templates: '0',
-    extract_sources: '0',
+    extract_sources: '50',
   })
 
   const statusIntervalRef = useRef(null)
@@ -294,13 +294,24 @@ const Scanner = () => {
         </div>
       </div>
 
-      {/* Progress Bar */}
-      {(status === 'running' || status === 'paused') && (
+      {/* Progress Bar - show when running, paused, or has progress data */}
+      {(status === 'running' || status === 'paused' || (progress.contracts_scanned > 0 && progress.contracts_total > 0)) && (
         <div className="progress-section">
           <div className="progress-header">
             <span className="progress-label">
               📊 Progress: {progress.contracts_scanned}
               {progress.contracts_total ? ` / ${progress.contracts_total}` : ''} contracts scanned
+              {progress.contracts_total > 0 && (
+                <strong style={{ marginLeft: '0.5rem' }}>
+                  ({((progress.contracts_scanned / progress.contracts_total) * 100).toFixed(1)}%)
+                </strong>
+              )}
+              {status === 'idle' && progress.contracts_scanned > 0 && progress.contracts_scanned < progress.contracts_total && (
+                <span style={{ color: '#f59e0b', marginLeft: '0.5rem' }}>⚠️ Stopped</span>
+              )}
+              {status === 'idle' && progress.contracts_scanned > 0 && progress.contracts_scanned >= progress.contracts_total && (
+                <span style={{ color: '#22c55e', marginLeft: '0.5rem' }}>✅ Complete</span>
+              )}
             </span>
             <span className="progress-vulns">
               🔴 {progress.vulnerabilities_found} vulnerabilities found
@@ -310,13 +321,16 @@ const Scanner = () => {
             <div className="progress-bar-container">
               <div
                 className="progress-bar-fill"
-                style={{ width: `${Math.min(100, (progress.contracts_scanned / progress.contracts_total) * 100)}%` }}
+                style={{ 
+                  width: `${Math.min(100, (progress.contracts_scanned / progress.contracts_total) * 100)}%`,
+                  backgroundColor: status === 'paused' ? '#f59e0b' : (status === 'idle' ? '#6b7280' : undefined)
+                }}
               />
             </div>
           )}
-          {progress.current_contract && (
+          {progress.current_contract && status === 'running' && (
             <div className="progress-current">
-              Current: <code>{progress.current_contract}</code>
+              🔄 Currently scanning: <code>{progress.current_contract}</code>
             </div>
           )}
         </div>
@@ -435,12 +449,12 @@ const Scanner = () => {
         <div className="config-group" style={{ marginTop: '1rem' }}>
           <label>Extract Top Riskiest Sources</label>
           <select name="extract_sources" value={config.extract_sources} onChange={handleInputChange} disabled={isControlsDisabled}>
-            <option value="0">Don't Extract</option>
             <option value="10">Top 10</option>
             <option value="25">Top 25</option>
-            <option value="50">Top 50</option>
+            <option value="50">Top 50 (Default)</option>
             <option value="100">Top 100</option>
             <option value="200">Top 200</option>
+            <option value="0">Don't Extract</option>
           </select>
         </div>
       </div>

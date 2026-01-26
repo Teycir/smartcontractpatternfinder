@@ -102,7 +102,7 @@ async fn scan_contracts(
         let cache_key = format!("{}:{}", chain, address);
         // Check cache, but invalidate empty entries (0 bytes = failed fetch that was cached)
         let cached_source = cache.get(&cache_key).await.filter(|s| !s.is_empty());
-        
+
         let (source, from_cache) = if let Some(cached) = cached_source {
             (cached, true)
         } else {
@@ -116,23 +116,25 @@ async fn scan_contracts(
                         cache.set(&cache_key, &src).await?;
                     }
                     if !is_tty {
-                        eprintln!("      ✓ Source fetched ({:.1} KB)", src.len() as f64 / 1024.0);
+                        eprintln!(
+                            "      ✓ Source fetched ({:.1} KB)",
+                            src.len() as f64 / 1024.0
+                        );
                     }
                     (src, false)
                 }
                 Err(e) => {
-                    eprintln!(
-                        "      ✗ Error fetching {}: {}",
-                        short_addr,
-                        e
-                    );
+                    eprintln!("      ✗ Error fetching {}: {}", short_addr, e);
                     continue;
                 }
             }
         };
 
         if !is_tty && from_cache {
-            eprintln!("      📦 Using cached source ({:.1} KB)", source.len() as f64 / 1024.0);
+            eprintln!(
+                "      📦 Using cached source ({:.1} KB)",
+                source.len() as f64 / 1024.0
+            );
         }
 
         let start = Instant::now();
@@ -360,10 +362,10 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
         )
     });
     let root_dir = PathBuf::from(root_dir);
-    
+
     // Create report directory if it doesn't exist
     std::fs::create_dir_all(&root_dir)?;
-    
+
     let vuln_summary = root_dir.join("vuln_summary.md");
 
     let mut summary = String::new();
@@ -513,21 +515,24 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     if let Some(extract_count) = args.extract_sources {
         let sources_dir = root_dir.join("sources");
         std::fs::create_dir_all(&sources_dir)?;
-        
-        eprintln!("\n📁 Extracting top {} riskiest contract sources...", extract_count);
-        
+
+        eprintln!(
+            "\n📁 Extracting top {} riskiest contract sources...",
+            extract_count
+        );
+
         let mut saved_count = 0;
         let mut total_size: u64 = 0;
-        
+
         // scan_results is already sorted by weighted risk score (from rank_and_score)
         for (rank, result) in scan_results.iter().take(extract_count).enumerate() {
             let cache_key = format!("{}:{}", result.chain, result.address);
-            
+
             if let Some(source) = cache.get(&cache_key).await {
                 // Create chain subdirectory
                 let chain_dir = sources_dir.join(&result.chain);
                 std::fs::create_dir_all(&chain_dir)?;
-                
+
                 let weighted_risk = result.weighted_risk_score();
                 let output_file = chain_dir.join(format!(
                     "{:03}_{}_risk{:.0}.sol",
@@ -536,11 +541,11 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
                     weighted_risk
                 ));
                 std::fs::write(&output_file, &source)?;
-                
+
                 let size = source.len() as u64;
                 total_size += size;
                 saved_count += 1;
-                
+
                 eprintln!(
                     "   [{}/{}] {} ({}) - Risk: {:.1}",
                     rank + 1,
@@ -551,7 +556,7 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
                 );
             }
         }
-        
+
         eprintln!(
             "\n   ✅ Extracted {} contract sources ({:.1} MB total) to {}",
             saved_count,

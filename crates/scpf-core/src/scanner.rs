@@ -1,23 +1,42 @@
 use crate::regex_validator::RegexValidator;
 use anyhow::Result;
 use fancy_regex::RegexBuilder;
+use rayon::prelude::*;
 use scpf_types::{Match, Pattern, Template};
 use std::path::PathBuf;
+use std::sync::Arc;
 use tracing::warn;
 
-struct CompiledPattern {
+/// Shared string type to avoid cloning template/pattern IDs for every match
+type SharedStr = Arc<str>;
+
+struct CompiledPatternOptimized {
     regex: fancy_regex::Regex,
-    pattern: Pattern,
+    pattern_id: SharedStr,
+    message: SharedStr,
     index: u32,
 }
 
-struct CompiledTemplate {
-    template: Template,
-    patterns: Vec<CompiledPattern>,
+struct CompiledTemplateOptimized {
+    template_id: SharedStr,
+    severity: scpf_types::Severity,
+    patterns: Vec<CompiledPatternOptimized>,
+}
+
+/// Context for parallel scanning - shared immutable data
+struct ScanContext<'a> {
+    source: &'a str,
+    newlines: &'a [usize],
+    lines: &'a [&'a str],
+    file_path: &'a PathBuf,
+    has_reentrancy_guard: bool,
+    has_access_control: bool,
+    has_pausable: bool,
+    is_oz_library: bool,
 }
 
 pub struct Scanner {
-    templates: Vec<CompiledTemplate>,
+    templates: Vec<CompiledTemplateOptimized>,
     reentrancy_guard_regex: Option<fancy_regex::Regex>,
     access_control_regex: Option<fancy_regex::Regex>,
     pausable_regex: Option<fancy_regex::Regex>,
@@ -33,7 +52,7 @@ impl Scanner {
         let mut pattern_index = 0u32;
 
         for template in templates {
-            if let Some(compiled) = compile_template(template, &mut pattern_index)? {
+            if let Some(compiled) = compile_template_optimized(template, &mut pattern_index)? {
                 compiled_templates.push(compiled);
             }
         }
@@ -50,151 +69,182 @@ impl Scanner {
         })
     }
 
-    pub fn scan(&mut self, source: &str, file_path: PathBuf) -> Result<Vec<Match>> {
+    /// Scan source code for vulnerabilities using parallel pattern matching with rayon
+    pub fn scan(&self, source: &str, file_path: PathBuf) -> Result<Vec<Match>> {
+        const MAX_FILE_SIZE: usize = 5_000_000; // 5MB limit
+        const CHUNK_SIZE: usize = 1_500_000; // 1.5MB chunks for large files
+        
+        // For very large files, scan in overlapping chunks
+        if source.len() > MAX_FILE_SIZE {
+            warn!("File {} size {} exceeds limit, scanning in chunks", file_path.display(), source.len());
+            return self.scan_chunked(source, file_path, CHUNK_SIZE);
+        }
+
+        // Pre-compute newline positions once
         let newlines: Vec<usize> = source.match_indices('\n').map(|(i, _)| i).collect();
+        
+        // Cache lines for snippet extraction (avoids re-parsing)
+        let lines: Vec<&str> = source.lines().collect();
 
         let solidity_version = extract_solidity_version(source);
         let is_modern_solidity = is_version_gte_0_8(&solidity_version);
-
-        let mut matches = Vec::new();
-        let mut seen = std::collections::HashSet::new();
-        let mut dedup_set = std::collections::HashSet::new();
 
         // Fast regex-based protection detection (compiled once at init)
         let has_reentrancy_guard = self.reentrancy_guard_regex.as_ref().map(|r| r.is_match(source).unwrap_or(false)).unwrap_or(false);
         let has_access_control = self.access_control_regex.as_ref().map(|r| r.is_match(source).unwrap_or(false)).unwrap_or(false);
         let has_pausable = self.pausable_regex.as_ref().map(|r| r.is_match(source).unwrap_or(false)).unwrap_or(false);
 
-        for compiled_template in &self.templates {
-            if is_modern_solidity && compiled_template.template.id.contains("integer_overflow") {
-                continue;
-            }
+        // Pre-check if source is OZ library (avoid repeated checks)
+        let is_oz_library = is_openzeppelin_library(source);
 
-            let _is_zeroday_template = compiled_template.template.id.contains("zero-day");
+        // Create shared context for parallel processing
+        let scan_ctx = ScanContext {
+            source,
+            newlines: &newlines,
+            lines: &lines,
+            file_path: &file_path,
+            has_reentrancy_guard,
+            has_access_control,
+            has_pausable,
+            is_oz_library,
+        };
 
-            for compiled_pattern in &compiled_template.patterns {
-                // All patterns are now regex-based
-                for mat in compiled_pattern.regex.find_iter(source) {
-                    let mat = match mat {
-                        Ok(m) => m,
-                        Err(_) => continue,
-                    };
-                    let key = (mat.start(), mat.end(), compiled_pattern.index);
-                    if !seen.insert(key) {
-                        continue;
-                    }
+        // Use rayon to parallelize across templates
+        let all_matches: Vec<Vec<Match>> = self.templates
+            .par_iter()
+            .filter(|t| !(is_modern_solidity && t.template_id.contains("integer_overflow")))
+            .map(|compiled_template| {
+                self.scan_template(compiled_template, &scan_ctx)
+            })
+            .collect();
 
-                    let line_number = newlines.partition_point(|&pos| pos < mat.start()) + 1;
-                    let line_start = if line_number > 1 {
-                        newlines[line_number - 2] + 1
-                    } else {
-                        0
-                    };
+        // Flatten and deduplicate results
+        let mut matches: Vec<Match> = all_matches.into_iter().flatten().collect();
+        
+        // Global deduplication
+        let mut seen = std::collections::HashSet::new();
+        matches.retain(|m| {
+            let key = (m.line_number, m.column, m.pattern_id.clone());
+            seen.insert(key)
+        });
 
-                    let context =
-                        get_match_context(source, &newlines, mat.start(), mat.end(), line_number);
+        // Apply global limit
+        const MAX_PATTERNS_PER_FILE: usize = 10000;
+        if matches.len() > MAX_PATTERNS_PER_FILE {
+            warn!("Pattern limit reached for {}, truncating to {}", file_path.display(), MAX_PATTERNS_PER_FILE);
+            matches.truncate(MAX_PATTERNS_PER_FILE);
+        }
 
-                    // Fast regex-based false positive filtering
-                    if self.is_reentrancy_pattern(&compiled_template.template.id) {
-                        // Check for reentrancy guards in function context
-                        if has_reentrancy_guard {
-                            if let Some(ref regex) = self.reentrancy_guard_regex {
-                                if regex.is_match(&context).unwrap_or(false) {
-                                    continue;
-                                }
-                            }
-                        }
-                        // Check for access control modifiers
-                        if has_access_control {
-                            if let Some(ref regex) = self.access_control_regex {
-                                if regex.is_match(&context).unwrap_or(false) {
-                                    continue;
-                                }
-                            }
-                        }
-                        // REMOVED: require check - too aggressive, causes false negatives
-                        // The presence of require() doesn't guarantee safety
-                    }
-                    
-                    // Check for pausable modifier
-                    if has_pausable {
-                        if let Some(ref regex) = self.pausable_regex {
+        Ok(matches)
+    }
+
+    /// Scan a single template (called in parallel by rayon)
+    fn scan_template(&self, compiled_template: &CompiledTemplateOptimized, ctx: &ScanContext) -> Vec<Match> {
+        let is_reentrancy_template = self.is_reentrancy_pattern(&compiled_template.template_id);
+        let mut template_matches = Vec::new();
+        let mut seen = std::collections::HashSet::new();
+
+        for compiled_pattern in &compiled_template.patterns {
+            for mat in compiled_pattern.regex.find_iter(ctx.source) {
+                let mat = match mat {
+                    Ok(m) => m,
+                    Err(_) => continue,
+                };
+                
+                let key = (mat.start(), mat.end(), compiled_pattern.index);
+                if !seen.insert(key) {
+                    continue;
+                }
+
+                let line_number = ctx.newlines.partition_point(|&pos| pos < mat.start()) + 1;
+                let line_start = if line_number > 1 {
+                    ctx.newlines[line_number - 2] + 1
+                } else {
+                    0
+                };
+
+                let context = get_match_context(ctx.source, ctx.newlines, mat.start(), mat.end(), line_number);
+
+                // Fast regex-based false positive filtering
+                if is_reentrancy_template {
+                    if ctx.has_reentrancy_guard {
+                        if let Some(ref regex) = self.reentrancy_guard_regex {
                             if regex.is_match(&context).unwrap_or(false) {
                                 continue;
                             }
                         }
                     }
-
-                    // OpenZeppelin whitelist for library code
-                    if is_openzeppelin_library(source) && is_openzeppelin_safe_pattern(source, &context, mat.as_str()) {
-                        continue;
-                    }
-
-                    let mut filtered = false;
-
-                    // Filter OpenZeppelin Address library functions
-                    if let Some(ref regex) = self.oz_address_lib_regex {
-                        if regex.is_match(&context).unwrap_or(false) {
-                            filtered = true;
-                        }
-                    }
-
-                    // Filter standard proxy patterns
-                    if let Some(ref regex) = self.proxy_pattern_regex {
-                        if regex.is_match(&context).unwrap_or(false) {
-                            filtered = true;
-                        }
-                    }
-
-                    // Filter safe NFT patterns (ERC721/ERC1155 standard functions)
-                    if let Some(ref regex) = self.safe_nft_pattern_regex {
-                        if regex.is_match(&context).unwrap_or(false) {
-                            // Additional check: ensure it's in a standard NFT function
-                            if context.contains("_mint") || context.contains("_burn") || context.contains("_transfer") {
-                                filtered = true;
+                    if ctx.has_access_control {
+                        if let Some(ref regex) = self.access_control_regex {
+                            if regex.is_match(&context).unwrap_or(false) {
+                                continue;
                             }
                         }
                     }
-
-                    // Filter timestamp dependence patterns (low severity)
-                    if let Some(ref regex) = self.timestamp_pattern_regex {
+                }
+                
+                if ctx.has_pausable {
+                    if let Some(ref regex) = self.pausable_regex {
                         if regex.is_match(&context).unwrap_or(false) {
-                            filtered = true;
+                            continue;
                         }
                     }
+                }
 
-                    matches.push(Match {
-                        template_id: compiled_template.template.id.clone(),
-                        pattern_id: compiled_pattern.pattern.id.clone(),
-                        file_path: file_path.clone(),
-                        line_number,
-                        column: mat.start() - line_start,
-                        matched_text: mat.as_str().to_string(),
-                        context,
-                        code_snippet: extract_code_snippet(source, &newlines, line_number),
-                        severity: compiled_template.template.severity,
-                        message: compiled_pattern.pattern.message.clone(),
-                        start_byte: None,
-                        end_byte: None,
-                        function_context: None,
-                        protections: None,
-                        filtered,
-                    });
+                if ctx.is_oz_library && is_openzeppelin_safe_pattern(ctx.source, &context, mat.as_str()) {
+                    continue;
+                }
+
+                let filtered = self.check_filtered(&context);
+
+                template_matches.push(Match {
+                    template_id: compiled_template.template_id.to_string(),
+                    pattern_id: compiled_pattern.pattern_id.to_string(),
+                    file_path: ctx.file_path.clone(),
+                    line_number,
+                    column: mat.start() - line_start,
+                    matched_text: mat.as_str().to_string(),
+                    context,
+                    code_snippet: extract_code_snippet_cached(ctx.lines, line_number),
+                    severity: compiled_template.severity,
+                    message: compiled_pattern.message.to_string(),
+                    start_byte: None,
+                    end_byte: None,
+                    function_context: None,
+                    protections: None,
+                    filtered,
+                });
+            }
+        }
+        template_matches
+    }
+
+    /// Check if match should be filtered
+    #[inline]
+    fn check_filtered(&self, context: &str) -> bool {
+        if let Some(ref regex) = self.oz_address_lib_regex {
+            if regex.is_match(context).unwrap_or(false) {
+                return true;
+            }
+        }
+        if let Some(ref regex) = self.proxy_pattern_regex {
+            if regex.is_match(context).unwrap_or(false) {
+                return true;
+            }
+        }
+        if let Some(ref regex) = self.safe_nft_pattern_regex {
+            if regex.is_match(context).unwrap_or(false) {
+                if context.contains("_mint") || context.contains("_burn") || context.contains("_transfer") {
+                    return true;
                 }
             }
         }
-
-        matches.retain(|m| {
-            let key = (
-                m.file_path.clone(),
-                m.line_number,
-                m.column,
-                m.pattern_id.clone(),
-            );
-            dedup_set.insert(key)
-        });
-
-        Ok(matches)
+        if let Some(ref regex) = self.timestamp_pattern_regex {
+            if regex.is_match(context).unwrap_or(false) {
+                return true;
+            }
+        }
+        false
     }
 
     /// Check if template is reentrancy-related
@@ -203,9 +253,49 @@ impl Scanner {
             || template_id.contains("external-call")
             || template_id.contains("low-level-call")
     }
+    
+    /// Scan large files in overlapping chunks to avoid memory issues
+    fn scan_chunked(&self, source: &str, file_path: PathBuf, chunk_size: usize) -> Result<Vec<Match>> {
+        const OVERLAP: usize = 50_000; // 50KB overlap between chunks
+        let mut all_matches = Vec::new();
+        let mut seen_keys = std::collections::HashSet::new();
+        
+        let total_chunks = (source.len() + chunk_size - 1) / chunk_size;
+        let mut offset = 0;
+        
+        while offset < source.len() {
+            let end = (offset + chunk_size).min(source.len());
+            let chunk = &source[offset..end];
+            
+            // Scan this chunk
+            let chunk_matches = self.scan(chunk, file_path.clone())?;
+            
+            // Adjust line numbers and deduplicate
+            for mut m in chunk_matches {
+                // Calculate actual line number in full file
+                let lines_before = source[..offset].matches('\n').count();
+                m.line_number += lines_before;
+                
+                // Deduplicate across chunks
+                let key = (m.line_number, m.column, m.pattern_id.clone());
+                if seen_keys.insert(key) {
+                    all_matches.push(m);
+                }
+            }
+            
+            // Move to next chunk with overlap
+            offset += chunk_size;
+            if offset < source.len() {
+                offset = offset.saturating_sub(OVERLAP);
+            }
+        }
+        
+        tracing::info!("Scanned {} in {} chunks, found {} matches", file_path.display(), total_chunks, all_matches.len());
+        Ok(all_matches)
+    }
 }
 
-fn compile_pattern(pattern: &Pattern, template_id: &str, index: u32) -> Result<CompiledPattern> {
+fn compile_pattern_optimized(pattern: &Pattern, template_id: &str, index: u32) -> Result<CompiledPatternOptimized> {
     RegexValidator::validate_pattern(&pattern.pattern).map_err(|e| {
         warn!(
             "Unsafe regex pattern in template '{}', pattern '{}': {}",
@@ -234,21 +324,22 @@ fn compile_pattern(pattern: &Pattern, template_id: &str, index: u32) -> Result<C
             )
         })?;
 
-    Ok(CompiledPattern {
+    Ok(CompiledPatternOptimized {
         regex,
-        pattern: pattern.clone(),
+        pattern_id: Arc::from(pattern.id.as_str()),
+        message: Arc::from(pattern.message.as_str()),
         index,
     })
 }
 
-fn compile_template(
+fn compile_template_optimized(
     template: Template,
     pattern_index: &mut u32,
-) -> Result<Option<CompiledTemplate>> {
+) -> Result<Option<CompiledTemplateOptimized>> {
     let mut compiled_patterns = Vec::with_capacity(template.patterns.len());
 
     for pattern in &template.patterns {
-        let compiled = compile_pattern(pattern, &template.id, *pattern_index)?;
+        let compiled = compile_pattern_optimized(pattern, &template.id, *pattern_index)?;
         compiled_patterns.push(compiled);
         *pattern_index += 1;
     }
@@ -257,8 +348,9 @@ fn compile_template(
         return Ok(None);
     }
 
-    Ok(Some(CompiledTemplate {
-        template,
+    Ok(Some(CompiledTemplateOptimized {
+        template_id: Arc::from(template.id.as_str()),
+        severity: template.severity,
         patterns: compiled_patterns,
     }))
 }
@@ -347,12 +439,11 @@ fn get_match_context(
     }
 }
 
-fn extract_code_snippet(
-    source: &str,
-    _newlines: &[usize],
+/// Optimized code snippet extraction using pre-cached lines
+fn extract_code_snippet_cached(
+    lines: &[&str],
     line_number: usize,
 ) -> Option<scpf_types::CodeSnippet> {
-    let lines: Vec<&str> = source.lines().collect();
     if line_number == 0 || line_number > lines.len() {
         return None;
     }

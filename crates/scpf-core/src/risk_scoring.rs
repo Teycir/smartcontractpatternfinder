@@ -260,6 +260,7 @@ mod tests {
             ],
             scan_time_ms: 100,
             solidity_version: None,
+            source_size_kb: Some(50.0),
         };
 
         let assessment = scorer.assess(&result);

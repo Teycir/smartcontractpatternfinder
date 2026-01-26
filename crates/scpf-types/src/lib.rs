@@ -237,7 +237,7 @@ pub struct SeverityBreakdown {
 impl SeverityBreakdown {
     /// Calculate risk score: CRITICAL×30 + HIGH×1
     pub fn risk_score(&self) -> u32 {
-        (self.critical as u32 * 30) + (self.high as u32 * 1)
+        (self.critical as u32 * 30) + self.high as u32
     }
 
     /// Format breakdown as string
@@ -247,7 +247,7 @@ impl SeverityBreakdown {
             self.critical,
             self.critical * 30,
             self.high,
-            self.high * 1
+            self.high
         )
     }
 }
