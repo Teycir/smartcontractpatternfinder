@@ -199,7 +199,11 @@ async fn run_scan(state: AppState, config: ScanConfig) {
     send_log(&state, &format!("Days: {}", config.days)).await;
     send_log(&state, &format!("Concurrency: {}", config.concurrency)).await;
 
+    // Find the project root by looking for the templates directory
+    let project_root = find_project_root().unwrap_or_else(|| std::env::current_dir().unwrap());
+    
     let mut cmd = tokio::process::Command::new("cargo");
+    cmd.current_dir(&project_root);
     cmd.arg("run")
         .arg("--release")
         .arg("-p")
@@ -298,4 +302,19 @@ async fn run_scan(state: AppState, config: ScanConfig) {
 async fn send_log(state: &AppState, message: &str) {
     let mut log_tx = state.log_tx.write().await;
     log_tx.retain(|tx| tx.send(message.to_string()).is_ok());
+}
+
+/// Find the project root by looking for the templates directory
+fn find_project_root() -> Option<std::path::PathBuf> {
+    let mut current = std::env::current_dir().ok()?;
+    
+    // Try up to 5 levels up
+    for _ in 0..5 {
+        if current.join("templates").is_dir() && current.join("Cargo.toml").is_file() {
+            return Some(current);
+        }
+        current = current.parent()?.to_path_buf();
+    }
+    
+    None
 }

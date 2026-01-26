@@ -13,7 +13,8 @@
     "vite": "^5.0.0"
   },
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/start-with-server.js",
+    "dev:frontend-only": "vite",
     "build": "vite build",
     "preview": "vite preview"
   }
