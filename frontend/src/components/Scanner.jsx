@@ -368,19 +368,6 @@ const Scanner = () => {
           </div>
 
           <div className="config-group">
-            <label>Concurrency</label>
-            <input
-              type="number"
-              name="concurrency"
-              value={config.concurrency}
-              onChange={handleInputChange}
-              min="1"
-              max="20"
-              disabled={isControlsDisabled}
-            />
-          </div>
-
-          <div className="config-group">
             <label>Contract Type</label>
             <select name="contract_type" value={config.contract_type} onChange={handleInputChange} disabled={isControlsDisabled}>
               <option value="">All Types</option>

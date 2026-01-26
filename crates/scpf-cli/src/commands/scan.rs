@@ -137,6 +137,16 @@ async fn scan_contracts(
             );
         }
 
+        let source_size_kb = source.len() as f64 / 1024.0;
+        
+        // Skip extremely large contracts (>5 MB) to avoid excessive scan time
+        if source_size_kb > 5120.0 {
+            if !is_tty {
+                eprintln!("      ⏭️  Skipping extremely large contract ({:.1} KB)", source_size_kb);
+            }
+            continue;
+        }
+
         let start = Instant::now();
         let matches = scanner
             .lock()
@@ -338,6 +348,7 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     let (all_scan_results, cache) =
         scan_contracts(all_contracts, templates, fetcher, min_sev).await?;
     let scan_results = rank_and_score(all_scan_results);
+    eprintln!("⏳ Scanning {} contracts...", scan_results.len());
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
@@ -692,6 +703,13 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
             sources_dir.display()
         );
     }
+
+    eprintln!("\n{}", "=".repeat(80));
+    eprintln!("✅ Scan completed successfully");
+    eprintln!("{}", "=".repeat(80));
+
+    // Play notification sound
+    eprintln!("\x07"); // Bell character
 
     Ok(())
 }

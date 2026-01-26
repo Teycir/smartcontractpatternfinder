@@ -35,7 +35,7 @@ contract Test {
             }],
         };
 
-        let mut scanner = Scanner::new(vec![template]).unwrap();
+        let scanner = Scanner::new(vec![template]).unwrap();
         let matches = scanner.scan(source, PathBuf::from("test.sol")).unwrap();
 
         assert_eq!(
@@ -73,7 +73,7 @@ contract Test {
             }],
         };
 
-        let mut scanner = Scanner::new(vec![template]).unwrap();
+        let scanner = Scanner::new(vec![template]).unwrap();
         let matches = scanner.scan(source, PathBuf::from("test.sol")).unwrap();
 
         assert_eq!(

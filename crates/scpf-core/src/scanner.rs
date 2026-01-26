@@ -256,42 +256,72 @@ impl Scanner {
     
     /// Scan large files in overlapping chunks to avoid memory issues
     fn scan_chunked(&self, source: &str, file_path: PathBuf, chunk_size: usize) -> Result<Vec<Match>> {
-        const OVERLAP: usize = 50_000; // 50KB overlap between chunks
-        let mut all_matches = Vec::new();
+        use crate::chunking::ChunkProcessor;
+        
+        const OVERLAP: usize = 50_000;
+        let processor = ChunkProcessor::new(chunk_size, OVERLAP);
         let mut seen_keys = std::collections::HashSet::new();
         
-        let total_chunks = (source.len() + chunk_size - 1) / chunk_size;
-        let mut offset = 0;
+        let all_matches = processor.process(source, |chunk, line_offset| {
+            self.scan_chunk_direct(chunk, &file_path, line_offset)
+        })?;
         
-        while offset < source.len() {
-            let end = (offset + chunk_size).min(source.len());
-            let chunk = &source[offset..end];
-            
-            // Scan this chunk
-            let chunk_matches = self.scan(chunk, file_path.clone())?;
-            
-            // Adjust line numbers and deduplicate
-            for mut m in chunk_matches {
-                // Calculate actual line number in full file
-                let lines_before = source[..offset].matches('\n').count();
-                m.line_number += lines_before;
-                
-                // Deduplicate across chunks
-                let key = (m.line_number, m.column, m.pattern_id.clone());
-                if seen_keys.insert(key) {
-                    all_matches.push(m);
-                }
-            }
-            
-            // Move to next chunk with overlap
-            offset += chunk_size;
-            if offset < source.len() {
-                offset = offset.saturating_sub(OVERLAP);
+        // Deduplicate
+        let mut deduped = Vec::new();
+        for m in all_matches {
+            let key = (m.line_number, m.column, m.pattern_id.clone());
+            if seen_keys.insert(key) {
+                deduped.push(m);
             }
         }
         
-        tracing::info!("Scanned {} in {} chunks, found {} matches", file_path.display(), total_chunks, all_matches.len());
-        Ok(all_matches)
+        tracing::info!("Scanned {} in chunks, found {} matches", file_path.display(), deduped.len());
+        Ok(deduped)
+    }
+    
+    /// Scan a chunk directly without size checks (internal use only)
+    fn scan_chunk_direct(&self, source: &str, file_path: &PathBuf, line_offset: usize) -> Result<Vec<Match>> {
+        // Pre-compute newline positions once
+        let newlines: Vec<usize> = source.match_indices('\n').map(|(i, _)| i).collect();
+        
+        // Cache lines for snippet extraction
+        let lines: Vec<&str> = source.lines().collect();
+
+        let solidity_version = extract_solidity_version(source);
+        let is_modern_solidity = is_version_gte_0_8(&solidity_version);
+
+        let has_reentrancy_guard = self.reentrancy_guard_regex.as_ref().map(|r| r.is_match(source).unwrap_or(false)).unwrap_or(false);
+        let has_access_control = self.access_control_regex.as_ref().map(|r| r.is_match(source).unwrap_or(false)).unwrap_or(false);
+        let has_pausable = self.pausable_regex.as_ref().map(|r| r.is_match(source).unwrap_or(false)).unwrap_or(false);
+        let is_oz_library = is_openzeppelin_library(source);
+
+        let scan_ctx = ScanContext {
+            source,
+            newlines: &newlines,
+            lines: &lines,
+            file_path,
+            has_reentrancy_guard,
+            has_access_control,
+            has_pausable,
+            is_oz_library,
+        };
+
+        let all_matches: Vec<Vec<Match>> = self.templates
+            .par_iter()
+            .filter(|t| !(is_modern_solidity && t.template_id.contains("integer_overflow")))
+            .map(|compiled_template| {
+                self.scan_template(compiled_template, &scan_ctx)
+            })
+            .collect();
+
+        let mut matches: Vec<Match> = all_matches.into_iter().flatten().collect();
+        
+        // Adjust line numbers based on line_offset
+        for m in &mut matches {
+            m.line_number += line_offset;
+        }
+        
+        Ok(matches)
     }
 }
 

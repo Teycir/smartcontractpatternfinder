@@ -3,6 +3,7 @@ pub mod semantic;
 pub mod template;
 pub mod fetcher;
 pub mod cache;
+pub mod chunking;
 pub mod regex_validator;
 pub mod zeroday;
 pub mod dataflow;
