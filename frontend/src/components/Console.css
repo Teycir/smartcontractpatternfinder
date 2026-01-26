@@ -77,10 +77,58 @@
   font-weight: 500;
 }
 
-.btn-reconnect:disabled {
+.btn-reconnect:disabled,
+.btn-stop:disabled,
+.btn-pause:disabled {
   opacity: 0.5;
   cursor: not-allowed;
   transform: none;
+}
+
+.btn-stop {
+  padding: 0.5rem 1rem;
+  background: linear-gradient(135deg, #da3633 0%, #f85149 100%);
+  border: 1px solid #f85149;
+  border-radius: 6px;
+  color: #ffffff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-stop:hover:not(:disabled) {
+  background: linear-gradient(135deg, #f85149 0%, #ff6b6b 100%);
+  border-color: #ff6b6b;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(248, 81, 73, 0.4);
+}
+
+.btn-stop:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-pause {
+  padding: 0.5rem 1rem;
+  background: linear-gradient(135deg, #d29922 0%, #e3b341 100%);
+  border: 1px solid #e3b341;
+  border-radius: 6px;
+  color: #ffffff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-pause:hover:not(:disabled) {
+  background: linear-gradient(135deg, #e3b341 0%, #f0c351 100%);
+  border-color: #f0c351;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(227, 179, 65, 0.4);
+}
+
+.btn-pause:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .btn-clear {
@@ -203,4 +251,14 @@
 
 .log-system .console-message {
   font-weight: 500;
+}
+
+.scan-status-badge {
+  font-size: 0.85rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 4px;
+  font-weight: 600;
+  background: rgba(88, 166, 255, 0.15);
+  color: #58a6ff;
+  animation: pulse 1.5s ease-in-out infinite;
 }

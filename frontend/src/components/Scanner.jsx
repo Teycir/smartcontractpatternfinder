@@ -8,6 +8,12 @@ const Scanner = () => {
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [serverOnline, setServerOnline] = useState(false)
+  const [progress, setProgress] = useState({
+    contracts_scanned: 0,
+    contracts_total: null,
+    current_contract: null,
+    vulnerabilities_found: 0,
+  })
   const [config, setConfig] = useState({
     addresses: '',
     chain: 'all',
@@ -18,8 +24,9 @@ const Scanner = () => {
     contract_type: '',
     sort_by_exploitability: false,
     update_templates: '0',
+    extract_sources: '0',
   })
-  
+
   const statusIntervalRef = useRef(null)
   const errorTimeoutRef = useRef(null)
 
@@ -38,7 +45,12 @@ const Scanner = () => {
       const response = await axios.get('/api/status', { timeout: 3000 })
       setServerOnline(true)
       setStatus(response.data.status || 'idle')
-      
+
+      // Update progress
+      if (response.data.progress) {
+        setProgress(response.data.progress)
+      }
+
       if (response.data.config) {
         const cfg = response.data.config
         setConfig(prev => ({
@@ -52,6 +64,7 @@ const Scanner = () => {
           contract_type: cfg.contract_type || prev.contract_type,
           sort_by_exploitability: cfg.sort_by_exploitability ?? prev.sort_by_exploitability,
           update_templates: cfg.update_templates != null ? cfg.update_templates.toString() : prev.update_templates,
+          extract_sources: cfg.extract_sources != null ? cfg.extract_sources.toString() : prev.extract_sources,
         }))
       }
     } catch (err) {
@@ -66,7 +79,7 @@ const Scanner = () => {
   useEffect(() => {
     fetchStatus()
     statusIntervalRef.current = setInterval(fetchStatus, 2000)
-    
+
     return () => {
       if (statusIntervalRef.current) {
         clearInterval(statusIntervalRef.current)
@@ -79,19 +92,19 @@ const Scanner = () => {
 
   const handleStart = async () => {
     if (isLoading) return
-    
+
     setIsLoading(true)
     setError('')
-    
+
     try {
       // Validate configuration
       const days = parseInt(config.days, 10)
       const concurrency = parseInt(config.concurrency, 10)
-      
+
       if (isNaN(days) || days < 1) {
         throw new Error('Days must be a positive number')
       }
-      
+
       if (isNaN(concurrency) || concurrency < 1 || concurrency > 20) {
         throw new Error('Concurrency must be between 1 and 20')
       }
@@ -118,6 +131,9 @@ const Scanner = () => {
         contract_type: config.contract_type || null,
         sort_by_exploitability: Boolean(config.sort_by_exploitability),
         update_templates: updateTemplatesValue,
+        extract_sources: config.extract_sources && parseInt(config.extract_sources, 10) > 0
+          ? parseInt(config.extract_sources, 10)
+          : null,
       }
 
       await axios.post('/api/start', payload, { timeout: 10000 })
@@ -133,7 +149,7 @@ const Scanner = () => {
 
   const handlePause = async () => {
     if (isLoading) return
-    
+
     setIsLoading(true)
     try {
       await axios.post('/api/pause', {}, { timeout: 5000 })
@@ -146,13 +162,36 @@ const Scanner = () => {
     }
   }
 
+  const handleResume = async () => {
+    if (isLoading) return
+
+    setIsLoading(true)
+    try {
+      await axios.post('/api/resume', {}, { timeout: 5000 })
+      setStatus('running')
+    } catch (err) {
+      const errorMessage = err.response?.data?.error || err.message || 'Failed to resume scan'
+      showError(errorMessage)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const handleStop = async () => {
     if (isLoading) return
-    
+
     setIsLoading(true)
     try {
       await axios.post('/api/stop', {}, { timeout: 5000 })
-      setStatus('stopped')
+      // Backend resets to 'idle', sync with that
+      setStatus('idle')
+      // Reset progress display
+      setProgress({
+        contracts_scanned: 0,
+        contracts_total: null,
+        current_contract: null,
+        vulnerabilities_found: 0,
+      })
     } catch (err) {
       const errorMessage = err.response?.data?.error || err.message || 'Failed to stop scan'
       showError(errorMessage)
@@ -189,8 +228,8 @@ const Scanner = () => {
   return (
     <div className="scanner">
       {error && (
-        <div 
-          className="error-toast" 
+        <div
+          className="error-toast"
           onClick={() => setError('')}
           role="alert"
           style={{
@@ -217,7 +256,7 @@ const Scanner = () => {
           </div>
         </div>
       )}
-      
+
       <div className="scanner-controls">
         <div className="status-bar">
           <span className={`status-indicator status-${status}`}>
@@ -228,26 +267,26 @@ const Scanner = () => {
             {!serverOnline && <span style={{ color: '#f85149', marginLeft: '0.5rem' }}>(Server not responding)</span>}
           </span>
         </div>
-        
+
         <div className="control-buttons">
-          <button 
-            onClick={handleStart} 
-            disabled={status === 'running' || isLoading || !serverOnline}
+          <button
+            onClick={handleStart}
+            disabled={status === 'running' || status === 'paused' || isLoading || !serverOnline}
             className="btn btn-start"
             title={!serverOnline ? 'Server is offline' : status === 'running' ? 'Scan in progress' : 'Start scan'}
           >
             {isLoading && status !== 'running' ? '⏳' : '▶️'} Start
           </button>
-          <button 
-            onClick={handlePause} 
-            disabled={status !== 'running' || isLoading}
-            className="btn btn-pause"
+          <button
+            onClick={status === 'paused' ? handleResume : handlePause}
+            disabled={(status !== 'running' && status !== 'paused') || isLoading}
+            className={`btn ${status === 'paused' ? 'btn-resume' : 'btn-pause'}`}
           >
-            ⏸️ Pause
+            {status === 'paused' ? '▶️ Resume' : '⏸️ Pause'}
           </button>
-          <button 
-            onClick={handleStop} 
-            disabled={status === 'idle' || isLoading}
+          <button
+            onClick={handleStop}
+            disabled={(status !== 'running' && status !== 'paused') || isLoading}
             className="btn btn-stop"
           >
             ⏹️ Stop
@@ -255,9 +294,37 @@ const Scanner = () => {
         </div>
       </div>
 
+      {/* Progress Bar */}
+      {(status === 'running' || status === 'paused') && (
+        <div className="progress-section">
+          <div className="progress-header">
+            <span className="progress-label">
+              📊 Progress: {progress.contracts_scanned}
+              {progress.contracts_total ? ` / ${progress.contracts_total}` : ''} contracts scanned
+            </span>
+            <span className="progress-vulns">
+              🔴 {progress.vulnerabilities_found} vulnerabilities found
+            </span>
+          </div>
+          {progress.contracts_total && progress.contracts_total > 0 && (
+            <div className="progress-bar-container">
+              <div
+                className="progress-bar-fill"
+                style={{ width: `${Math.min(100, (progress.contracts_scanned / progress.contracts_total) * 100)}%` }}
+              />
+            </div>
+          )}
+          {progress.current_contract && (
+            <div className="progress-current">
+              Current: <code>{progress.current_contract}</code>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="scanner-config">
         <h2>Configuration</h2>
-        
+
         <div className="config-grid">
           <div className="config-group">
             <label>Contract Addresses <span className="label-hint">(empty = autodetect)</span></label>
@@ -364,10 +431,22 @@ const Scanner = () => {
             <span>Sort by Exploitability</span>
           </label>
         </div>
+
+        <div className="config-group" style={{ marginTop: '1rem' }}>
+          <label>Extract Top Riskiest Sources</label>
+          <select name="extract_sources" value={config.extract_sources} onChange={handleInputChange} disabled={isControlsDisabled}>
+            <option value="0">Don't Extract</option>
+            <option value="10">Top 10</option>
+            <option value="25">Top 25</option>
+            <option value="50">Top 50</option>
+            <option value="100">Top 100</option>
+            <option value="200">Top 200</option>
+          </select>
+        </div>
       </div>
 
       <Console />
-      
+
       <style>{`
         @keyframes slideIn {
           from {

@@ -2,6 +2,8 @@
 
 <!-- markdownlint-disable MD033 -->
 <div align="center">
+  <img src="assets/logo.png" width="150" alt="SCPF Logo" style="margin-bottom: 20px;" />
+  <br />
   <img src="assets/scpf_banner.gif" width="60%" alt="Smart Contract Pattern Finder Banner" style="border-radius: 10px; box-shadow: 0 0 20px rgba(0, 255, 255, 0.2);" />
 </div>
 <!-- markdownlint-enable MD033 -->

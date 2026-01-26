@@ -2,6 +2,7 @@ use crate::cli::ScanArgs;
 use anyhow::Result;
 use scpf_core::{Cache, ContractFetcher, Scanner, TemplateLoader};
 use scpf_types::{Chain, ScanResult, Severity, Template};
+use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
@@ -56,17 +57,40 @@ async fn scan_contracts(
 
     eprintln!("⏳ Scanning {} contracts...", total);
 
+    let is_tty = std::io::stderr().is_terminal();
+
     for (idx, (address, chain)) in contracts.into_iter().enumerate() {
-        // Progress reporting every 10 contracts
-        if idx > 0 && idx % 10 == 0 {
-            eprint!(
-                "\r   Progress: {}/{} contracts ({:.1}%)...   ",
-                idx,
+        let contract_num = idx + 1;
+        let short_addr = if address.len() >= 12 {
+            &address[..12]
+        } else {
+            &address
+        };
+
+        // Progress reporting - every contract for piped output, every 10 for TTY
+        if is_tty {
+            if idx > 0 && idx % 10 == 0 {
+                // Interactive terminal: overwrite line with carriage return
+                eprint!(
+                    "\r   Progress: {}/{} contracts ({:.1}%)...   ",
+                    contract_num,
+                    total,
+                    (contract_num as f64 / total as f64) * 100.0
+                );
+                use std::io::Write;
+                std::io::stderr().flush().ok();
+            }
+        } else {
+            // Piped output: show progress for each contract with percentage
+            let percent = (contract_num as f64 / total as f64) * 100.0;
+            eprintln!(
+                "   [{}/{}] ({:.1}%) Scanning {} ({})...",
+                contract_num,
                 total,
-                (idx as f64 / total as f64) * 100.0
+                percent,
+                short_addr,
+                chain.as_str()
             );
-            use std::io::Write;
-            std::io::stderr().flush().ok();
         }
 
         // Rate limiting: 100ms delay every 3 contracts (balance speed vs rate limits)
@@ -76,25 +100,40 @@ async fn scan_contracts(
             tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         }
         let cache_key = format!("{}:{}", chain, address);
-        let source = if let Some(cached) = cache.get(&cache_key).await {
-            cached
+        // Check cache, but invalidate empty entries (0 bytes = failed fetch that was cached)
+        let cached_source = cache.get(&cache_key).await.filter(|s| !s.is_empty());
+        
+        let (source, from_cache) = if let Some(cached) = cached_source {
+            (cached, true)
         } else {
+            if !is_tty {
+                eprintln!("      📡 Fetching source from API...");
+            }
             match fetcher.fetch_source(&address, chain).await {
                 Ok(src) => {
-                    cache.set(&cache_key, &src).await?;
-                    src
+                    // Only cache non-empty sources
+                    if !src.is_empty() {
+                        cache.set(&cache_key, &src).await?;
+                    }
+                    if !is_tty {
+                        eprintln!("      ✓ Source fetched ({:.1} KB)", src.len() as f64 / 1024.0);
+                    }
+                    (src, false)
                 }
                 Err(e) => {
                     eprintln!(
-                        "✗ Error fetching {} ({}): {}",
-                        &address[..10],
-                        chain.as_str(),
+                        "      ✗ Error fetching {}: {}",
+                        short_addr,
                         e
                     );
                     continue;
                 }
             }
         };
+
+        if !is_tty && from_cache {
+            eprintln!("      📦 Using cached source ({:.1} KB)", source.len() as f64 / 1024.0);
+        }
 
         let start = Instant::now();
         let matches = scanner
@@ -108,14 +147,24 @@ async fn scan_contracts(
             .filter(|m| m.severity >= min_severity && m.severity >= Severity::High)
             .collect();
 
-        // Show progress for contracts with findings
+        // Show scan result for each contract
         if !filtered_matches.is_empty() {
-            eprintln!(
-                "\r   ✓ {} ({}) - {} findings                    ",
-                &address[..12],
-                chain.as_str(),
-                filtered_matches.len()
-            );
+            if is_tty {
+                eprintln!(
+                    "\r   ✓ {} ({}) - {} findings                    ",
+                    short_addr,
+                    chain.as_str(),
+                    filtered_matches.len()
+                );
+            } else {
+                eprintln!(
+                    "      🔍 Scanned in {}ms - {} findings",
+                    scan_time_ms,
+                    filtered_matches.len()
+                );
+            }
+        } else if !is_tty {
+            eprintln!("      🔍 Scanned in {}ms - clean", scan_time_ms);
         }
 
         let analyzed_matches: Vec<_> = filtered_matches
@@ -164,8 +213,8 @@ fn rank_and_score(mut scan_results: Vec<ScanResult>) -> Vec<ScanResult> {
             .unwrap()
     });
 
-    let top_100: Vec<_> = scan_results.into_iter().take(100).collect();
-    let mut with_poc_scores: Vec<_> = top_100
+    let top_ranked: Vec<_> = scan_results.into_iter().take(200).collect();
+    let mut with_poc_scores: Vec<_> = top_ranked
         .into_iter()
         .map(|r| {
             let poc_score: f32 = r.weighted_risk_score() as f32;
@@ -311,6 +360,10 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
         )
     });
     let root_dir = PathBuf::from(root_dir);
+    
+    // Create report directory if it doesn't exist
+    std::fs::create_dir_all(&root_dir)?;
+    
     let vuln_summary = root_dir.join("vuln_summary.md");
 
     let mut summary = String::new();
@@ -454,6 +507,57 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
                 );
             }
         }
+    }
+
+    // Extract top N riskiest contract sources if --extract-sources is set
+    if let Some(extract_count) = args.extract_sources {
+        let sources_dir = root_dir.join("sources");
+        std::fs::create_dir_all(&sources_dir)?;
+        
+        eprintln!("\n📁 Extracting top {} riskiest contract sources...", extract_count);
+        
+        let mut saved_count = 0;
+        let mut total_size: u64 = 0;
+        
+        // scan_results is already sorted by weighted risk score (from rank_and_score)
+        for (rank, result) in scan_results.iter().take(extract_count).enumerate() {
+            let cache_key = format!("{}:{}", result.chain, result.address);
+            
+            if let Some(source) = cache.get(&cache_key).await {
+                // Create chain subdirectory
+                let chain_dir = sources_dir.join(&result.chain);
+                std::fs::create_dir_all(&chain_dir)?;
+                
+                let weighted_risk = result.weighted_risk_score();
+                let output_file = chain_dir.join(format!(
+                    "{:03}_{}_risk{:.0}.sol",
+                    rank + 1,
+                    result.address,
+                    weighted_risk
+                ));
+                std::fs::write(&output_file, &source)?;
+                
+                let size = source.len() as u64;
+                total_size += size;
+                saved_count += 1;
+                
+                eprintln!(
+                    "   [{}/{}] {} ({}) - Risk: {:.1}",
+                    rank + 1,
+                    extract_count,
+                    &result.address[..12],
+                    result.chain,
+                    weighted_risk
+                );
+            }
+        }
+        
+        eprintln!(
+            "\n   ✅ Extracted {} contract sources ({:.1} MB total) to {}",
+            saved_count,
+            total_size as f64 / (1024.0 * 1024.0),
+            sources_dir.display()
+        );
     }
 
     Ok(())

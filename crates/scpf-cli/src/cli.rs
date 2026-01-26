@@ -140,6 +140,12 @@ pub struct ScanArgs {
         help = "Sort vulnerabilities by exploitability score (PoC success probability)"
     )]
     pub sort_by_exploitability: bool,
+
+    #[arg(
+        long,
+        help = "Extract top N riskiest contract sources to report directory (after ranking)"
+    )]
+    pub extract_sources: Option<usize>,
 }
 
 fn parse_chain(s: &str) -> Result<Chain, String> {

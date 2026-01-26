@@ -6,9 +6,12 @@ const Console = () => {
   const [logs, setLogs] = useState([])
   const [connectionState, setConnectionState] = useState('disconnected') // 'disconnected' | 'connecting' | 'connected' | 'error'
   const [errorMessage, setErrorMessage] = useState('')
+  const [scanStatus, setScanStatus] = useState('idle') // 'idle' | 'running' | 'paused' | 'stopped'
+  const [isStoppingOrPausing, setIsStoppingOrPausing] = useState(false)
   const consoleRef = useRef(null)
   const eventSourceRef = useRef(null)
   const reconnectTimeoutRef = useRef(null)
+  const statusIntervalRef = useRef(null)
   const isInitializedRef = useRef(false)
   const reconnectAttemptsRef = useRef(0)
   const maxReconnectAttempts = 5
@@ -120,6 +123,15 @@ const Console = () => {
     }
   }, [addLog, connectToLogs])
 
+  const fetchScanStatus = useCallback(async () => {
+    try {
+      const response = await axios.get('/api/status', { timeout: 2000 })
+      setScanStatus(response.data.status || 'idle')
+    } catch {
+      // Silently fail - connection status is handled elsewhere
+    }
+  }, [])
+
   useEffect(() => {
     // Prevent double initialization
     if (isInitializedRef.current) return
@@ -127,10 +139,16 @@ const Console = () => {
     
     checkServerHealth()
     
+    // Poll scan status
+    statusIntervalRef.current = setInterval(fetchScanStatus, 1500)
+    
     return () => {
       cleanupConnection()
+      if (statusIntervalRef.current) {
+        clearInterval(statusIntervalRef.current)
+      }
     }
-  }, [checkServerHealth, cleanupConnection])
+  }, [checkServerHealth, cleanupConnection, fetchScanStatus])
 
   useEffect(() => {
     if (consoleRef.current) {
@@ -152,6 +170,32 @@ const Console = () => {
 
   const clearLogs = () => {
     setLogs([])
+  }
+
+  const handleStopScan = async () => {
+    setIsStoppingOrPausing(true)
+    try {
+      await axios.post('/api/stop', {}, { timeout: 5000 })
+      addLog('🛑 Stop signal sent...', 'system')
+      setScanStatus('stopped')
+    } catch (err) {
+      addLog(`❌ Failed to stop: ${err.message}`, 'error')
+    } finally {
+      setIsStoppingOrPausing(false)
+    }
+  }
+
+  const handlePauseScan = async () => {
+    setIsStoppingOrPausing(true)
+    try {
+      await axios.post('/api/pause', {}, { timeout: 5000 })
+      addLog('⏸️ Pause signal sent...', 'system')
+      setScanStatus('paused')
+    } catch (err) {
+      addLog(`❌ Failed to pause: ${err.message}`, 'error')
+    } finally {
+      setIsStoppingOrPausing(false)
+    }
   }
 
   const getLogClass = (type) => {
@@ -186,6 +230,12 @@ const Console = () => {
           <span className={`connection-status ${statusDisplay.className}`}>
             {statusDisplay.icon} {statusDisplay.text}
           </span>
+          {/* Control buttons moved to Scanner component - only show status here */}
+          {(scanStatus === 'running' || scanStatus === 'paused') && (
+            <span className="scan-status-badge">
+              {scanStatus === 'running' ? '🔄 Scanning...' : '⏸️ Paused'}
+            </span>
+          )}
           {connectionState !== 'connected' && (
             <button 
               onClick={handleReconnect} 
