@@ -13,18 +13,17 @@ const Scanner = () => {
     contracts_total: null,
     current_contract: null,
     vulnerabilities_found: 0,
+    contracts_extracted: 0,
   })
   const [config, setConfig] = useState({
     addresses: '',
     chain: 'all',
     days: 100,
     concurrency: 3,
-    no_cache: false,
     tags: '',
     contract_type: '',
-    sort_by_exploitability: false,
-    update_templates: '0',
     extract_sources: '50',
+    fetch_zero_day: true,
   })
 
   const statusIntervalRef = useRef(null)
@@ -59,12 +58,10 @@ const Scanner = () => {
           chain: cfg.chain || prev.chain,
           days: cfg.days ?? prev.days,
           concurrency: cfg.concurrency ?? prev.concurrency,
-          no_cache: cfg.no_cache ?? prev.no_cache,
           tags: cfg.tags || prev.tags,
           contract_type: cfg.contract_type || prev.contract_type,
-          sort_by_exploitability: cfg.sort_by_exploitability ?? prev.sort_by_exploitability,
-          update_templates: cfg.update_templates != null ? cfg.update_templates.toString() : prev.update_templates,
           extract_sources: cfg.extract_sources != null ? cfg.extract_sources.toString() : prev.extract_sources,
+          fetch_zero_day: cfg.fetch_zero_day ?? prev.fetch_zero_day,
         }))
       }
     } catch (err) {
@@ -109,15 +106,6 @@ const Scanner = () => {
         throw new Error('Concurrency must be between 1 and 20')
       }
 
-      // Parse update_templates carefully to avoid NaN
-      let updateTemplatesValue = null
-      if (config.update_templates && config.update_templates !== '0') {
-        const parsed = parseInt(config.update_templates, 10)
-        if (!isNaN(parsed) && parsed > 0) {
-          updateTemplatesValue = parsed
-        }
-      }
-
       const payload = {
         addresses: config.addresses
           .split(',')
@@ -126,14 +114,12 @@ const Scanner = () => {
         chain: config.chain === 'all' ? 'ethereum,polygon,arbitrum' : config.chain,
         days,
         concurrency,
-        no_cache: Boolean(config.no_cache),
         tags: config.tags || null,
         contract_type: config.contract_type || null,
-        sort_by_exploitability: Boolean(config.sort_by_exploitability),
-        update_templates: updateTemplatesValue,
         extract_sources: config.extract_sources && parseInt(config.extract_sources, 10) > 0
           ? parseInt(config.extract_sources, 10)
           : null,
+        fetch_zero_day: config.fetch_zero_day ? 7 : null,
       }
 
       await axios.post('/api/start', payload, { timeout: 10000 })
@@ -191,6 +177,7 @@ const Scanner = () => {
         contracts_total: null,
         current_contract: null,
         vulnerabilities_found: 0,
+        contracts_extracted: 0,
       })
     } catch (err) {
       const errorMessage = err.response?.data?.error || err.message || 'Failed to stop scan'
@@ -299,12 +286,11 @@ const Scanner = () => {
         <div className="progress-section">
           <div className="progress-header">
             <span className="progress-label">
-              📊 Progress: {progress.contracts_scanned}
-              {progress.contracts_total ? ` / ${progress.contracts_total}` : ''} contracts scanned
-              {progress.contracts_total > 0 && (
-                <strong style={{ marginLeft: '0.5rem' }}>
-                  ({((progress.contracts_scanned / progress.contracts_total) * 100).toFixed(1)}%)
-                </strong>
+              📊 {progress.contracts_scanned} contracts scanned
+              {progress.contracts_extracted > 0 && (
+                <span style={{ marginLeft: '0.5rem' }}>
+                  • {progress.contracts_extracted} riskiest extracted
+                </span>
               )}
               {status === 'idle' && progress.contracts_scanned > 0 && progress.contracts_scanned < progress.contracts_total && (
                 <span style={{ color: '#f59e0b', marginLeft: '0.5rem' }}>⚠️ Stopped</span>
@@ -410,39 +396,18 @@ const Scanner = () => {
               <option value="defi">DeFi</option>
             </select>
           </div>
-
-          <div className="config-group">
-            <label>Update Templates</label>
-            <select name="update_templates" value={config.update_templates} onChange={handleInputChange} disabled={isControlsDisabled}>
-              <option value="0">No Update</option>
-              <option value="1">1 Day</option>
-              <option value="7">7 Days</option>
-              <option value="30">30 Days</option>
-            </select>
-          </div>
         </div>
 
         <div className="config-checkboxes">
           <label className="checkbox-label">
             <input
               type="checkbox"
-              name="no_cache"
-              checked={config.no_cache}
+              name="fetch_zero_day"
+              checked={config.fetch_zero_day}
               onChange={handleInputChange}
               disabled={isControlsDisabled}
             />
-            <span>No Cache (fetch fresh data)</span>
-          </label>
-
-          <label className="checkbox-label">
-            <input
-              type="checkbox"
-              name="sort_by_exploitability"
-              checked={config.sort_by_exploitability}
-              onChange={handleInputChange}
-              disabled={isControlsDisabled}
-            />
-            <span>Sort by Exploitability</span>
+            <span>Fetch 0-day exploits <small style={{ opacity: 0.6, fontSize: '0.85em' }}>(last 7 days)</small></span>
           </label>
         </div>
 

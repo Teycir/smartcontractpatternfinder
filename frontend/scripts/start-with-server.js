@@ -31,7 +31,16 @@ async function waitForServer(maxSeconds) {
 async function startServer() {
   console.log('🚀 Starting backend server...');
   
-  const serverProcess = spawn('cargo', ['run', '--bin', 'scpf-server'], {
+  // Kill any existing server on port 8080
+  try {
+    const { execSync } = await import('child_process');
+    execSync('lsof -ti:8080 | xargs kill -9 2>/dev/null || true', { stdio: 'ignore' });
+    await new Promise(resolve => setTimeout(resolve, 500));
+  } catch {
+    // Ignore errors
+  }
+  
+  const serverProcess = spawn('cargo', ['run', '--release', '--bin', 'scpf-server'], {
     cwd: projectRoot,
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: process.platform !== 'win32',

@@ -40,6 +40,7 @@ pub async fn run(args: FetchZeroDayArgs) -> Result<()> {
         )
     });
     let root_dir = PathBuf::from(root_dir);
+    std::fs::create_dir_all(&root_dir)?;
     let zeroday_summary = root_dir.join("0day_summary.md");
 
     let mut summary = String::new();

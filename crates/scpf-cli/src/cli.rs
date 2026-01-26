@@ -79,11 +79,8 @@ pub struct ScanArgs {
     #[arg(long, help = "Only scan files changed in git diff (e.g., main..HEAD)")]
     pub diff: Option<String>,
 
-    #[arg(
-        long,
-        help = "Update templates with 0-day exploits from last N days (0 = no update)"
-    )]
-    pub update_templates: Option<i64>,
+    #[arg(long, help = "Fetch 0-day exploits from last N days and update templates")]
+    pub fetch_zero_day: Option<u32>,
 
     // Filtering options
     #[arg(long, default_value = "10", help = "Scan contracts from last N days")]
@@ -134,12 +131,6 @@ pub struct ScanArgs {
 
     #[arg(long, help = "Enable fast mode (skip semantic analysis for speed)")]
     pub fast: bool,
-
-    #[arg(
-        long,
-        help = "Sort vulnerabilities by exploitability score (PoC success probability)"
-    )]
-    pub sort_by_exploitability: bool,
 
     #[arg(
         long,

@@ -28,6 +28,7 @@ struct ScanProgress {
     contracts_scanned: AtomicU32,
     contracts_total: AtomicU32,
     vulnerabilities_found: AtomicU32,
+    contracts_extracted: AtomicU32,
     current_contract: RwLock<Option<String>>,
 }
 
@@ -37,6 +38,7 @@ impl Default for ScanProgress {
             contracts_scanned: AtomicU32::new(0),
             contracts_total: AtomicU32::new(0),
             vulnerabilities_found: AtomicU32::new(0),
+            contracts_extracted: AtomicU32::new(0),
             current_contract: RwLock::new(None),
         }
     }
@@ -47,6 +49,7 @@ impl ScanProgress {
         self.contracts_scanned.store(0, Ordering::SeqCst);
         self.contracts_total.store(0, Ordering::SeqCst);
         self.vulnerabilities_found.store(0, Ordering::SeqCst);
+        self.contracts_extracted.store(0, Ordering::SeqCst);
         if let Ok(mut current) = self.current_contract.try_write() {
             *current = None;
         }
@@ -59,7 +62,8 @@ impl ScanProgress {
             "contracts_scanned": self.contracts_scanned.load(Ordering::SeqCst),
             "contracts_total": if total > 0 { Some(total) } else { None },
             "current_contract": current,
-            "vulnerabilities_found": self.vulnerabilities_found.load(Ordering::SeqCst)
+            "vulnerabilities_found": self.vulnerabilities_found.load(Ordering::SeqCst),
+            "contracts_extracted": self.contracts_extracted.load(Ordering::SeqCst)
         })
     }
 }
@@ -79,12 +83,10 @@ struct ScanConfig {
     chain: String,
     days: u64,
     concurrency: usize,
-    no_cache: bool,
     tags: Option<String>,
     contract_type: Option<String>,
-    sort_by_exploitability: bool,
-    update_templates: Option<i64>,
     extract_sources: Option<usize>,
+    fetch_zero_day: Option<u32>,
 }
 
 impl Default for ScanConfig {
@@ -94,12 +96,10 @@ impl Default for ScanConfig {
             chain: "ethereum".to_string(),
             days: 100,
             concurrency: 3,
-            no_cache: false,
             tags: None,
             contract_type: None,
-            sort_by_exploitability: false,
-            update_templates: None,
             extract_sources: None,
+            fetch_zero_day: None,
         }
     }
 }
@@ -433,14 +433,6 @@ async fn run_scan(state: AppState, config: ScanConfig) {
         .arg("--min-severity")
         .arg("high");
 
-    if config.no_cache {
-        cmd.arg("--no-cache");
-    }
-
-    if config.sort_by_exploitability {
-        cmd.arg("--sort-by-exploitability");
-    }
-
     if let Some(tags) = &config.tags {
         if !tags.is_empty() {
             cmd.arg("--tags").arg(tags);
@@ -453,14 +445,12 @@ async fn run_scan(state: AppState, config: ScanConfig) {
         }
     }
 
-    if let Some(update_days) = config.update_templates {
-        if update_days > 0 {
-            cmd.arg("--update-templates").arg(update_days.to_string());
-        }
-    }
-
     if let Some(count) = config.extract_sources {
         cmd.arg("--extract-sources").arg(count.to_string());
+    }
+
+    if let Some(days) = config.fetch_zero_day {
+        cmd.arg("--fetch-zero-day").arg(days.to_string());
     }
 
     for addr in &config.addresses {
@@ -683,6 +673,21 @@ fn parse_and_update_progress(state: &AppState, line: &str) {
             }
         }
         return;
+    }
+    
+    // Pattern: "Extracted N contract sources" - track extraction count
+    if line.contains("Extracted") && line.contains("contract sources") {
+        if let Some(extracted_pos) = line.find("Extracted") {
+            let after_extracted = &line[extracted_pos + 9..].trim_start();
+            if let Some(space_pos) = after_extracted.find(|c: char| !c.is_ascii_digit()) {
+                let num_str = &after_extracted[..space_pos];
+                if let Ok(count) = num_str.parse::<u32>() {
+                    state.progress.contracts_extracted.store(count, Ordering::SeqCst);
+                    tracing::debug!("Extracted contracts: {}", count);
+                    return;
+                }
+            }
+        }
     }
     
     // Pattern: "✅ Scanning complete" - mark as done
