@@ -4,6 +4,7 @@ members = [
     "crates/scpf-types",
     "crates/scpf-core",
     "crates/scpf-cli",
+    "crates/scpf-server",
 ]
 
 [workspace.package]

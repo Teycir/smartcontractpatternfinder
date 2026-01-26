@@ -248,7 +248,11 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
 
     let api_keys = crate::keys::load_api_keys_from_env();
     let fetcher = Arc::new(ContractFetcher::new(api_keys)?);
-    let chains = get_supported_chains();
+    let chains = if args.chains.is_empty() {
+        get_supported_chains()
+    } else {
+        args.chains.clone()
+    };
 
     let all_contracts = fetch_contracts(&fetcher, &chains, args.days).await;
     if all_contracts.is_empty() {

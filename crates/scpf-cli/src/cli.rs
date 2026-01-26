@@ -11,7 +11,7 @@ use std::str::FromStr;
     about = "Smart Contract Pattern Finder - Detect vulnerabilities in smart contracts"
 )]
 #[command(
-    long_about = "A high-performance tool for detecting security vulnerabilities and patterns in smart contracts.\n\nExamples:\n  scpf scan 0x1234... --chain ethereum\n  scpf scan 0x1234... 0x5678... --concurrency 20\n  scpf scan 0x1234... --output json > results.json\n  scpf init --yes\n\nMore: https://github.com/Teycir/smartcontractpatternfinder"
+    long_about = "A high-performance tool for detecting security vulnerabilities and patterns in smart contracts.\n\nExamples:\n  scpf scan --chains ethereum,polygon,arbitrum --days 10\n  scpf scan 0x1234... --chains ethereum\n  scpf scan 0x1234... 0x5678... --concurrency 20\n  scpf scan 0x1234... --output json > results.json\n  scpf init --yes\n\nMore: https://github.com/Teycir/smartcontractpatternfinder"
 )]
 pub struct Cli {
     #[arg(short, long, action = clap::ArgAction::Count, global = true, help = "Increase verbosity (-v, -vv, -vvv)")]
@@ -56,8 +56,8 @@ pub struct ScanArgs {
     )]
     pub addresses: Vec<String>,
 
-    #[arg(short = 'n', long, default_value = "ethereum", value_parser = parse_chain, help = "Blockchain network (ethereum, bsc, polygon)")]
-    pub chain: Chain,
+    #[arg(short = 'n', long, value_delimiter = ',', value_parser = parse_chain, help = "Blockchain networks (comma-separated: ethereum,polygon,arbitrum)")]
+    pub chains: Vec<Chain>,
 
     #[arg(short, long, help = "Path to templates directory")]
     pub templates: Option<PathBuf>,

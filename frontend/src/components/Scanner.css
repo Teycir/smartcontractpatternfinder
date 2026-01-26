@@ -1,0 +1,183 @@
+.scanner {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.scanner-controls {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+}
+
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #30363d;
+}
+
+.status-indicator {
+  font-size: 1.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.status-text {
+  font-size: 1.1rem;
+}
+
+.status-text strong {
+  color: #58a6ff;
+}
+
+.control-buttons {
+  display: flex;
+  gap: 1rem;
+}
+
+.btn {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 600;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-start {
+  background: linear-gradient(135deg, #238636 0%, #2ea043 100%);
+  color: white;
+}
+
+.btn-pause {
+  background: linear-gradient(135deg, #d29922 0%, #e3b341 100%);
+  color: white;
+}
+
+.btn-stop {
+  background: linear-gradient(135deg, #da3633 0%, #f85149 100%);
+  color: white;
+}
+
+.scanner-config {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+}
+
+.scanner-config h2 {
+  margin-bottom: 1.5rem;
+  color: #58a6ff;
+  font-size: 1.5rem;
+}
+
+.config-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.config-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.config-group label {
+  font-weight: 600;
+  color: #8b949e;
+  font-size: 0.9rem;
+}
+
+.config-group label .label-hint {
+  font-weight: 400;
+  font-size: 0.65rem;
+  color: #6e7681;
+}
+
+.config-group input,
+.config-group select {
+  padding: 0.75rem;
+  background: #0d1117;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  color: #c9d1d9;
+  font-size: 1rem;
+  transition: border-color 0.2s;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.config-group input::placeholder {
+  color: #6e7681;
+  opacity: 1;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+
+.config-group input:focus,
+.config-group select:focus {
+  outline: none;
+  border-color: #58a6ff;
+}
+
+.config-group input:disabled,
+.config-group select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.config-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #30363d;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 1.2rem;
+  height: 1.2rem;
+  cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.checkbox-label span {
+  font-size: 1rem;
+  color: #c9d1d9;
+}
