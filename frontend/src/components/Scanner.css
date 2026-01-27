@@ -280,6 +280,108 @@
   color: #58a6ff;
 }
 
+/* Error Toast (moved from inline styles) */
+.error-toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: #ef4444;
+  color: white;
+  padding: 1rem 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+  max-width: 400px;
+  cursor: pointer;
+  animation: slideIn 0.3s ease-out;
+}
+
+.error-toast-content {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.error-toast-hint {
+  font-size: 0.75rem;
+  margin-top: 0.5rem;
+  opacity: 0.8;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Status Offline */
+.status-offline {
+  color: #f85149;
+  margin-left: 0.5rem;
+}
+
+/* Config Header */
+.config-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.config-header h2 {
+  margin: 0;
+}
+
+/* Config Group Bottom */
+.config-group-bottom {
+  margin-top: 1rem;
+}
+
+/* Checkbox Hint */
+.checkbox-hint {
+  opacity: 0.6;
+  font-size: 0.85em;
+}
+
+/* Progress Stats */
+.progress-percent {
+  margin-left: 0.5rem;
+}
+
+.progress-eta {
+  margin-left: 0.5rem;
+  color: #3b82f6;
+}
+
+.progress-rate {
+  margin-left: 0.5rem;
+  color: #10b981;
+}
+
+.progress-critical {
+  margin-left: 0.5rem;
+  color: #ef4444;
+}
+
+.progress-extracted {
+  margin-left: 0.5rem;
+}
+
+.progress-stopped {
+  margin-left: 0.5rem;
+  color: #f59e0b;
+}
+
+.progress-complete {
+  margin-left: 0.5rem;
+  color: #22c55e;
+}
+
 /* Preset Buttons */
 .preset-buttons {
   display: flex;

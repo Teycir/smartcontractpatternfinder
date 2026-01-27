@@ -1,40 +1,40 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
-import axios from 'axios'
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import Console from './Console'
 import './Scanner.css'
+import {
+  TIMEOUTS,
+  INITIAL_PROGRESS,
+  INITIAL_CONFIG,
+  SCAN_PRESETS,
+  SCAN_STATUS,
+} from '../constants'
+import { validateDays, validateConcurrency, buildScanPayload } from '../utils/validation'
+import { fetchScanStatus, startScan, pauseScan, resumeScan, stopScan, getErrorMessage } from '../utils/api'
 
+/**
+ * Scanner component - Main interface for configuring and running scans
+ */
 const Scanner = () => {
-  const [status, setStatus] = useState('idle')
+  // State management
+  const [status, setStatus] = useState(SCAN_STATUS.IDLE)
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [serverOnline, setServerOnline] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
   const [validationErrors, setValidationErrors] = useState({})
-  const [progress, setProgress] = useState({
-    contracts_scanned: 0,
-    contracts_total: null,
-    current_contract: null,
-    current_contract_name: null,
-    contracts_extracted: 0,
-    eta_seconds: 0,
-    rate: null,
-    critical_findings: 0,
-  })
-  const [config, setConfig] = useState({
-    addresses: '',
-    chain: 'all',
-    days: 100,
-    concurrency: 2,
-    tags: '',
-    contract_type: '',
-    extract_sources: '50',
-    fetch_zero_day: true,
-  })
+  const [progress, setProgress] = useState(INITIAL_PROGRESS)
+  const [config, setConfig] = useState(INITIAL_CONFIG)
 
+  // Refs for intervals and cleanup
   const statusIntervalRef = useRef(null)
   const errorTimeoutRef = useRef(null)
-  const prevStatusRef = useRef('idle')
+  const prevStatusRef = useRef(SCAN_STATUS.IDLE)
 
+  // ===== CALLBACKS =====
+
+  /**
+   * Display an error toast that auto-dismisses
+   */
   const showError = useCallback((message) => {
     setError(message)
     if (errorTimeoutRef.current) {
@@ -42,22 +42,35 @@ const Scanner = () => {
     }
     errorTimeoutRef.current = setTimeout(() => {
       setError('')
-    }, 8000)
+    }, TIMEOUTS.ERROR_DISPLAY)
   }, [])
 
-  const fetchStatus = useCallback(async () => {
-    try {
-      const response = await axios.get('/api/status', { timeout: 3000 })
-      setServerOnline(true)
-      setStatus(response.data.status || 'idle')
+  /**
+   * Clear a specific validation error
+   */
+  const clearValidationError = useCallback((field) => {
+    setValidationErrors(prev => {
+      const { [field]: removed, ...rest } = prev
+      return rest
+    })
+  }, [])
 
-      // Update progress
-      if (response.data.progress) {
-        setProgress(response.data.progress)
+  /**
+   * Poll the backend for current status
+   */
+  const pollStatus = useCallback(async () => {
+    try {
+      const data = await fetchScanStatus()
+      setServerOnline(true)
+      setStatus(data.status || SCAN_STATUS.IDLE)
+
+      if (data.progress) {
+        setProgress(data.progress)
       }
 
-      if (response.data.config && status !== 'idle') {
-        const cfg = response.data.config
+      // Sync config from server when running
+      if (data.config && status !== SCAN_STATUS.IDLE) {
+        const cfg = data.config
         setConfig(prev => ({
           ...prev,
           addresses: cfg.addresses?.join(', ') || prev.addresses,
@@ -72,112 +85,37 @@ const Scanner = () => {
       }
     } catch (err) {
       setServerOnline(false)
-      // Only log network errors once to avoid console spam
       if (err.code !== 'ECONNABORTED') {
         console.debug('Status fetch failed:', err.message)
       }
     }
-  }, [])
-
-  useEffect(() => {
-    fetchStatus()
-    statusIntervalRef.current = setInterval(fetchStatus, 2000)
-
-    return () => {
-      if (statusIntervalRef.current) {
-        clearInterval(statusIntervalRef.current)
-      }
-      if (errorTimeoutRef.current) {
-        clearTimeout(errorTimeoutRef.current)
-      }
-    }
-  }, [fetchStatus])
-
-  // Detect scan completion and show success animation
-  useEffect(() => {
-    if (prevStatusRef.current === 'running' && status === 'idle' && 
-        progress.contracts_scanned > 0 && progress.contracts_scanned >= progress.contracts_total) {
-      setShowSuccess(true)
-      setTimeout(() => setShowSuccess(false), 5000)
-    }
-    prevStatusRef.current = status
-  }, [status, progress])
-
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyPress = (e) => {
-      // Ignore if typing in an input field
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') {
-        return
-      }
-
-      if (e.code === 'Space') {
-        e.preventDefault()
-        if (status === 'idle') {
-          handleStart()
-        } else if (status === 'running') {
-          handlePause()
-        } else if (status === 'paused') {
-          handleResume()
-        }
-      } else if (e.code === 'Escape' && (status === 'running' || status === 'paused')) {
-        e.preventDefault()
-        handleStop()
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyPress)
-    return () => window.removeEventListener('keydown', handleKeyPress)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status])
+
+  // ===== ACTION HANDLERS =====
 
   const handleStart = useCallback(async () => {
     if (isLoading) return
 
-    console.log('Starting scan with config:', config)
     setIsLoading(true)
     setError('')
     setValidationErrors({})
 
     try {
-      // Validate configuration
-      const days = parseInt(config.days, 10)
-      const concurrency = parseInt(config.concurrency, 10)
-
-      console.log('Validation - days:', days, 'concurrency:', concurrency)
-
-      if (isNaN(days) || days < 0) {
-        throw new Error('Days must be 0 or greater (0 = only 0-day reports, no scanning)')
+      const daysValidation = validateDays(config.days)
+      if (!daysValidation.isValid) {
+        throw new Error(daysValidation.error)
       }
 
-      if (isNaN(concurrency) || concurrency < 1 || concurrency > 20) {
-        throw new Error('Concurrency must be between 1 and 20')
+      const concurrencyValidation = validateConcurrency(config.concurrency)
+      if (!concurrencyValidation.isValid) {
+        throw new Error(concurrencyValidation.error)
       }
 
-      const payload = {
-        addresses: config.addresses
-          .split(',')
-          .map(a => a.trim())
-          .filter(a => a.length > 0),
-        chain: config.chain === 'all' ? 'ethereum,polygon,arbitrum' : config.chain,
-        days,
-        concurrency,
-        tags: config.tags || null,
-        contract_type: config.contract_type || null,
-        extract_sources: config.extract_sources && parseInt(config.extract_sources, 10) > 0
-          ? parseInt(config.extract_sources, 10)
-          : null,
-        fetch_zero_day: config.fetch_zero_day ? 30 : null,
-      }
-
-      console.log('Sending payload to /api/start:', payload)
-      const response = await axios.post('/api/start', payload, { timeout: 10000 })
-      console.log('Scan started successfully:', response.data)
-      setStatus('running')
+      const payload = buildScanPayload(config)
+      await startScan(payload)
+      setStatus(SCAN_STATUS.RUNNING)
     } catch (err) {
-      const errorMessage = err.response?.data?.error || err.message || 'Failed to start scan'
-      showError(errorMessage)
-      console.error('Start scan error:', err)
+      showError(getErrorMessage(err, 'Failed to start scan'))
     } finally {
       setIsLoading(false)
     }
@@ -188,11 +126,10 @@ const Scanner = () => {
 
     setIsLoading(true)
     try {
-      await axios.post('/api/pause', {}, { timeout: 5000 })
-      setStatus('paused')
+      await pauseScan()
+      setStatus(SCAN_STATUS.PAUSED)
     } catch (err) {
-      const errorMessage = err.response?.data?.error || err.message || 'Failed to pause scan'
-      showError(errorMessage)
+      showError(getErrorMessage(err, 'Failed to pause scan'))
     } finally {
       setIsLoading(false)
     }
@@ -203,11 +140,10 @@ const Scanner = () => {
 
     setIsLoading(true)
     try {
-      await axios.post('/api/resume', {}, { timeout: 5000 })
-      setStatus('running')
+      await resumeScan()
+      setStatus(SCAN_STATUS.RUNNING)
     } catch (err) {
-      const errorMessage = err.response?.data?.error || err.message || 'Failed to resume scan'
-      showError(errorMessage)
+      showError(getErrorMessage(err, 'Failed to resume scan'))
     } finally {
       setIsLoading(false)
     }
@@ -218,149 +154,177 @@ const Scanner = () => {
 
     setIsLoading(true)
     try {
-      await axios.post('/api/stop', {}, { timeout: 5000 })
-      // Backend resets to 'idle', sync with that
-      setStatus('idle')
-      // Reset progress display
-      setProgress({
-        contracts_scanned: 0,
-        contracts_total: null,
-        current_contract: null,
-        current_contract_name: null,
-        contracts_extracted: 0,
-        eta_seconds: 0,
-        rate: null,
-        critical_findings: 0,
-      })
+      await stopScan()
+      setStatus(SCAN_STATUS.IDLE)
+      setProgress(INITIAL_PROGRESS)
     } catch (err) {
-      const errorMessage = err.response?.data?.error || err.message || 'Failed to stop scan'
-      showError(errorMessage)
+      showError(getErrorMessage(err, 'Failed to stop scan'))
     } finally {
       setIsLoading(false)
     }
   }, [isLoading, showError])
 
-  const handleInputChange = (e) => {
+  /**
+   * Handle form input changes with inline validation
+   */
+  const handleInputChange = useCallback((e) => {
     const { name, value, type, checked } = e.target
     const newValue = type === 'checkbox' ? checked : value
     
-    setConfig(prev => ({
-      ...prev,
-      [name]: newValue
-    }))
+    setConfig(prev => ({ ...prev, [name]: newValue }))
 
-    // Inline validation
+    // Inline validation for specific fields
     if (name === 'days') {
-      const days = parseInt(value, 10)
-      if (isNaN(days) || days < 0) {
-        setValidationErrors(prev => ({ ...prev, days: 'Must be 0 or greater' }))
+      const validation = validateDays(value)
+      if (!validation.isValid) {
+        setValidationErrors(prev => ({ ...prev, days: validation.error }))
       } else {
-        setValidationErrors(prev => {
-          const { days, ...rest } = prev
-          return rest
-        })
+        clearValidationError('days')
       }
     } else if (name === 'concurrency') {
-      const concurrency = parseInt(value, 10)
-      if (isNaN(concurrency) || concurrency < 1 || concurrency > 20) {
-        setValidationErrors(prev => ({ ...prev, concurrency: 'Must be between 1-20' }))
+      const validation = validateConcurrency(value)
+      if (!validation.isValid) {
+        setValidationErrors(prev => ({ ...prev, concurrency: validation.error }))
       } else {
-        setValidationErrors(prev => {
-          const { concurrency, ...rest } = prev
-          return rest
-        })
+        clearValidationError('concurrency')
       }
     }
-  }
+  }, [clearValidationError])
 
-  const applyPreset = (preset) => {
-    const presets = {
-      quick: {
-        days: 7,
-        chain: 'ethereum',
-        concurrency: 5,
-        tags: '',
-        contract_type: '',
-        extract_sources: '25',
-        fetch_zero_day: false,
-      },
-      deep: {
-        days: 30,
-        chain: 'all',
-        concurrency: 3,
-        tags: '',
-        contract_type: '',
-        extract_sources: '100',
-        fetch_zero_day: true,
-      },
-      zeroday: {
-        days: 0,
-        chain: 'all',
-        concurrency: 2,
-        tags: '',
-        contract_type: '',
-        extract_sources: '0',
-        fetch_zero_day: true,
-      },
-    }
-    
-    if (presets[preset]) {
-      setConfig(prev => ({ ...prev, ...presets[preset] }))
+  /**
+   * Apply a configuration preset
+   */
+  const applyPreset = useCallback((presetName) => {
+    const preset = SCAN_PRESETS[presetName]
+    if (preset) {
+      setConfig(prev => ({ ...prev, ...preset }))
       setValidationErrors({})
     }
-  }
+  }, [])
 
-  const getStatusIcon = () => {
+  // ===== EFFECTS =====
+
+  // Status polling
+  useEffect(() => {
+    pollStatus()
+    statusIntervalRef.current = setInterval(pollStatus, TIMEOUTS.STATUS_POLL_INTERVAL)
+
+    return () => {
+      if (statusIntervalRef.current) {
+        clearInterval(statusIntervalRef.current)
+      }
+      if (errorTimeoutRef.current) {
+        clearTimeout(errorTimeoutRef.current)
+      }
+    }
+  }, [pollStatus])
+
+  // Detect scan completion for success animation
+  useEffect(() => {
+    const wasRunning = prevStatusRef.current === SCAN_STATUS.RUNNING
+    const isNowIdle = status === SCAN_STATUS.IDLE
+    const hasProgress = progress.contracts_scanned > 0
+    const isComplete = progress.contracts_scanned >= progress.contracts_total
+
+    if (wasRunning && isNowIdle && hasProgress && isComplete) {
+      setShowSuccess(true)
+      const timer = setTimeout(() => setShowSuccess(false), TIMEOUTS.SUCCESS_DISPLAY)
+      return () => clearTimeout(timer)
+    }
+    prevStatusRef.current = status
+  }, [status, progress])
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyPress = (e) => {
+      const isTyping = ['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName)
+      if (isTyping) return
+
+      if (e.code === 'Space') {
+        e.preventDefault()
+        if (status === SCAN_STATUS.IDLE) handleStart()
+        else if (status === SCAN_STATUS.RUNNING) handlePause()
+        else if (status === SCAN_STATUS.PAUSED) handleResume()
+      } else if (e.code === 'Escape') {
+        if (status === SCAN_STATUS.RUNNING || status === SCAN_STATUS.PAUSED) {
+          e.preventDefault()
+          handleStop()
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyPress)
+    return () => window.removeEventListener('keydown', handleKeyPress)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status])
+
+  // ===== COMPUTED VALUES =====
+
+  const statusIcon = useMemo(() => {
     if (!serverOnline) return '⚫'
     switch (status) {
-      case 'running': return '🟢'
-      case 'paused': return '🟡'
-      case 'stopped': return '🔴'
+      case SCAN_STATUS.RUNNING: return '🟢'
+      case SCAN_STATUS.PAUSED: return '🟡'
+      case SCAN_STATUS.STOPPED: return '🔴'
       default: return '⚪'
     }
-  }
+  }, [serverOnline, status])
 
-  const getStatusText = () => {
+  const statusText = useMemo(() => {
     if (!serverOnline) return 'OFFLINE'
     return status.toUpperCase()
-  }
+  }, [serverOnline, status])
 
-  const isControlsDisabled = status === 'running' || isLoading
+  const isControlsDisabled = status === SCAN_STATUS.RUNNING || isLoading
+
+  const progressPercent = useMemo(() => {
+    if (!progress.contracts_total || progress.contracts_total === 0) return 0
+    return Math.min(100, (progress.contracts_scanned / progress.contracts_total) * 100)
+  }, [progress.contracts_scanned, progress.contracts_total])
+
+  const etaDisplay = useMemo(() => {
+    const eta = progress.eta_seconds
+    if (!eta || isNaN(eta) || eta <= 0) return null
+    const mins = Math.floor(eta / 60)
+    const secs = Math.floor(eta % 60)
+    return `${mins}m${secs}s`
+  }, [progress.eta_seconds])
+
+  const shouldShowProgress = status === SCAN_STATUS.RUNNING || 
+    status === SCAN_STATUS.PAUSED || 
+    (progress.contracts_scanned > 0 && progress.contracts_total > 0)
+
+  const progressBarColor = useMemo(() => {
+    if (status === SCAN_STATUS.PAUSED) return '#f59e0b'
+    if (status === SCAN_STATUS.IDLE) return '#6b7280'
+    return undefined
+  }, [status])
+
+  const isZeroDayMode = config.days === 0 || config.days === '0'
+
+  // ===== RENDER =====
 
   return (
     <div className="scanner">
+      {/* Error Toast */}
       {error && (
         <div
           className="error-toast"
           onClick={() => setError('')}
           role="alert"
-          style={{
-            position: 'fixed',
-            top: '20px',
-            right: '20px',
-            background: '#ef4444',
-            color: 'white',
-            padding: '1rem 1.5rem',
-            borderRadius: '8px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
-            zIndex: 1000,
-            maxWidth: '400px',
-            cursor: 'pointer',
-            animation: 'slideIn 0.3s ease-out'
-          }}
+          aria-live="assertive"
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <div className="error-toast-content">
             <span>❌</span>
             <span>{error}</span>
           </div>
-          <div style={{ fontSize: '0.75rem', marginTop: '0.5rem', opacity: 0.8 }}>
-            Click to dismiss
-          </div>
+          <div className="error-toast-hint">Click to dismiss</div>
         </div>
       )}
 
+      {/* Success Celebration */}
       {showSuccess && (
-        <div className="success-celebration">
+        <div className="success-celebration" role="status" aria-live="polite">
           <div className="celebration-content">
             <span className="celebration-icon">🎉</span>
             <span className="celebration-text">Scan Complete!</span>
@@ -369,37 +333,40 @@ const Scanner = () => {
         </div>
       )}
 
+      {/* Scanner Controls */}
       <div className="scanner-controls">
         <div className="status-bar">
-          <span className={`status-indicator status-${status} ${status === 'running' ? 'pulse-indicator' : ''}`}>
-            {getStatusIcon()}
+          <span className={`status-indicator status-${status} ${status === SCAN_STATUS.RUNNING ? 'pulse-indicator' : ''}`}>
+            {statusIcon}
           </span>
           <span className="status-text">
-            Status: <strong>{getStatusText()}</strong>
-            {!serverOnline && <span style={{ color: '#f85149', marginLeft: '0.5rem' }}>(Server not responding)</span>}
+            Status: <strong>{statusText}</strong>
+            {!serverOnline && (
+              <span className="status-offline">(Server not responding)</span>
+            )}
           </span>
         </div>
 
         <div className="control-buttons">
           <button
             onClick={handleStart}
-            disabled={status === 'running' || status === 'paused' || isLoading || !serverOnline}
+            disabled={status === SCAN_STATUS.RUNNING || status === SCAN_STATUS.PAUSED || isLoading || !serverOnline}
             className="btn btn-start"
-            title={!serverOnline ? 'Server is offline' : status === 'running' ? 'Scan in progress' : 'Start scan (Space)'}
+            title={!serverOnline ? 'Server is offline' : status === SCAN_STATUS.RUNNING ? 'Scan in progress' : 'Start scan (Space)'}
           >
-            {isLoading && status !== 'running' ? '⏳' : '▶️'} Start
+            {isLoading && status !== SCAN_STATUS.RUNNING ? '⏳' : '▶️'} Start
           </button>
           <button
-            onClick={status === 'paused' ? handleResume : handlePause}
-            disabled={(status !== 'running' && status !== 'paused') || isLoading}
-            className={`btn ${status === 'paused' ? 'btn-resume' : 'btn-pause'}`}
-            title={status === 'paused' ? 'Resume (Space)' : 'Pause (Space)'}
+            onClick={status === SCAN_STATUS.PAUSED ? handleResume : handlePause}
+            disabled={(status !== SCAN_STATUS.RUNNING && status !== SCAN_STATUS.PAUSED) || isLoading}
+            className={`btn ${status === SCAN_STATUS.PAUSED ? 'btn-resume' : 'btn-pause'}`}
+            title={status === SCAN_STATUS.PAUSED ? 'Resume (Space)' : 'Pause (Space)'}
           >
-            {status === 'paused' ? '▶️ Resume' : '⏸️ Pause'}
+            {status === SCAN_STATUS.PAUSED ? '▶️ Resume' : '⏸️ Pause'}
           </button>
           <button
             onClick={handleStop}
-            disabled={(status !== 'running' && status !== 'paused') || isLoading}
+            disabled={(status !== SCAN_STATUS.RUNNING && status !== SCAN_STATUS.PAUSED) || isLoading}
             className="btn btn-stop"
             title="Stop scan (Esc)"
           >
@@ -408,62 +375,55 @@ const Scanner = () => {
         </div>
       </div>
 
-      {/* Progress Bar - show when running, paused, or has progress data */}
-      {(status === 'running' || status === 'paused' || (progress.contracts_scanned > 0 && progress.contracts_total > 0)) && (
+      {/* Progress Section */}
+      {shouldShowProgress && (
         <div className="progress-section">
           <div className="progress-header">
             <span className="progress-label">
               📊 {progress.contracts_scanned}
               {progress.contracts_total ? ` / ${progress.contracts_total}` : ''} contracts scanned
               {progress.contracts_total > 0 && (
-                <strong style={{ marginLeft: '0.5rem' }}>
-                  ({((progress.contracts_scanned / progress.contracts_total) * 100).toFixed(1)}%)
-                </strong>
+                <strong className="progress-percent">({progressPercent.toFixed(1)}%)</strong>
               )}
-              {progress.eta_seconds > 0 && (
-                <span style={{ marginLeft: '0.5rem', color: '#3b82f6' }}>
-                  • ETA: {Math.floor(progress.eta_seconds / 60)}m{progress.eta_seconds % 60}s
-                </span>
+              {etaDisplay && (
+                <span className="progress-eta">• ETA: {etaDisplay}</span>
               )}
               {progress.rate && (
-                <span style={{ marginLeft: '0.5rem', color: '#10b981' }}>
-                  • {progress.rate.toFixed(1)}/s
-                </span>
+                <span className="progress-rate">• {progress.rate.toFixed(1)}/s</span>
               )}
               {progress.critical_findings > 0 && (
-                <span style={{ marginLeft: '0.5rem', color: '#ef4444' }}>
-                  • 🚨 {progress.critical_findings} critical
-                </span>
+                <span className="progress-critical">• 🚨 {progress.critical_findings} critical</span>
               )}
               {progress.contracts_extracted > 0 && (
-                <span style={{ marginLeft: '0.5rem' }}>
-                  • {progress.contracts_extracted} extracted
-                </span>
+                <span className="progress-extracted">• {progress.contracts_extracted} extracted</span>
               )}
-              {status === 'idle' && progress.contracts_scanned > 0 && progress.contracts_scanned < progress.contracts_total && (
-                <span style={{ color: '#f59e0b', marginLeft: '0.5rem' }}>⚠️ Stopped</span>
+              {status === SCAN_STATUS.IDLE && progress.contracts_scanned > 0 && progress.contracts_scanned < progress.contracts_total && (
+                <span className="progress-stopped">⚠️ Stopped</span>
               )}
-              {status === 'idle' && progress.contracts_scanned > 0 && progress.contracts_scanned >= progress.contracts_total && (
-                <span style={{ color: '#22c55e', marginLeft: '0.5rem' }}>✅ Complete</span>
+              {status === SCAN_STATUS.IDLE && progress.contracts_scanned > 0 && progress.contracts_scanned >= progress.contracts_total && (
+                <span className="progress-complete">✅ Complete</span>
               )}
             </span>
           </div>
-          {progress.contracts_total && progress.contracts_total > 0 && (
+          {progress.contracts_total > 0 && (
             <div className="progress-bar-container">
               <div
                 className="progress-bar-fill"
                 style={{ 
-                  width: `${Math.min(100, (progress.contracts_scanned / progress.contracts_total) * 100)}%`,
-                  backgroundColor: status === 'paused' ? '#f59e0b' : (status === 'idle' ? '#6b7280' : undefined),
-                  transition: 'width 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
+                  width: `${progressPercent}%`,
+                  backgroundColor: progressBarColor,
                 }}
+                role="progressbar"
+                aria-valuenow={progressPercent}
+                aria-valuemin="0"
+                aria-valuemax="100"
               />
               <div className="progress-bar-text">
                 {progress.contracts_scanned} / {progress.contracts_total}
               </div>
             </div>
           )}
-          {progress.current_contract_name && status === 'running' && (
+          {progress.current_contract_name && status === SCAN_STATUS.RUNNING && (
             <div className="progress-current">
               🔄 Currently scanning: <code>{progress.current_contract_name}</code>
             </div>
@@ -471,9 +431,10 @@ const Scanner = () => {
         </div>
       )}
 
+      {/* Configuration Section */}
       <div className="scanner-config">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-          <h2 style={{ margin: 0 }}>Configuration</h2>
+        <div className="config-header">
+          <h2>Configuration</h2>
           <div className="preset-buttons">
             <button 
               className="btn-preset" 
@@ -504,10 +465,11 @@ const Scanner = () => {
 
         <div className="config-grid">
           <div className="config-group">
-            <label>
+            <label htmlFor="addresses">
               Contract Addresses <span className="label-hint">(empty = autodetect)</span>
             </label>
             <input
+              id="addresses"
               type="text"
               name="addresses"
               value={config.addresses}
@@ -519,8 +481,9 @@ const Scanner = () => {
           </div>
 
           <div className="config-group">
-            <label>Blockchain Chain</label>
+            <label htmlFor="chain">Blockchain Chain</label>
             <select 
+              id="chain"
               name="chain" 
               value={config.chain} 
               onChange={handleInputChange} 
@@ -535,13 +498,14 @@ const Scanner = () => {
           </div>
 
           <div className="config-group">
-            <label>
+            <label htmlFor="days">
               Days to Scan{' '}
-              {config.days === 0 || config.days === '0' ? (
+              {isZeroDayMode && (
                 <span className="label-hint">(no scan, only 0-day reports)</span>
-              ) : null}
+              )}
             </label>
             <input
+              id="days"
               type="number"
               name="days"
               value={config.days}
@@ -551,15 +515,25 @@ const Scanner = () => {
               disabled={isControlsDisabled}
               className={validationErrors.days ? 'input-error' : ''}
               title="Set to 0 for only 0-day reports without scanning"
+              aria-invalid={!!validationErrors.days}
+              aria-describedby={validationErrors.days ? 'days-error' : undefined}
             />
             {validationErrors.days && (
-              <span className="validation-error">{validationErrors.days}</span>
+              <span id="days-error" className="validation-error" role="alert">
+                {validationErrors.days}
+              </span>
             )}
           </div>
 
           <div className="config-group">
-            <label>Contract Type</label>
-            <select name="contract_type" value={config.contract_type} onChange={handleInputChange} disabled={isControlsDisabled}>
+            <label htmlFor="contract_type">Contract Type</label>
+            <select 
+              id="contract_type"
+              name="contract_type" 
+              value={config.contract_type} 
+              onChange={handleInputChange} 
+              disabled={isControlsDisabled}
+            >
               <option value="">All Types</option>
               <option value="erc20">ERC-20</option>
               <option value="erc721">ERC-721</option>
@@ -570,8 +544,14 @@ const Scanner = () => {
           </div>
 
           <div className="config-group">
-            <label>Tags (filter templates)</label>
-            <select name="tags" value={config.tags} onChange={handleInputChange} disabled={isControlsDisabled}>
+            <label htmlFor="tags">Tags (filter templates)</label>
+            <select 
+              id="tags"
+              name="tags" 
+              value={config.tags} 
+              onChange={handleInputChange} 
+              disabled={isControlsDisabled}
+            >
               <option value="">All Templates</option>
               <option value="security">Security</option>
               <option value="reentrancy">Reentrancy</option>
@@ -590,13 +570,14 @@ const Scanner = () => {
               onChange={handleInputChange}
               disabled={isControlsDisabled}
             />
-            <span>Fetch 0-day exploits <small style={{ opacity: 0.6, fontSize: '0.85em' }}>(last 30 days)</small></span>
+            <span>Fetch 0-day exploits <small className="checkbox-hint">(last 30 days)</small></span>
           </label>
         </div>
 
-        <div className="config-group" style={{ marginTop: '1rem' }}>
-          <label>Extract Top Riskiest Sources</label>
+        <div className="config-group config-group-bottom">
+          <label htmlFor="extract_sources">Extract Top Riskiest Sources</label>
           <select 
+            id="extract_sources"
             name="extract_sources" 
             value={config.extract_sources} 
             onChange={handleInputChange} 
@@ -614,19 +595,6 @@ const Scanner = () => {
       </div>
 
       <Console />
-
-      <style>{`
-        @keyframes slideIn {
-          from {
-            opacity: 0;
-            transform: translateX(100%);
-          }
-          to {
-            opacity: 1;
-            transform: translateX(0);
-          }
-        }
-      `}</style>
     </div>
   )
 }

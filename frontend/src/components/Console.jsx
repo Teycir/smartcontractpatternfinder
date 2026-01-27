@@ -1,31 +1,54 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import axios from 'axios'
 import './Console.css'
+import {
+  API_ENDPOINTS,
+  TIMEOUTS,
+  CONNECTION_CONFIG,
+  CONNECTION_STATUS,
+  SCAN_STATUS,
+} from '../constants'
+import { fetchScanStatus, checkHealth } from '../utils/api'
 
+/**
+ * Console component - Displays real-time scan logs with SSE connection
+ */
 const Console = () => {
+  // State
   const [logs, setLogs] = useState([])
-  const [connectionState, setConnectionState] = useState('disconnected') // 'disconnected' | 'connecting' | 'connected' | 'error'
+  const [connectionState, setConnectionState] = useState(CONNECTION_STATUS.DISCONNECTED)
   const [errorMessage, setErrorMessage] = useState('')
-  const [scanStatus, setScanStatus] = useState('idle') // 'idle' | 'running' | 'paused' | 'stopped'
-  const [isStoppingOrPausing, setIsStoppingOrPausing] = useState(false)
+  const [scanStatus, setScanStatus] = useState(SCAN_STATUS.IDLE)
   const [copiedId, setCopiedId] = useState(null)
+
+  // Refs
   const consoleRef = useRef(null)
   const eventSourceRef = useRef(null)
   const reconnectTimeoutRef = useRef(null)
   const statusIntervalRef = useRef(null)
   const isInitializedRef = useRef(false)
   const reconnectAttemptsRef = useRef(0)
-  const maxReconnectAttempts = 5
 
+  // ===== CALLBACKS =====
+
+  /**
+   * Add a log entry with automatic trimming
+   */
   const addLog = useCallback((message, type = 'log') => {
     const timestamp = new Date().toLocaleTimeString()
     const id = `${timestamp}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    
     setLogs(prev => {
       const newLog = { id, message, type, timestamp }
-      return prev.length >= 1000 ? [...prev.slice(-999), newLog] : [...prev, newLog]
+      const maxLogs = CONNECTION_CONFIG.MAX_LOG_ENTRIES
+      return prev.length >= maxLogs 
+        ? [...prev.slice(-(maxLogs - 1)), newLog] 
+        : [...prev, newLog]
     })
   }, [])
 
+  /**
+   * Clean up SSE connection and timeouts
+   */
   const cleanupConnection = useCallback(() => {
     if (eventSourceRef.current) {
       eventSourceRef.current.close()
@@ -37,26 +60,28 @@ const Console = () => {
     }
   }, [])
 
+  /**
+   * Establish SSE connection to log stream
+   */
   const connectToLogs = useCallback(() => {
     cleanupConnection()
-    
-    setConnectionState('connecting')
+    setConnectionState(CONNECTION_STATUS.CONNECTING)
     
     try {
-      const eventSource = new EventSource('/api/logs')
+      const eventSource = new EventSource(API_ENDPOINTS.LOGS)
       eventSourceRef.current = eventSource
 
       const connectionTimeout = setTimeout(() => {
-        if (eventSourceRef.current && eventSourceRef.current.readyState !== EventSource.OPEN) {
-          setConnectionState('error')
+        if (eventSourceRef.current?.readyState !== EventSource.OPEN) {
+          setConnectionState(CONNECTION_STATUS.ERROR)
           setErrorMessage('Connection timeout - server may not be responding')
           addLog('⚠️ Connection timeout. Click Reconnect to try again.', 'system')
         }
-      }, 5000)
+      }, TIMEOUTS.CONNECTION_TIMEOUT)
 
       eventSource.onopen = () => {
         clearTimeout(connectionTimeout)
-        setConnectionState('connected')
+        setConnectionState(CONNECTION_STATUS.CONNECTED)
         setErrorMessage('')
         reconnectAttemptsRef.current = 0
         addLog('🟢 Connected to server', 'system')
@@ -71,36 +96,45 @@ const Console = () => {
       eventSource.onerror = () => {
         clearTimeout(connectionTimeout)
         cleanupConnection()
-        setConnectionState('disconnected')
+        setConnectionState(CONNECTION_STATUS.DISCONNECTED)
         
         reconnectAttemptsRef.current += 1
         
-        if (reconnectAttemptsRef.current <= maxReconnectAttempts) {
-          const delay = Math.min(5000 * reconnectAttemptsRef.current, 30000)
-          addLog(`🔴 Connection lost. Reconnecting in ${delay / 1000}s... (attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts})`, 'system')
+        if (reconnectAttemptsRef.current <= CONNECTION_CONFIG.MAX_RECONNECT_ATTEMPTS) {
+          const delay = Math.min(
+            TIMEOUTS.RECONNECT_DELAY_BASE * reconnectAttemptsRef.current,
+            TIMEOUTS.RECONNECT_DELAY_MAX
+          )
+          addLog(
+            `🔴 Connection lost. Reconnecting in ${delay / 1000}s... (attempt ${reconnectAttemptsRef.current}/${CONNECTION_CONFIG.MAX_RECONNECT_ATTEMPTS})`,
+            'system'
+          )
           
           reconnectTimeoutRef.current = setTimeout(() => {
-            checkServerHealth()
+            performHealthCheck()
           }, delay)
         } else {
-          setConnectionState('error')
+          setConnectionState(CONNECTION_STATUS.ERROR)
           setErrorMessage('Max reconnection attempts reached')
           addLog('❌ Max reconnection attempts reached. Click Reconnect to try again.', 'system')
         }
       }
     } catch (error) {
-      setConnectionState('error')
+      setConnectionState(CONNECTION_STATUS.ERROR)
       setErrorMessage(error.message)
       addLog('❌ Failed to create connection: ' + error.message, 'system')
     }
   }, [addLog, cleanupConnection])
 
-  const checkServerHealth = useCallback(async () => {
-    setConnectionState('connecting')
+  /**
+   * Check server health before connecting
+   */
+  const performHealthCheck = useCallback(async () => {
+    setConnectionState(CONNECTION_STATUS.CONNECTING)
     addLog('🔍 Checking server health...', 'system')
     
     try {
-      await axios.get('/api/health', { timeout: 3000 })
+      await checkHealth()
       addLog('✅ Server is online, connecting...', 'system')
       connectToLogs()
     } catch (error) {
@@ -109,55 +143,37 @@ const Console = () => {
         ? 'Backend server is not running' 
         : `Server error: ${error.response?.status}`
       
-      setConnectionState('error')
+      setConnectionState(CONNECTION_STATUS.ERROR)
       setErrorMessage(errorMsg)
       addLog(`❌ ${errorMsg}. Please start it with: cargo run --bin scpf-server`, 'system')
       
       // Auto-retry with exponential backoff
       reconnectAttemptsRef.current += 1
-      if (reconnectAttemptsRef.current <= maxReconnectAttempts) {
-        const delay = Math.min(5000 * reconnectAttemptsRef.current, 30000)
-        reconnectTimeoutRef.current = setTimeout(() => {
-          checkServerHealth()
-        }, delay)
+      if (reconnectAttemptsRef.current <= CONNECTION_CONFIG.MAX_RECONNECT_ATTEMPTS) {
+        const delay = Math.min(
+          TIMEOUTS.RECONNECT_DELAY_BASE * reconnectAttemptsRef.current,
+          TIMEOUTS.RECONNECT_DELAY_MAX
+        )
+        reconnectTimeoutRef.current = setTimeout(performHealthCheck, delay)
       }
     }
   }, [addLog, connectToLogs])
 
-  const fetchScanStatus = useCallback(async () => {
+  /**
+   * Poll scan status for badge display
+   */
+  const pollScanStatus = useCallback(async () => {
     try {
-      const response = await axios.get('/api/status', { timeout: 2000 })
-      setScanStatus(response.data.status || 'idle')
+      const data = await fetchScanStatus()
+      setScanStatus(data.status || SCAN_STATUS.IDLE)
     } catch {
       // Silently fail - connection status is handled elsewhere
     }
   }, [])
 
-  useEffect(() => {
-    // Prevent double initialization
-    if (isInitializedRef.current) return
-    isInitializedRef.current = true
-    
-    checkServerHealth()
-    
-    // Poll scan status
-    statusIntervalRef.current = setInterval(fetchScanStatus, 1500)
-    
-    return () => {
-      cleanupConnection()
-      if (statusIntervalRef.current) {
-        clearInterval(statusIntervalRef.current)
-      }
-    }
-  }, [checkServerHealth, cleanupConnection, fetchScanStatus])
+  // ===== ACTION HANDLERS =====
 
-  useEffect(() => {
-    if (consoleRef.current) {
-      consoleRef.current.scrollTop = consoleRef.current.scrollHeight
-    }
-  }, [logs])
-
-  const handleReconnect = async () => {
+  const handleReconnect = useCallback(async () => {
     cleanupConnection()
     reconnectAttemptsRef.current = 0
     setLogs([])
@@ -166,109 +182,134 @@ const Console = () => {
     
     // Small delay to ensure cleanup is complete
     await new Promise(resolve => setTimeout(resolve, 100))
-    checkServerHealth()
-  }
+    performHealthCheck()
+  }, [addLog, cleanupConnection, performHealthCheck])
 
-  const clearLogs = () => {
+  const clearLogs = useCallback(() => {
     setLogs([])
-  }
+  }, [])
 
-  const copyLog = (message, id) => {
-    navigator.clipboard.writeText(message).then(() => {
-      setCopiedId(id)
-      setTimeout(() => setCopiedId(null), 2000)
-    }).catch(err => {
-      console.error('Failed to copy:', err)
-    })
-  }
+  const copyLog = useCallback((message, id) => {
+    navigator.clipboard.writeText(message)
+      .then(() => {
+        setCopiedId(id)
+        setTimeout(() => setCopiedId(null), TIMEOUTS.COPY_FEEDBACK)
+      })
+      .catch(err => {
+        console.error('Failed to copy:', err)
+      })
+  }, [])
 
-  const handleStopScan = async () => {
-    setIsStoppingOrPausing(true)
-    try {
-      await axios.post('/api/stop', {}, { timeout: 5000 })
-      addLog('🛑 Stop signal sent...', 'system')
-      setScanStatus('stopped')
-    } catch (err) {
-      addLog(`❌ Failed to stop: ${err.message}`, 'error')
-    } finally {
-      setIsStoppingOrPausing(false)
+  // ===== EFFECTS =====
+
+  // Initialize connection and polling
+  useEffect(() => {
+    if (isInitializedRef.current) return
+    isInitializedRef.current = true
+    
+    performHealthCheck()
+    statusIntervalRef.current = setInterval(pollScanStatus, TIMEOUTS.LOG_STATUS_POLL_INTERVAL)
+    
+    return () => {
+      cleanupConnection()
+      if (statusIntervalRef.current) {
+        clearInterval(statusIntervalRef.current)
+      }
     }
-  }
+  }, [performHealthCheck, cleanupConnection, pollScanStatus])
 
-  const handlePauseScan = async () => {
-    setIsStoppingOrPausing(true)
-    try {
-      await axios.post('/api/pause', {}, { timeout: 5000 })
-      addLog('⏸️ Pause signal sent...', 'system')
-      setScanStatus('paused')
-    } catch (err) {
-      addLog(`❌ Failed to pause: ${err.message}`, 'error')
-    } finally {
-      setIsStoppingOrPausing(false)
+  // Auto-scroll to bottom on new logs
+  useEffect(() => {
+    if (consoleRef.current) {
+      consoleRef.current.scrollTop = consoleRef.current.scrollHeight
     }
-  }
+  }, [logs])
+
+  // ===== COMPUTED VALUES =====
 
   const getLogClass = (type) => {
-    if (type === 'error') return 'log-error'
-    if (type === 'system') return 'log-system'
-    return 'log-normal'
+    switch (type) {
+      case 'error': return 'log-error'
+      case 'system': return 'log-system'
+      default: return 'log-normal'
+    }
   }
 
-  const getConnectionStatusDisplay = () => {
+  const connectionDisplay = (() => {
     switch (connectionState) {
-      case 'connected':
+      case CONNECTION_STATUS.CONNECTED:
         return { icon: '🟢', text: 'Connected', className: 'connected' }
-      case 'connecting':
+      case CONNECTION_STATUS.CONNECTING:
         return { icon: '🟡', text: 'Connecting...', className: 'connecting' }
-      case 'error':
+      case CONNECTION_STATUS.ERROR:
         return { icon: '🔴', text: 'Error', className: 'disconnected' }
       default:
         return { icon: '🔴', text: 'Disconnected', className: 'disconnected' }
     }
-  }
+  })()
 
-  const statusDisplay = getConnectionStatusDisplay()
+  const isScanning = scanStatus === SCAN_STATUS.RUNNING || scanStatus === SCAN_STATUS.PAUSED
+  const canReconnect = connectionState !== CONNECTION_STATUS.CONNECTED && 
+                       connectionState !== CONNECTION_STATUS.CONNECTING
+
+  // ===== RENDER =====
 
   return (
     <div className="console">
-      <div className="console-header">
+      <header className="console-header">
         <div className="console-title">
-          <span className="console-icon">💻</span>
+          <span className="console-icon" aria-hidden="true">💻</span>
           <h3>Scan Console</h3>
         </div>
         <div className="console-controls">
-          <span className={`connection-status ${statusDisplay.className}`}>
-            {statusDisplay.icon} {statusDisplay.text}
+          <span 
+            className={`connection-status ${connectionDisplay.className}`}
+            role="status"
+            aria-label={`Connection status: ${connectionDisplay.text}`}
+          >
+            {connectionDisplay.icon} {connectionDisplay.text}
           </span>
-          {/* Control buttons moved to Scanner component - only show status here */}
-          {(scanStatus === 'running' || scanStatus === 'paused') && (
-            <span className="scan-status-badge">
-              {scanStatus === 'running' ? '🔄 Scanning...' : '⏸️ Paused'}
+          
+          {isScanning && (
+            <span className="scan-status-badge" role="status">
+              {scanStatus === SCAN_STATUS.RUNNING ? '🔄 Scanning...' : '⏸️ Paused'}
             </span>
           )}
-          {connectionState !== 'connected' && (
+          
+          {canReconnect && (
             <button 
               onClick={handleReconnect} 
               className="btn-reconnect"
-              disabled={connectionState === 'connecting'}
-              title={connectionState === 'connecting' ? 'Connecting...' : 'Reconnect to server'}
+              disabled={connectionState === CONNECTION_STATUS.CONNECTING}
+              title={connectionState === CONNECTION_STATUS.CONNECTING ? 'Connecting...' : 'Reconnect to server'}
             >
               🔄 Reconnect
             </button>
           )}
-          <button onClick={clearLogs} className="btn-clear">
+          
+          <button 
+            onClick={clearLogs} 
+            className="btn-clear"
+            title="Clear all logs"
+          >
             🗑️ Clear
           </button>
         </div>
-      </div>
+      </header>
       
       {errorMessage && (
-        <div className="console-error-banner">
+        <div className="console-error-banner" role="alert">
           ⚠️ {errorMessage}
         </div>
       )}
       
-      <div className="console-output" ref={consoleRef}>
+      <div 
+        className="console-output" 
+        ref={consoleRef}
+        role="log"
+        aria-live="polite"
+        aria-label="Scan output console"
+      >
         {logs.length === 0 ? (
           <div className="console-empty">
             <p>No logs yet. Start a scan to see output here.</p>
@@ -282,6 +323,7 @@ const Console = () => {
                 className="btn-copy-log"
                 onClick={() => copyLog(log.message, log.id)}
                 title="Copy log message"
+                aria-label={`Copy log: ${log.message.substring(0, 50)}`}
               >
                 {copiedId === log.id ? '✓' : '📋'}
               </button>
