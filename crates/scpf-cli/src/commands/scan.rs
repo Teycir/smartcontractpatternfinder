@@ -410,26 +410,9 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
         .unwrap()
         .as_secs();
 
-    let stats = categorize_findings(&scan_results);
-
-    let mut exploitable_contracts = std::collections::HashSet::new();
-    for (idx, _, _) in &stats.exploitable {
-        exploitable_contracts.insert(*idx);
-    }
-
-    let exploitable_count = exploitable_contracts.len();
-
-    eprintln!("🌳 Exploitable Contracts:\n");
-    eprintln!("📈 Summary:");
-    eprintln!(
-        "   🚨 Exploitable: {} contracts with {} findings",
-        exploitable_count,
-        stats.exploitable.len()
-    );
-    eprintln!("   ⚠️  Needs Review: {} findings", stats.needs_review.len());
-    eprintln!(
-        "   📊 Total: {} findings across {} contracts\n",
-        stats.exploitable.len() + stats.needs_review.len(),
+    eprintln!("\n📊 Scan Summary:");
+    eprintln!("   📋 Total Findings: {} across {} contracts\n", 
+        scan_results.iter().map(|r| r.matches.len()).sum::<usize>(),
         scan_results.len()
     );
 
@@ -457,10 +440,9 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     
     summary.push_str("## 📊 Scan Results\n\n");
     summary.push_str(&format!("- **Contracts Scanned:** {}\n", scan_results.len()));
-    summary.push_str(&format!("- **Exploitable Contracts:** {}\n", exploitable_count));
-    summary.push_str(&format!("- **Total Findings:** {}\n", stats.exploitable.len() + stats.needs_review.len()));
-    summary.push_str(&format!("  - 🚨 Exploitable: {}\n", stats.exploitable.len()));
-    summary.push_str(&format!("  - ⚠️  Needs Review: {}\n\n", stats.needs_review.len()));
+    summary.push_str(&format!("- **Total Findings:** {}\n\n", 
+        scan_results.iter().map(|r| r.matches.len()).sum::<usize>()
+    ));
 
     // Pattern frequency analysis
     let mut pattern_counts = std::collections::HashMap::new();
@@ -510,52 +492,6 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
         summary.push_str("\n");
     }
 
-    if exploitable_count > 0 {
-        summary
-            .push_str("## 🚨 CRITICAL: Exploitable Contracts (Ranked by Weighted Risk Score)\n\n");
-
-        let mut sorted_exploitable: Vec<_> = exploitable_contracts
-            .iter()
-            .map(|idx| (*idx, scan_results[*idx].weighted_risk_score()))
-            .collect();
-        sorted_exploitable.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-
-        for (idx, weighted_risk) in sorted_exploitable {
-            let result = &scan_results[idx];
-            let exploitable: Vec<_> = stats
-                .exploitable
-                .iter()
-                .filter(|(i, _, _)| *i == idx)
-                .collect();
-
-            summary.push_str(&format!("### {} ({})", result.address, result.chain));
-            summary.push_str(&format!(
-                " - Weighted Risk: {:.1} (Raw: {})\n\n",
-                weighted_risk,
-                result.total_risk_score()
-            ));
-
-            for (_, m, analysis) in &exploitable {
-                if let Some(ctx) = &m.function_context {
-                    summary.push_str(&format!(
-                        "- **Function:** `{}()` [{:?}]\n",
-                        ctx.name, ctx.visibility
-                    ));
-                    summary.push_str(&format!(
-                        "  - **Vulnerability:** {} ({:?})\n",
-                        m.pattern_id, m.severity
-                    ));
-                    summary.push_str(&format!("  - **Line:** {}\n", m.line_number));
-                    summary.push_str(&format!("  - **Assessment:** {}\n", analysis.reason));
-                    summary.push_str(&format!(
-                        "  - **Confidence:** {:?}\n\n",
-                        analysis.confidence
-                    ));
-                }
-            }
-        }
-    }
-
     summary.push_str("\n---\n\n");
 
     std::fs::write(&vuln_summary, summary)?;
@@ -584,41 +520,8 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
         .map(|s| s == "1" || s.to_lowercase() == "true")
         .unwrap_or(false);
 
-    // Extract exploitable contracts OR top by risk score
-    let _extracted_count = if exploitable_count > 0 {
-        eprintln!("\n📄 Extracting top {} exploitable contracts...", top_n);
-        let mut sorted_exploitable: Vec<_> = exploitable_contracts
-            .iter()
-            .map(|idx| (*idx, scan_results[*idx].weighted_risk_score()))
-            .collect();
-        sorted_exploitable.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-
-        for (count, (idx, weighted_risk)) in sorted_exploitable.iter().take(top_n).enumerate() {
-            let result = &scan_results[*idx];
-            let cache_key = format!("{}:{}", result.chain, result.address);
-
-            if let Some(source) = cache.get(&cache_key).await {
-                let output_file = root_dir.join(format!(
-                    "{}_{}_risk{:.0}.sol",
-                    count + 1,
-                    result.address,
-                    weighted_risk
-                ));
-                let lines = source.lines().count();
-                std::fs::write(&output_file, &source)?;
-                let size = std::fs::metadata(&output_file)?.len();
-                eprintln!(
-                    "   ✅ [{}] {} - Weighted Risk: {:.1} ({} KB, {} lines)",
-                    count + 1,
-                    &result.address[..12],
-                    weighted_risk,
-                    size / 1024,
-                    lines
-                );
-            }
-        }
-        sorted_exploitable.iter().take(top_n).count()
-    } else if extract_by_risk && !scan_results.is_empty() {
+    // Extract top contracts by risk score
+    let _extracted_count = if extract_by_risk && !scan_results.is_empty() {
         eprintln!("\n📄 Extracting top {} contracts by risk score...", top_n);
 
         for (count, result) in scan_results.iter().take(top_n).enumerate() {
