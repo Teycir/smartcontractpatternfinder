@@ -360,7 +360,7 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     };
 
     let all_contracts = fetch_contracts(&fetcher, &chains, args.pages).await;
-    let total_contracts_fetched = all_contracts.len();
+    let _total_contracts_fetched = all_contracts.len();
     if all_contracts.is_empty() {
         eprintln!("⚠️  No recent contracts found");
         
@@ -427,9 +427,9 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     eprintln!();
 
     let min_sev = parse_severity(&args.min_severity);
-    let (all_scan_results, cache, skipped_timeouts, scan_start_time, scan_end_time) =
+    let (all_scan_results, cache, skipped_timeouts, _scan_start_time, _scan_end_time) =
         scan_contracts(all_contracts, templates, fetcher, min_sev, args.concurrency).await?;
-    let total_scanned = all_scan_results.len();
+    let _total_scanned = all_scan_results.len();
     let scan_results = rank_and_score(all_scan_results);
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -482,9 +482,7 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     summary.push_str("---\n\n");
     
     summary.push_str("## 📊 Scan Results\n\n");
-    summary.push_str(&format!("- **Contracts Scanned:** {}\n", total_contracts_fetched));
-    summary.push_str(&format!("- **Contracts Extracted:** {}\n", total_extracted));
-    summary.push_str(&format!("- **Contracts with Findings:** {}\n", scan_results.len()));
+    summary.push_str(&format!("- **Contracts Scanned:** {}\n", scan_results.len()));
     summary.push_str(&format!("- **Exploitable Contracts:** {}\n", exploitable_count));
     summary.push_str(&format!("- **Total Findings:** {}\n", stats.exploitable.len() + stats.needs_review.len()));
     summary.push_str(&format!("  - 🚨 Exploitable: {}\n", stats.exploitable.len()));
@@ -613,7 +611,7 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
         .unwrap_or(false);
 
     // Extract exploitable contracts OR top by risk score
-    let extracted_count = if exploitable_count > 0 {
+    let _extracted_count = if exploitable_count > 0 {
         eprintln!("\n📄 Extracting top {} exploitable contracts...", top_n);
         let mut sorted_exploitable: Vec<_> = exploitable_contracts
             .iter()
@@ -679,7 +677,7 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     };
 
     // Extract top N riskiest contract sources if --extract-sources is set
-    let total_extracted = if let Some(extract_count) = args.extract_sources {
+    let _total_extracted = if let Some(extract_count) = args.extract_sources {
         let sources_dir = root_dir.join("sources");
         std::fs::create_dir_all(&sources_dir)?;
 
