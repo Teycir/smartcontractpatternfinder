@@ -10,11 +10,6 @@ use futures::stream::{self, StreamExt};
 use tokio::sync::Semaphore;
 use chrono;
 
-struct ExploitabilityStats {
-    exploitable: Vec<(usize, scpf_types::Match, scpf_core::ExploitAnalysis)>,
-    needs_review: Vec<(usize, scpf_types::Match, scpf_core::ExploitAnalysis)>,
-}
-
 fn get_supported_chains() -> Vec<Chain> {
     vec![Chain::Ethereum, Chain::Polygon, Chain::Arbitrum]
 }
@@ -318,27 +313,6 @@ fn extract_solidity_version(source: &str) -> Option<String> {
         .captures(source)
         .and_then(|cap| cap.get(1))
         .map(|m| m.as_str().trim().to_string())
-}
-
-fn categorize_findings(scan_results: &[ScanResult]) -> ExploitabilityStats {
-    let mut exploitable = Vec::new();
-    let mut needs_review = Vec::new();
-
-    for (idx, result) in scan_results.iter().enumerate() {
-        for m in &result.matches {
-            let analysis = scpf_core::analyze_exploitability(m);
-            if analysis.is_exploitable {
-                exploitable.push((idx, m.clone(), analysis));
-            } else {
-                needs_review.push((idx, m.clone(), analysis));
-            }
-        }
-    }
-
-    ExploitabilityStats {
-        exploitable,
-        needs_review,
-    }
 }
 
 pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {

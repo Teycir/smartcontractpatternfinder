@@ -365,19 +365,10 @@ const Scanner = () => {
         <div className="progress-section">
           <div className="progress-header">
             <span className="progress-label">
-              📊 {status === SCAN_STATUS.IDLE && progress.contracts_scanned > 0 && progress.contracts_scanned >= progress.contracts_total ? 'All' : progress.contracts_scanned}
-              {progress.contracts_total && !(status === SCAN_STATUS.IDLE && progress.contracts_scanned >= progress.contracts_total) ? ` / ${progress.contracts_total}` : ''} contracts scanned
-              {progress.contracts_total > 0 && !(status === SCAN_STATUS.IDLE && progress.contracts_scanned >= progress.contracts_total) && (
+              📊 {progress.contracts_scanned}
+              {progress.contracts_total ? ` / ${progress.contracts_total}` : ''} contracts scanned
+              {progress.contracts_total > 0 && (
                 <strong className="progress-percent">({progressPercent.toFixed(1)}%)</strong>
-              )}
-              {etaDisplay && (
-                <span className="progress-eta">• ETA: {etaDisplay}</span>
-              )}
-              {progress.rate && (
-                <span className="progress-rate">• {progress.rate.toFixed(1)}/s</span>
-              )}
-              {status === SCAN_STATUS.IDLE && progress.contracts_extracted > 0 && !userStopped && (
-                <span className="progress-complete">✅ Complete</span>
               )}
             </span>
           </div>
