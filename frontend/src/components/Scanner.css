@@ -42,40 +42,67 @@
 }
 
 .btn {
-  padding: 0.75rem 1.5rem;
-  border: none;
+  padding: 0.65rem 1.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 6px;
-  font-size: 1rem;
-  font-weight: 600;
-  transition: all 0.2s;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  cursor: pointer;
+  background: #21262d;
+  color: #c9d1d9;
 }
 
 .btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .btn:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
+  transform: none;
 }
 
 .btn-start {
-  background: linear-gradient(135deg, #238636 0%, #2ea043 100%);
-  color: white;
+  background: #1a472a;
+  border-color: #2d6a3e;
+  color: #7ee787;
+}
+
+.btn-start:hover:not(:disabled) {
+  background: #1f5633;
+  border-color: #3b8049;
 }
 
 .btn-pause {
-  background: linear-gradient(135deg, #d29922 0%, #e3b341 100%);
-  color: white;
+  background: #4a3c1a;
+  border-color: #6b5a2d;
+  color: #f0c55e;
+}
+
+.btn-pause:hover:not(:disabled) {
+  background: #5a4a20;
+  border-color: #7d6838;
 }
 
 .btn-stop {
-  background: linear-gradient(135deg, #da3633 0%, #f85149 100%);
-  color: white;
+  background: #4a1a1a;
+  border-color: #6b2d2d;
+  color: #ff7b72;
+}
+
+.btn-stop:hover:not(:disabled) {
+  background: #5a2020;
+  border-color: #7d3838;
 }
 
 .scanner-config {
@@ -183,8 +210,14 @@
 }
 
 .btn-resume {
-  background: linear-gradient(135deg, #238636 0%, #2ea043 100%);
-  color: white;
+  background: #1a472a;
+  border-color: #2d6a3e;
+  color: #7ee787;
+}
+
+.btn-resume:hover:not(:disabled) {
+  background: #1f5633;
+  border-color: #3b8049;
 }
 
 /* Progress Section */
