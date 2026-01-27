@@ -48,7 +48,7 @@ async fn scan_contracts(
     fetcher: Arc<ContractFetcher>,
     min_severity: Severity,
     concurrency: usize,
-) -> Result<(Vec<ScanResult>, Arc<Cache>, Vec<(String, Chain, f64)>)> {
+) -> Result<(Vec<ScanResult>, Arc<Cache>, Vec<(String, Chain, f64)>, chrono::DateTime<chrono::Local>, chrono::DateTime<chrono::Local>)> {
     let scanner = Arc::new(Scanner::new(templates)?);
     let cache_dir = dirs::cache_dir()
         .map(|d| d.join("scpf"))
@@ -249,7 +249,7 @@ async fn scan_contracts(
         }
     }
 
-    Ok((all_scan_results, cache, skipped_timeouts))
+    Ok((all_scan_results, cache, skipped_timeouts, start_time, end_time))
 }
 
 fn rank_and_score(mut scan_results: Vec<ScanResult>) -> Vec<ScanResult> {
@@ -360,6 +360,7 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     };
 
     let all_contracts = fetch_contracts(&fetcher, &chains, args.pages).await;
+    let total_contracts_fetched = all_contracts.len();
     if all_contracts.is_empty() {
         eprintln!("⚠️  No recent contracts found");
         
@@ -426,8 +427,9 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     eprintln!();
 
     let min_sev = parse_severity(&args.min_severity);
-    let (all_scan_results, cache, skipped_timeouts) =
+    let (all_scan_results, cache, skipped_timeouts, scan_start_time, scan_end_time) =
         scan_contracts(all_contracts, templates, fetcher, min_sev, args.concurrency).await?;
+    let total_scanned = all_scan_results.len();
     let scan_results = rank_and_score(all_scan_results);
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -480,7 +482,9 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     summary.push_str("---\n\n");
     
     summary.push_str("## 📊 Scan Results\n\n");
-    summary.push_str(&format!("- **Contracts Scanned:** {}\n", scan_results.len()));
+    summary.push_str(&format!("- **Contracts Scanned:** {}\n", total_contracts_fetched));
+    summary.push_str(&format!("- **Contracts Extracted:** {}\n", total_extracted));
+    summary.push_str(&format!("- **Contracts with Findings:** {}\n", scan_results.len()));
     summary.push_str(&format!("- **Exploitable Contracts:** {}\n", exploitable_count));
     summary.push_str(&format!("- **Total Findings:** {}\n", stats.exploitable.len() + stats.needs_review.len()));
     summary.push_str(&format!("  - 🚨 Exploitable: {}\n", stats.exploitable.len()));
@@ -674,12 +678,8 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
         0
     };
 
-    // Print summary
-    eprintln!("\n📊 Scan complete");
-    eprintln!("📁 {} extracted to folder for further analysis\n", extracted_count);
-
     // Extract top N riskiest contract sources if --extract-sources is set
-    if let Some(extract_count) = args.extract_sources {
+    let total_extracted = if let Some(extract_count) = args.extract_sources {
         let sources_dir = root_dir.join("sources");
         std::fs::create_dir_all(&sources_dir)?;
 
@@ -730,7 +730,10 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
             total_size as f64 / (1024.0 * 1024.0),
             sources_dir.display()
         );
-    }
+        saved_count
+    } else {
+        0
+    };
 
     eprintln!("\n{}", "=".repeat(80));
     eprintln!("📂 Report directory: {}", root_dir.display());

@@ -24,6 +24,7 @@ const Scanner = () => {
   const [validationErrors, setValidationErrors] = useState({})
   const [progress, setProgress] = useState(INITIAL_PROGRESS)
   const [config, setConfig] = useState(INITIAL_CONFIG)
+  const [userStopped, setUserStopped] = useState(false)
 
   // Refs for intervals and cleanup
   const statusIntervalRef = useRef(null)
@@ -100,6 +101,7 @@ const Scanner = () => {
     setIsLoading(true)
     setError('')
     setValidationErrors({})
+    setUserStopped(false)
 
     try {
       const pagesValidation = validatePages(config.pages)
@@ -154,6 +156,7 @@ const Scanner = () => {
     if (isLoading) return
 
     setIsLoading(true)
+    setUserStopped(true)
     try {
       await stopScan()
       setStatus(SCAN_STATUS.IDLE)
@@ -373,16 +376,7 @@ const Scanner = () => {
               {progress.rate && (
                 <span className="progress-rate">• {progress.rate.toFixed(1)}/s</span>
               )}
-              {progress.critical_findings > 0 && (
-                <span className="progress-critical">• 🚨 {progress.critical_findings} critical</span>
-              )}
-              {progress.contracts_extracted > 0 && (
-                <span className="progress-extracted">• {progress.contracts_extracted} extracted</span>
-              )}
-              {status === SCAN_STATUS.IDLE && progress.contracts_scanned > 0 && progress.contracts_scanned < progress.contracts_total && (
-                <span className="progress-stopped">⚠️ Stopped</span>
-              )}
-              {status === SCAN_STATUS.IDLE && progress.contracts_scanned > 0 && progress.contracts_scanned >= progress.contracts_total && (
+              {status === SCAN_STATUS.IDLE && progress.contracts_extracted > 0 && !userStopped && (
                 <span className="progress-complete">✅ Complete</span>
               )}
             </span>
