@@ -8,6 +8,8 @@ const Scanner = () => {
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [serverOnline, setServerOnline] = useState(false)
+  const [showSuccess, setShowSuccess] = useState(false)
+  const [validationErrors, setValidationErrors] = useState({})
   const [progress, setProgress] = useState({
     contracts_scanned: 0,
     contracts_total: null,
@@ -31,6 +33,7 @@ const Scanner = () => {
 
   const statusIntervalRef = useRef(null)
   const errorTimeoutRef = useRef(null)
+  const prevStatusRef = useRef('idle')
 
   const showError = useCallback((message) => {
     setError(message)
@@ -90,6 +93,43 @@ const Scanner = () => {
     }
   }, [fetchStatus])
 
+  // Detect scan completion and show success animation
+  useEffect(() => {
+    if (prevStatusRef.current === 'running' && status === 'idle' && 
+        progress.contracts_scanned > 0 && progress.contracts_scanned >= progress.contracts_total) {
+      setShowSuccess(true)
+      setTimeout(() => setShowSuccess(false), 5000)
+    }
+    prevStatusRef.current = status
+  }, [status, progress])
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyPress = (e) => {
+      // Ignore if typing in an input field
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') {
+        return
+      }
+
+      if (e.code === 'Space') {
+        e.preventDefault()
+        if (status === 'idle') {
+          handleStart()
+        } else if (status === 'running') {
+          handlePause()
+        } else if (status === 'paused') {
+          handleResume()
+        }
+      } else if (e.code === 'Escape' && (status === 'running' || status === 'paused')) {
+        e.preventDefault()
+        handleStop()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyPress)
+    return () => window.removeEventListener('keydown', handleKeyPress)
+  }, [status])
+
   const handleStart = async () => {
     if (isLoading) return
 
@@ -101,8 +141,8 @@ const Scanner = () => {
       const days = parseInt(config.days, 10)
       const concurrency = parseInt(config.concurrency, 10)
 
-      if (isNaN(days) || days < 1) {
-        throw new Error('Days must be a positive number')
+      if (isNaN(days) || days < 0) {
+        throw new Error('Days must be 0 or greater (0 = only 0-day reports, no scanning)')
       }
 
       if (isNaN(concurrency) || concurrency < 1 || concurrency > 20) {
@@ -195,10 +235,72 @@ const Scanner = () => {
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target
+    const newValue = type === 'checkbox' ? checked : value
+    
     setConfig(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value
+      [name]: newValue
     }))
+
+    // Inline validation
+    if (name === 'days') {
+      const days = parseInt(value, 10)
+      if (isNaN(days) || days < 0) {
+        setValidationErrors(prev => ({ ...prev, days: 'Must be 0 or greater' }))
+      } else {
+        setValidationErrors(prev => {
+          const { days, ...rest } = prev
+          return rest
+        })
+      }
+    } else if (name === 'concurrency') {
+      const concurrency = parseInt(value, 10)
+      if (isNaN(concurrency) || concurrency < 1 || concurrency > 20) {
+        setValidationErrors(prev => ({ ...prev, concurrency: 'Must be between 1-20' }))
+      } else {
+        setValidationErrors(prev => {
+          const { concurrency, ...rest } = prev
+          return rest
+        })
+      }
+    }
+  }
+
+  const applyPreset = (preset) => {
+    const presets = {
+      quick: {
+        days: 7,
+        chain: 'ethereum',
+        concurrency: 5,
+        tags: '',
+        contract_type: '',
+        extract_sources: '25',
+        fetch_zero_day: false,
+      },
+      deep: {
+        days: 30,
+        chain: 'all',
+        concurrency: 3,
+        tags: '',
+        contract_type: '',
+        extract_sources: '100',
+        fetch_zero_day: true,
+      },
+      zeroday: {
+        days: 0,
+        chain: 'all',
+        concurrency: 2,
+        tags: '',
+        contract_type: '',
+        extract_sources: '0',
+        fetch_zero_day: true,
+      },
+    }
+    
+    if (presets[preset]) {
+      setConfig(prev => ({ ...prev, ...presets[preset] }))
+      setValidationErrors({})
+    }
   }
 
   const getStatusIcon = () => {
@@ -250,9 +352,19 @@ const Scanner = () => {
         </div>
       )}
 
+      {showSuccess && (
+        <div className="success-celebration">
+          <div className="celebration-content">
+            <span className="celebration-icon">🎉</span>
+            <span className="celebration-text">Scan Complete!</span>
+            <span className="celebration-icon">✨</span>
+          </div>
+        </div>
+      )}
+
       <div className="scanner-controls">
         <div className="status-bar">
-          <span className={`status-indicator status-${status}`}>
+          <span className={`status-indicator status-${status} ${status === 'running' ? 'pulse-indicator' : ''}`}>
             {getStatusIcon()}
           </span>
           <span className="status-text">
@@ -266,7 +378,7 @@ const Scanner = () => {
             onClick={handleStart}
             disabled={status === 'running' || status === 'paused' || isLoading || !serverOnline}
             className="btn btn-start"
-            title={!serverOnline ? 'Server is offline' : status === 'running' ? 'Scan in progress' : 'Start scan'}
+            title={!serverOnline ? 'Server is offline' : status === 'running' ? 'Scan in progress' : 'Start scan (Space)'}
           >
             {isLoading && status !== 'running' ? '⏳' : '▶️'} Start
           </button>
@@ -274,6 +386,7 @@ const Scanner = () => {
             onClick={status === 'paused' ? handleResume : handlePause}
             disabled={(status !== 'running' && status !== 'paused') || isLoading}
             className={`btn ${status === 'paused' ? 'btn-resume' : 'btn-pause'}`}
+            title={status === 'paused' ? 'Resume (Space)' : 'Pause (Space)'}
           >
             {status === 'paused' ? '▶️ Resume' : '⏸️ Pause'}
           </button>
@@ -281,6 +394,7 @@ const Scanner = () => {
             onClick={handleStop}
             disabled={(status !== 'running' && status !== 'paused') || isLoading}
             className="btn btn-stop"
+            title="Stop scan (Esc)"
           >
             ⏹️ Stop
           </button>
@@ -333,7 +447,8 @@ const Scanner = () => {
                 className="progress-bar-fill"
                 style={{ 
                   width: `${Math.min(100, (progress.contracts_scanned / progress.contracts_total) * 100)}%`,
-                  backgroundColor: status === 'paused' ? '#f59e0b' : (status === 'idle' ? '#6b7280' : undefined)
+                  backgroundColor: status === 'paused' ? '#f59e0b' : (status === 'idle' ? '#6b7280' : undefined),
+                  transition: 'width 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
                 }}
               />
               <div className="progress-bar-text">
@@ -350,11 +465,41 @@ const Scanner = () => {
       )}
 
       <div className="scanner-config">
-        <h2>Configuration</h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+          <h2 style={{ margin: 0 }}>Configuration</h2>
+          <div className="preset-buttons">
+            <button 
+              className="btn-preset" 
+              onClick={() => applyPreset('quick')}
+              disabled={isControlsDisabled}
+              title="Quick scan: Last 7 days, Ethereum only, Fast"
+            >
+              🚀 Quick
+            </button>
+            <button 
+              className="btn-preset" 
+              onClick={() => applyPreset('deep')}
+              disabled={isControlsDisabled}
+              title="Deep scan: Last 30 days, All chains, Full analysis"
+            >
+              🔍 Deep
+            </button>
+            <button 
+              className="btn-preset" 
+              onClick={() => applyPreset('zeroday')}
+              disabled={isControlsDisabled}
+              title="0-Day only: Skip scanning, fetch recent exploits"
+            >
+              ⚡ 0-Day
+            </button>
+          </div>
+        </div>
 
         <div className="config-grid">
           <div className="config-group">
-            <label>Contract Addresses <span className="label-hint">(empty = autodetect)</span></label>
+            <label>
+              Contract Addresses <span className="label-hint">(empty = autodetect)</span>
+            </label>
             <input
               type="text"
               name="addresses"
@@ -362,12 +507,19 @@ const Scanner = () => {
               onChange={handleInputChange}
               placeholder="0x1234..., 0x5678..."
               disabled={isControlsDisabled}
+              title="Leave empty to auto-detect contracts from recent transactions"
             />
           </div>
 
           <div className="config-group">
             <label>Blockchain Chain</label>
-            <select name="chain" value={config.chain} onChange={handleInputChange} disabled={isControlsDisabled}>
+            <select 
+              name="chain" 
+              value={config.chain} 
+              onChange={handleInputChange} 
+              disabled={isControlsDisabled}
+              title="Select which blockchain networks to scan"
+            >
               <option value="all">All (Ethereum, Polygon, Arbitrum)</option>
               <option value="ethereum">Ethereum</option>
               <option value="polygon">Polygon</option>
@@ -376,16 +528,26 @@ const Scanner = () => {
           </div>
 
           <div className="config-group">
-            <label>Days to Scan</label>
+            <label>
+              Days to Scan{' '}
+              {config.days === 0 || config.days === '0' ? (
+                <span className="label-hint">(no scan, only 0-day reports)</span>
+              ) : null}
+            </label>
             <input
               type="number"
               name="days"
               value={config.days}
               onChange={handleInputChange}
-              min="1"
+              min="0"
               max="365"
               disabled={isControlsDisabled}
+              className={validationErrors.days ? 'input-error' : ''}
+              title="Set to 0 for only 0-day reports without scanning"
             />
+            {validationErrors.days && (
+              <span className="validation-error">{validationErrors.days}</span>
+            )}
           </div>
 
           <div className="config-group">
@@ -413,7 +575,7 @@ const Scanner = () => {
         </div>
 
         <div className="config-checkboxes">
-          <label className="checkbox-label">
+          <label className="checkbox-label" title="Fetch and analyze recently disclosed vulnerabilities">
             <input
               type="checkbox"
               name="fetch_zero_day"
@@ -427,7 +589,13 @@ const Scanner = () => {
 
         <div className="config-group" style={{ marginTop: '1rem' }}>
           <label>Extract Top Riskiest Sources</label>
-          <select name="extract_sources" value={config.extract_sources} onChange={handleInputChange} disabled={isControlsDisabled}>
+          <select 
+            name="extract_sources" 
+            value={config.extract_sources} 
+            onChange={handleInputChange} 
+            disabled={isControlsDisabled}
+            title="Number of highest-risk contract sources to extract for detailed review"
+          >
             <option value="10">Top 10</option>
             <option value="25">Top 25</option>
             <option value="50">Top 50 (Default)</option>

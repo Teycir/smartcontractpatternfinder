@@ -219,7 +219,18 @@
   margin-bottom: 0.25rem;
   display: flex;
   gap: 0.75rem;
-  padding: 0.25rem 0;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  position: relative;
+  transition: background-color 0.2s;
+}
+
+.console-line:hover {
+  background: rgba(48, 54, 61, 0.3);
+}
+
+.console-line:hover .btn-copy-log {
+  opacity: 1;
 }
 
 .console-timestamp {
@@ -261,4 +272,29 @@
   background: rgba(88, 166, 255, 0.15);
   color: #58a6ff;
   animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* Copy log button */
+.btn-copy-log {
+  margin-left: auto;
+  padding: 0.2rem 0.5rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: #8b949e;
+  font-size: 0.85rem;
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.btn-copy-log:hover {
+  background: #21262d;
+  border-color: #30363d;
+  color: #58a6ff;
+}
+
+.btn-copy-log:active {
+  transform: scale(0.95);
 }

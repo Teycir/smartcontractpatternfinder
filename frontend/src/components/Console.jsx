@@ -8,6 +8,7 @@ const Console = () => {
   const [errorMessage, setErrorMessage] = useState('')
   const [scanStatus, setScanStatus] = useState('idle') // 'idle' | 'running' | 'paused' | 'stopped'
   const [isStoppingOrPausing, setIsStoppingOrPausing] = useState(false)
+  const [copiedId, setCopiedId] = useState(null)
   const consoleRef = useRef(null)
   const eventSourceRef = useRef(null)
   const reconnectTimeoutRef = useRef(null)
@@ -172,6 +173,15 @@ const Console = () => {
     setLogs([])
   }
 
+  const copyLog = (message, id) => {
+    navigator.clipboard.writeText(message).then(() => {
+      setCopiedId(id)
+      setTimeout(() => setCopiedId(null), 2000)
+    }).catch(err => {
+      console.error('Failed to copy:', err)
+    })
+  }
+
   const handleStopScan = async () => {
     setIsStoppingOrPausing(true)
     try {
@@ -268,6 +278,13 @@ const Console = () => {
             <div key={log.id} className={`console-line ${getLogClass(log.type)}`}>
               <span className="console-timestamp">[{log.timestamp}]</span>
               <span className="console-message">{log.message}</span>
+              <button 
+                className="btn-copy-log"
+                onClick={() => copyLog(log.message, log.id)}
+                title="Copy log message"
+              >
+                {copiedId === log.id ? '✓' : '📋'}
+              </button>
             </div>
           ))
         )}

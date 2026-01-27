@@ -673,6 +673,7 @@ fn parse_and_update_progress(state: &AppState, line: &str) {
     }
     
     // Pattern: "Scanning N contracts" - definitive total count at start
+    // Only update if new value is higher (to handle multiple scanning phases)
     if line.contains("Scanning") && line.contains("contracts") {
         // Extract number between "Scanning" and "contracts"
         if let Some(scanning_pos) = line.find("Scanning") {
@@ -681,8 +682,14 @@ fn parse_and_update_progress(state: &AppState, line: &str) {
             if let Some(space_pos) = trimmed.find(|c: char| !c.is_ascii_digit()) {
                 let num_str = &trimmed[..space_pos];
                 if let Ok(total) = num_str.parse::<u32>() {
-                    state.progress.contracts_total.store(total, Ordering::SeqCst);
-                    tracing::debug!("Total contracts set: {}", total);
+                    let current_total = state.progress.contracts_total.load(Ordering::SeqCst);
+                    // Only update if this is a higher value (prevents overwriting during extraction phase)
+                    if total > current_total {
+                        state.progress.contracts_total.store(total, Ordering::SeqCst);
+                        tracing::debug!("Total contracts set: {}", total);
+                    } else {
+                        tracing::debug!("Ignoring lower total {} (current: {})", total, current_total);
+                    }
                     return;
                 }
             }

@@ -369,6 +369,43 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     let all_contracts = fetch_contracts(&fetcher, &chains, args.days).await;
     if all_contracts.is_empty() {
         eprintln!("⚠️  No recent contracts found");
+        
+        // If 0-day fetch is enabled, continue to generate 0-day report even without contract scanning
+        if args.fetch_zero_day.is_some() {
+            eprintln!("   ℹ️  Skipping contract scanning, generating 0-day report only...\n");
+            
+            let timestamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs();
+            
+            let root_dir = std::env::var("SCPF_REPORT_DIR").unwrap_or_else(|_| {
+                format!(
+                    "/home/teycir/smartcontractpatternfinderReports/report_{}",
+                    timestamp
+                )
+            });
+            let root_dir = PathBuf::from(root_dir);
+            std::fs::create_dir_all(&root_dir)?;
+            
+            // Generate 0-day summary
+            if let Some(days) = args.fetch_zero_day {
+                let zeroday_args = crate::cli::FetchZeroDayArgs {
+                    days,
+                    output: Some(root_dir.join("0day_summary.md")),
+                    dry_run: false,
+                };
+                if let Err(e) = crate::commands::fetch_zeroday::run(zeroday_args).await {
+                    eprintln!("⚠️  Failed to fetch 0-day exploits: {}", e);
+                } else {
+                    eprintln!("\n✅ 0-day report generated successfully");
+                    eprintln!("📂 Report directory: {}", root_dir.display());
+                }
+            }
+            
+            return Ok(());
+        }
+        
         return Ok(());
     }
 
