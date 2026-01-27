@@ -70,7 +70,7 @@ pub struct ScanArgs {
     )]
     pub output: OutputFormat,
 
-    #[arg(long, default_value = "3", help = "Number of concurrent requests")]
+    #[arg(long, default_value = "2", help = "Number of concurrent requests")]
     pub concurrency: usize,
 
     #[arg(long, help = "Bypass cache and fetch fresh data")]

@@ -30,6 +30,7 @@ walkdir = "2.4"
 dotenvy = "0.15"
 rand = "0.8"
 regex = "1.10"
+chrono = "0.4"
 
 [dev-dependencies]
 assert_cmd = "2.0"

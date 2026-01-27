@@ -12,15 +12,15 @@ tags:
 patterns:
   - id: onlyowner-no-timelock
     kind: regex
-    pattern: 'function\s+\w+.*onlyOwner(?!.*timelock)'
+    pattern: 'function\s+\w+.{0,500}onlyOwner(?!.{0,1000}timelock)'
     message: Privileged function lacks timelock protection
 
   - id: upgrade-no-timelock
     kind: regex
-    pattern: 'function\s+upgrade\w*\s*\([^)]*\).*(?!timelock)'
+    pattern: 'function\s+upgrade\w*\s*\([^)]*\).{0,500}(?!timelock)'
     message: Upgrade function should have timelock
 
   - id: setimplementation-no-timelock
     kind: regex
-    pattern: 'function\s+setImplementation\s*\([^)]*\).*(?!timelock)'
+    pattern: 'function\s+setImplementation\s*\([^)]*\).{0,500}(?!timelock)'
     message: Implementation change should have timelock

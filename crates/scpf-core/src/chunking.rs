@@ -58,11 +58,17 @@ mod tests {
     fn test_chunk_processor_basic() {
         let processor = ChunkProcessor::<String>::new(10, 2);
         let source = "line1\nline2\nline3\nline4\nline5";
-        
-        let results = processor.process(source, |chunk, line_offset| {
-            Ok(vec![format!("chunk at line {}: {}", line_offset, chunk.len())])
-        }).unwrap();
-        
+
+        let results = processor
+            .process(source, |chunk, line_offset| {
+                Ok(vec![format!(
+                    "chunk at line {}: {}",
+                    line_offset,
+                    chunk.len()
+                )])
+            })
+            .unwrap();
+
         assert!(!results.is_empty());
     }
 
@@ -70,14 +76,16 @@ mod tests {
     fn test_chunk_processor_line_offset() {
         let processor = ChunkProcessor::<(usize, String)>::new(20, 5);
         let source = "line1\nline2\nline3\nline4\nline5\nline6\nline7\nline8";
-        
-        let results = processor.process(source, |chunk, line_offset| {
-            Ok(vec![(line_offset, chunk.to_string())])
-        }).unwrap();
-        
+
+        let results = processor
+            .process(source, |chunk, line_offset| {
+                Ok(vec![(line_offset, chunk.to_string())])
+            })
+            .unwrap();
+
         // First chunk should have line_offset 0
         assert_eq!(results[0].0, 0);
-        
+
         // Subsequent chunks should have increasing line offsets
         for i in 1..results.len() {
             assert!(results[i].0 > 0);
@@ -88,17 +96,19 @@ mod tests {
     fn test_chunk_processor_overlap() {
         let processor = ChunkProcessor::<String>::new(15, 5);
         let source = "0123456789abcdefghijklmnopqrstuvwxyz";
-        
+
         let mut chunks = Vec::new();
-        processor.process(source, |chunk, _| {
-            chunks.push(chunk.to_string());
-            Ok(vec![chunk.to_string()])
-        }).unwrap();
-        
+        processor
+            .process(source, |chunk, _| {
+                chunks.push(chunk.to_string());
+                Ok(vec![chunk.to_string()])
+            })
+            .unwrap();
+
         // Verify chunks overlap
         assert!(chunks.len() > 1);
         for i in 1..chunks.len() {
-            let prev_end = &chunks[i-1][chunks[i-1].len().saturating_sub(5)..];
+            let prev_end = &chunks[i - 1][chunks[i - 1].len().saturating_sub(5)..];
             let curr_start = &chunks[i][..5.min(chunks[i].len())];
             // Some overlap should exist
             assert!(prev_end.len() > 0 && curr_start.len() > 0);
@@ -109,13 +119,15 @@ mod tests {
     fn test_chunk_processor_small_source() {
         let processor = ChunkProcessor::<String>::new(100, 10);
         let source = "small";
-        
-        let results = processor.process(source, |chunk, line_offset| {
-            assert_eq!(line_offset, 0);
-            assert_eq!(chunk, "small");
-            Ok(vec!["processed".to_string()])
-        }).unwrap();
-        
+
+        let results = processor
+            .process(source, |chunk, line_offset| {
+                assert_eq!(line_offset, 0);
+                assert_eq!(chunk, "small");
+                Ok(vec!["processed".to_string()])
+            })
+            .unwrap();
+
         assert_eq!(results.len(), 1);
     }
 
@@ -123,11 +135,11 @@ mod tests {
     fn test_chunk_processor_exact_chunk_size() {
         let processor = ChunkProcessor::<String>::new(10, 2);
         let source = "0123456789"; // Exactly 10 bytes
-        
-        let results = processor.process(source, |chunk, _| {
-            Ok(vec![chunk.to_string()])
-        }).unwrap();
-        
+
+        let results = processor
+            .process(source, |chunk, _| Ok(vec![chunk.to_string()]))
+            .unwrap();
+
         assert_eq!(results.len(), 1);
         assert_eq!(results[0], source);
     }
@@ -136,14 +148,14 @@ mod tests {
     fn test_chunk_processor_newline_counting() {
         let processor = ChunkProcessor::<usize>::new(20, 5);
         let source = "line1\nline2\nline3\nline4\nline5\nline6\nline7";
-        
-        let line_offsets: Vec<usize> = processor.process(source, |_, line_offset| {
-            Ok(vec![line_offset])
-        }).unwrap();
-        
+
+        let line_offsets: Vec<usize> = processor
+            .process(source, |_, line_offset| Ok(vec![line_offset]))
+            .unwrap();
+
         // First chunk starts at line 0
         assert_eq!(line_offsets[0], 0);
-        
+
         // Each subsequent chunk should have correct line offset
         for offset in &line_offsets[1..] {
             assert!(*offset > 0);

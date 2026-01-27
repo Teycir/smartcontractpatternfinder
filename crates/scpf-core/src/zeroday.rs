@@ -23,7 +23,7 @@ pub struct ZeroDayFetcher {
 impl ZeroDayFetcher {
     pub fn new() -> Result<Self> {
         let mut headers = reqwest::header::HeaderMap::new();
-        
+
         if let Ok(token) = std::env::var("GITHUB_TOKEN") {
             let auth_value = format!("Bearer {}", token);
             headers.insert(
@@ -31,7 +31,7 @@ impl ZeroDayFetcher {
                 reqwest::header::HeaderValue::from_str(&auth_value)?,
             );
         }
-        
+
         let client = Client::builder()
             .timeout(std::time::Duration::from_secs(10))
             .user_agent("SCPF/1.0")
@@ -79,7 +79,11 @@ impl ZeroDayFetcher {
             Err(e) => warn!("RSS feeds fetch failed: {}", e),
         }
 
-        info!("Found {} total exploits from last {} days", exploits.len(), days);
+        info!(
+            "Found {} total exploits from last {} days",
+            exploits.len(),
+            days
+        );
         Ok(exploits)
     }
 
@@ -102,10 +106,14 @@ impl ZeroDayFetcher {
     async fn fetch_defihacklabs(&self, cutoff: &DateTime<Utc>) -> Result<Vec<Exploit>> {
         info!("Fetching from DeFiHackLabs GitHub...");
 
-        let commits_url = "https://api.github.com/repos/SunWeb3Sec/DeFiHackLabs/commits?per_page=100";
+        let commits_url =
+            "https://api.github.com/repos/SunWeb3Sec/DeFiHackLabs/commits?per_page=100";
         let mut exploits = Vec::new();
 
-        if let Some(commits) = self.fetch_json::<Vec<serde_json::Value>>(commits_url).await? {
+        if let Some(commits) = self
+            .fetch_json::<Vec<serde_json::Value>>(commits_url)
+            .await?
+        {
             for commit in commits {
                 let commit_data = match commit.get("commit") {
                     Some(c) => c,
@@ -141,8 +149,14 @@ impl ZeroDayFetcher {
                 };
 
                 // Fetch commit details to get files
-                let commit_detail_url = format!("https://api.github.com/repos/SunWeb3Sec/DeFiHackLabs/commits/{}", sha);
-                let commit_detail = match self.fetch_json::<serde_json::Value>(&commit_detail_url).await? {
+                let commit_detail_url = format!(
+                    "https://api.github.com/repos/SunWeb3Sec/DeFiHackLabs/commits/{}",
+                    sha
+                );
+                let commit_detail = match self
+                    .fetch_json::<serde_json::Value>(&commit_detail_url)
+                    .await?
+                {
                     Some(d) => d,
                     None => continue,
                 };
@@ -156,7 +170,8 @@ impl ZeroDayFetcher {
                     for file in files_arr {
                         if let Some(filename) = file.get("filename").and_then(|f| f.as_str()) {
                             if filename.ends_with(".sol") || filename.ends_with(".t.sol") {
-                                if let Some(raw_url) = file.get("raw_url").and_then(|u| u.as_str()) {
+                                if let Some(raw_url) = file.get("raw_url").and_then(|u| u.as_str())
+                                {
                                     if let Ok(resp) = self.client.get(raw_url).send().await {
                                         if let Ok(content) = resp.text().await {
                                             if contract_address.is_none() {
@@ -194,11 +209,11 @@ impl ZeroDayFetcher {
         info!("Fetching from GitHub security repositories...");
 
         let repos = vec![
-            ("immunefi-team", "attackathon"),  // Immunefi bug bounty reports
-            ("pcaversaccio", "reentrancy-attacks"),  // Reentrancy attack collection
-            ("crytic", "not-so-smart-contracts"),  // Trail of Bits examples
-            ("securing", "SCSVS"),  // Smart Contract Security Verification Standard
-            ("ConsenSys", "smart-contract-best-practices"),  // Known vulnerabilities
+            ("immunefi-team", "attackathon"), // Immunefi bug bounty reports
+            ("pcaversaccio", "reentrancy-attacks"), // Reentrancy attack collection
+            ("crytic", "not-so-smart-contracts"), // Trail of Bits examples
+            ("securing", "SCSVS"),            // Smart Contract Security Verification Standard
+            ("ConsenSys", "smart-contract-best-practices"), // Known vulnerabilities
         ];
 
         let mut all_exploits = Vec::new();
@@ -206,8 +221,11 @@ impl ZeroDayFetcher {
         for (owner, repo_prefix) in repos {
             // Fetch repos matching prefix
             let repos_url = format!("https://api.github.com/users/{}/repos?per_page=20", owner);
-            
-            if let Some(repos_list) = self.fetch_json::<Vec<serde_json::Value>>(&repos_url).await? {
+
+            if let Some(repos_list) = self
+                .fetch_json::<Vec<serde_json::Value>>(&repos_url)
+                .await?
+            {
                 for repo in repos_list {
                     let repo_name = match repo.get("name").and_then(|n| n.as_str()) {
                         Some(n) if n.contains(repo_prefix) => n,
@@ -215,10 +233,16 @@ impl ZeroDayFetcher {
                     };
 
                     let full_name = format!("{}/{}", owner, repo_name);
-                    
-                    let commits_url = format!("https://api.github.com/repos/{}/commits?per_page=100", full_name);
-                    
-                    if let Some(commits) = self.fetch_json::<Vec<serde_json::Value>>(&commits_url).await? {
+
+                    let commits_url = format!(
+                        "https://api.github.com/repos/{}/commits?per_page=100",
+                        full_name
+                    );
+
+                    if let Some(commits) = self
+                        .fetch_json::<Vec<serde_json::Value>>(&commits_url)
+                        .await?
+                    {
                         let mut poc_count = 0;
                         for commit in commits {
                             if poc_count >= 5 {
@@ -228,14 +252,16 @@ impl ZeroDayFetcher {
                                 Some(c) => c,
                                 None => continue,
                             };
-                            
-                            let date_str = match commit_data.get("author")
+
+                            let date_str = match commit_data
+                                .get("author")
                                 .and_then(|a| a.get("date"))
-                                .and_then(|d| d.as_str()) {
+                                .and_then(|d| d.as_str())
+                            {
                                 Some(d) => d,
                                 None => continue,
                             };
-                            
+
                             let date = match DateTime::parse_from_rfc3339(date_str) {
                                 Ok(d) => d.with_timezone(&Utc),
                                 Err(_) => continue,
@@ -245,11 +271,12 @@ impl ZeroDayFetcher {
                                 continue;
                             }
 
-                            let message = match commit_data.get("message").and_then(|m| m.as_str()) {
+                            let message = match commit_data.get("message").and_then(|m| m.as_str())
+                            {
                                 Some(m) => m,
                                 None => continue,
                             };
-                            
+
                             // Only process commits with .sol files
                             let files = commit.get("files").and_then(|f| f.as_array());
                             let has_sol_file = files.as_ref().is_some_and(|f| {
@@ -272,12 +299,19 @@ impl ZeroDayFetcher {
 
                             if let Some(files_arr) = files {
                                 for file in files_arr {
-                                    if let Some(filename) = file.get("filename").and_then(|f| f.as_str()) {
+                                    if let Some(filename) =
+                                        file.get("filename").and_then(|f| f.as_str())
+                                    {
                                         if filename.ends_with(".sol") {
-                                            if let Some(raw_url) = file.get("raw_url").and_then(|u| u.as_str()) {
-                                                if let Ok(resp) = self.client.get(raw_url).send().await {
+                                            if let Some(raw_url) =
+                                                file.get("raw_url").and_then(|u| u.as_str())
+                                            {
+                                                if let Ok(resp) =
+                                                    self.client.get(raw_url).send().await
+                                                {
                                                     if let Ok(content) = resp.text().await {
-                                                        contract_address = extract_address(&content);
+                                                        contract_address =
+                                                            extract_address(&content);
                                                         tx_hash = extract_tx_hash(&content);
                                                     }
                                                 }
@@ -321,9 +355,15 @@ impl ZeroDayFetcher {
                 };
 
                 let full_name = format!("immunefi-team/{}", repo_name);
-                let commits_url = format!("https://api.github.com/repos/{}/commits?per_page=100", full_name);
+                let commits_url = format!(
+                    "https://api.github.com/repos/{}/commits?per_page=100",
+                    full_name
+                );
 
-                if let Some(commits) = self.fetch_json::<Vec<serde_json::Value>>(&commits_url).await? {
+                if let Some(commits) = self
+                    .fetch_json::<Vec<serde_json::Value>>(&commits_url)
+                    .await?
+                {
                     let mut poc_count = 0;
                     for commit in commits {
                         if poc_count >= 10 {
@@ -334,9 +374,11 @@ impl ZeroDayFetcher {
                             None => continue,
                         };
 
-                        let date_str = match commit_data.get("author")
+                        let date_str = match commit_data
+                            .get("author")
                             .and_then(|a| a.get("date"))
-                            .and_then(|d| d.as_str()) {
+                            .and_then(|d| d.as_str())
+                        {
                             Some(d) => d,
                             None => continue,
                         };
@@ -362,7 +404,9 @@ impl ZeroDayFetcher {
                                 file.get("filename")
                                     .and_then(|n| n.as_str())
                                     .is_some_and(|n| {
-                                        n.ends_with(".sol") || n.contains("poc") || n.contains("exploit")
+                                        n.ends_with(".sol")
+                                            || n.contains("poc")
+                                            || n.contains("exploit")
                                     })
                             })
                         });
@@ -379,10 +423,18 @@ impl ZeroDayFetcher {
 
                         if let Some(files_arr) = files {
                             for file in files_arr {
-                                if let Some(filename) = file.get("filename").and_then(|f| f.as_str()) {
-                                    if filename.ends_with(".sol") || filename.contains("poc") || filename.contains("exploit") {
-                                        if let Some(raw_url) = file.get("raw_url").and_then(|u| u.as_str()) {
-                                            if let Ok(resp) = self.client.get(raw_url).send().await {
+                                if let Some(filename) =
+                                    file.get("filename").and_then(|f| f.as_str())
+                                {
+                                    if filename.ends_with(".sol")
+                                        || filename.contains("poc")
+                                        || filename.contains("exploit")
+                                    {
+                                        if let Some(raw_url) =
+                                            file.get("raw_url").and_then(|u| u.as_str())
+                                        {
+                                            if let Ok(resp) = self.client.get(raw_url).send().await
+                                            {
                                                 if let Ok(content) = resp.text().await {
                                                     contract_address = extract_address(&content);
                                                     tx_hash = extract_tx_hash(&content);
@@ -412,7 +464,6 @@ impl ZeroDayFetcher {
         info!("  Found {} from Immunefi attackathons", all_exploits.len());
         Ok(all_exploits)
     }
-
 
     async fn fetch_rss_feeds(&self) -> Result<Vec<Exploit>> {
         info!("Fetching from RSS feeds (last 7 days)...");
@@ -600,6 +651,4 @@ mod tests {
         assert_eq!(extract_loss("$500K exploit"), Some(500_000));
         assert_eq!(extract_loss("No loss mentioned"), None);
     }
-
-
 }

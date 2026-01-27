@@ -14,12 +14,15 @@ const Scanner = () => {
     current_contract: null,
     current_contract_name: null,
     contracts_extracted: 0,
+    eta_seconds: 0,
+    rate: null,
+    critical_findings: 0,
   })
   const [config, setConfig] = useState({
     addresses: '',
     chain: 'all',
     days: 100,
-    concurrency: 3,
+    concurrency: 2,
     tags: '',
     contract_type: '',
     extract_sources: '50',
@@ -50,7 +53,7 @@ const Scanner = () => {
         setProgress(response.data.progress)
       }
 
-      if (response.data.config) {
+      if (response.data.config && status !== 'idle') {
         const cfg = response.data.config
         setConfig(prev => ({
           ...prev,
@@ -178,6 +181,9 @@ const Scanner = () => {
         current_contract: null,
         current_contract_name: null,
         contracts_extracted: 0,
+        eta_seconds: 0,
+        rate: null,
+        critical_findings: 0,
       })
     } catch (err) {
       const errorMessage = err.response?.data?.error || err.message || 'Failed to stop scan'
@@ -292,6 +298,21 @@ const Scanner = () => {
                 <strong style={{ marginLeft: '0.5rem' }}>
                   ({((progress.contracts_scanned / progress.contracts_total) * 100).toFixed(1)}%)
                 </strong>
+              )}
+              {progress.eta_seconds > 0 && (
+                <span style={{ marginLeft: '0.5rem', color: '#3b82f6' }}>
+                  • ETA: {Math.floor(progress.eta_seconds / 60)}m{progress.eta_seconds % 60}s
+                </span>
+              )}
+              {progress.rate && (
+                <span style={{ marginLeft: '0.5rem', color: '#10b981' }}>
+                  • {progress.rate.toFixed(1)}/s
+                </span>
+              )}
+              {progress.critical_findings > 0 && (
+                <span style={{ marginLeft: '0.5rem', color: '#ef4444' }}>
+                  • 🚨 {progress.critical_findings} critical
+                </span>
               )}
               {progress.contracts_extracted > 0 && (
                 <span style={{ marginLeft: '0.5rem' }}>

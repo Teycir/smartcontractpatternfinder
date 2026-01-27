@@ -11,7 +11,7 @@ tags:
 patterns:
   # Match tx.origin in authentication contexts
   - id: tx-origin-require
-    pattern: 'require\s*\(\s*.*?tx\.origin\s*[!=]='
+    pattern: 'require\s*\(\s*.{0,200}?tx\.origin\s*[!=]='
     message: |
       tx.origin used for authentication.
       
@@ -23,12 +23,12 @@ patterns:
     kind: regex
 
   - id: tx-origin-if-auth
-    pattern: 'if\s*\(\s*.*?tx\.origin\s*[!=]=.*?\)\s*(?:revert|require)'
+    pattern: 'if\s*\(\s*.{0,200}?tx\.origin\s*[!=]=.{0,200}?\)\s*(?:revert|require)'
     message: "tx.origin used in authentication check"
     kind: regex
 
   - id: tx-origin-assert
-    pattern: 'assert\s*\(\s*.*?tx\.origin'
+    pattern: 'assert\s*\(\s*.{0,200}?tx\.origin'
     message: "tx.origin used in assert statement"
     kind: regex
 

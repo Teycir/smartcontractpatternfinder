@@ -30,6 +30,9 @@ struct ScanProgress {
     contracts_extracted: AtomicU32,
     current_contract: RwLock<Option<String>>,
     current_contract_name: RwLock<Option<String>>,
+    eta_seconds: AtomicU32,
+    rate: RwLock<Option<f64>>,
+    critical_findings: AtomicU32,
 }
 
 impl Default for ScanProgress {
@@ -40,6 +43,9 @@ impl Default for ScanProgress {
             contracts_extracted: AtomicU32::new(0),
             current_contract: RwLock::new(None),
             current_contract_name: RwLock::new(None),
+            eta_seconds: AtomicU32::new(0),
+            rate: RwLock::new(None),
+            critical_findings: AtomicU32::new(0),
         }
     }
 }
@@ -49,11 +55,16 @@ impl ScanProgress {
         self.contracts_scanned.store(0, Ordering::SeqCst);
         self.contracts_total.store(0, Ordering::SeqCst);
         self.contracts_extracted.store(0, Ordering::SeqCst);
+        self.eta_seconds.store(0, Ordering::SeqCst);
+        self.critical_findings.store(0, Ordering::SeqCst);
         if let Ok(mut current) = self.current_contract.try_write() {
             *current = None;
         }
         if let Ok(mut name) = self.current_contract_name.try_write() {
             *name = None;
+        }
+        if let Ok(mut rate) = self.rate.try_write() {
+            *rate = None;
         }
     }
     
@@ -61,12 +72,16 @@ impl ScanProgress {
         let total = self.contracts_total.load(Ordering::SeqCst);
         let current = self.current_contract.try_read().ok().and_then(|c| c.clone());
         let current_name = self.current_contract_name.try_read().ok().and_then(|c| c.clone());
+        let rate = self.rate.try_read().ok().and_then(|r| *r);
         serde_json::json!({
             "contracts_scanned": self.contracts_scanned.load(Ordering::SeqCst),
             "contracts_total": if total > 0 { Some(total) } else { None },
             "current_contract": current,
             "current_contract_name": current_name,
-            "contracts_extracted": self.contracts_extracted.load(Ordering::SeqCst)
+            "contracts_extracted": self.contracts_extracted.load(Ordering::SeqCst),
+            "eta_seconds": self.eta_seconds.load(Ordering::SeqCst),
+            "rate": rate,
+            "critical_findings": self.critical_findings.load(Ordering::SeqCst)
         })
     }
 }
@@ -610,33 +625,47 @@ fn parse_and_update_progress(state: &AppState, line: &str) {
                 if let (Ok(current), Ok(total)) = (current_str.parse::<u32>(), total_str.parse::<u32>()) {
                     state.progress.contracts_scanned.store(current, Ordering::SeqCst);
                     state.progress.contracts_total.store(total, Ordering::SeqCst);
-                    tracing::debug!("Progress updated: {}/{}", current, total);
                     
-                    // Extract contract address if present (0x followed by hex)
-                    if let Some(addr_start) = line.find("0x") {
-                        let addr_end = line[addr_start..]
-                            .find(|c: char| !c.is_ascii_hexdigit() && c != 'x')
-                            .map(|i| addr_start + i)
-                            .unwrap_or(line.len());
-                        let addr = &line[addr_start..addr_end];
-                        if addr.len() >= 10 {
-                            if let Ok(mut current_contract) = state.progress.current_contract.try_write() {
-                                *current_contract = Some(addr.to_string());
-                            }
-                            // Try to extract contract name from line (format: "Scanning ContractName (0x...)")
-                            if let Some(scanning_pos) = line.find("Scanning") {
-                                let after_scanning = &line[scanning_pos + 8..].trim_start();
-                                if let Some(paren_pos) = after_scanning.find('(') {
-                                    let name = after_scanning[..paren_pos].trim();
-                                    if !name.is_empty() && name.len() < 50 {
-                                        if let Ok(mut current_name) = state.progress.current_contract_name.try_write() {
-                                            *current_name = Some(name.to_string());
-                                        }
+                    // Parse enhanced metrics: "[50/200] 25.0% | ETA: 5m30s | Critical: 42 | 2.5/s"
+                    if let Some(eta_pos) = line.find("ETA:") {
+                        let after_eta = &line[eta_pos + 4..].trim_start();
+                        // Parse "5m30s" format
+                        if let Some(m_pos) = after_eta.find('m') {
+                            if let Ok(mins) = after_eta[..m_pos].parse::<u32>() {
+                                let after_m = &after_eta[m_pos + 1..];
+                                if let Some(s_pos) = after_m.find('s') {
+                                    if let Ok(secs) = after_m[..s_pos].parse::<u32>() {
+                                        state.progress.eta_seconds.store(mins * 60 + secs, Ordering::SeqCst);
                                     }
                                 }
                             }
                         }
                     }
+                    
+                    // Parse critical findings: "Critical: 42"
+                    if let Some(critical_pos) = line.find("Critical:") {
+                        let after_critical = &line[critical_pos + 9..].trim_start();
+                        if let Some(space_pos) = after_critical.find(|c: char| !c.is_ascii_digit()) {
+                            if let Ok(count) = after_critical[..space_pos].parse::<u32>() {
+                                state.progress.critical_findings.store(count, Ordering::SeqCst);
+                            }
+                        }
+                    }
+                    
+                    // Parse rate: "2.5/s"
+                    if let Some(rate_match) = line.rfind(|c: char| c.is_ascii_digit() || c == '.') {
+                        let before_rate = &line[..=rate_match];
+                        if let Some(space_pos) = before_rate.rfind(|c: char| c.is_whitespace()) {
+                            let rate_str = &before_rate[space_pos + 1..];
+                            if let Ok(rate_val) = rate_str.parse::<f64>() {
+                                if let Ok(mut rate) = state.progress.rate.try_write() {
+                                    *rate = Some(rate_val);
+                                }
+                            }
+                        }
+                    }
+                    
+                    tracing::debug!("Progress updated: {}/{}", current, total);
                     return;
                 }
             }

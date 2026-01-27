@@ -60,7 +60,7 @@ impl ContractFetcher {
             if idx > 0 {
                 tokio::time::sleep(Duration::from_millis(50)).await;
             }
-            
+
             let _permit = self
                 .rate_limiter
                 .acquire()
@@ -88,9 +88,7 @@ impl ContractFetcher {
             };
 
             if json["status"].as_str() != Some("1") {
-                let error_msg = json["message"]
-                    .as_str()
-                    .unwrap_or("Unknown error");
+                let error_msg = json["message"].as_str().unwrap_or("Unknown error");
                 tracing::warn!("API key {} failed: {}, trying next key", idx + 1, error_msg);
                 last_error = Some(anyhow::anyhow!("API error: {}", error_msg));
                 continue; // Try next key
@@ -108,7 +106,10 @@ impl ContractFetcher {
             let source_code = match result["SourceCode"].as_str() {
                 Some(s) => s,
                 None => {
-                    tracing::warn!("API key {} returned no source code, trying next key", idx + 1);
+                    tracing::warn!(
+                        "API key {} returned no source code, trying next key",
+                        idx + 1
+                    );
                     last_error = Some(anyhow::anyhow!("Source code not found"));
                     continue;
                 }
@@ -119,7 +120,9 @@ impl ContractFetcher {
         }
 
         // All keys failed
-        Err(last_error.unwrap_or_else(|| anyhow::anyhow!("All {} API keys failed for {}", keys.len(), chain.as_str())))
+        Err(last_error.unwrap_or_else(|| {
+            anyhow::anyhow!("All {} API keys failed for {}", keys.len(), chain.as_str())
+        }))
     }
 
     pub fn parse_source_code(source_code: &str) -> String {
@@ -218,9 +221,15 @@ impl ContractFetcher {
             };
 
             if json["status"].as_str() != Some("1") {
-                last_error = Some(anyhow::anyhow!("Failed to get block number: {:?}", json["message"]));
+                last_error = Some(anyhow::anyhow!(
+                    "Failed to get block number: {:?}",
+                    json["message"]
+                ));
                 if idx < keys.len() - 1 {
-                    tracing::warn!("API key {} failed for block fetch, trying next key", idx + 1);
+                    tracing::warn!(
+                        "API key {} failed for block fetch, trying next key",
+                        idx + 1
+                    );
                     continue;
                 }
                 break;
@@ -241,17 +250,17 @@ impl ContractFetcher {
             let max_consecutive_failures = 5;
             let mut current_key_idx = idx;
             let mut last_page = 0;
-            
+
             for page in 1..=max_pages {
                 last_page = page;
                 // Rate limiting: 5 calls/sec = 200ms between calls
                 if page > 1 {
                     tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
                 }
-                
+
                 // Rotate to next key if current one is failing
                 let current_key = &keys[current_key_idx % keys.len()];
-                
+
                 let logs_url = format!(
                     "{}?chainid={}&module=logs&action=getLogs&fromBlock={}&toBlock=latest&topic0=0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0&page={}&offset=100&apikey={}",
                     chain.api_base_url(),
@@ -263,18 +272,29 @@ impl ContractFetcher {
 
                 let mut retry_count = 0;
                 let max_retries = 3;
-                
+
                 let (text, should_continue) = loop {
                     let response = match self.client.get(&logs_url).send().await {
                         Ok(r) => r,
                         Err(e) => {
                             retry_count += 1;
                             if retry_count >= max_retries {
-                                tracing::warn!("Page {} failed after {} retries: {}", page, max_retries, e);
+                                tracing::warn!(
+                                    "Page {} failed after {} retries: {}",
+                                    page,
+                                    max_retries,
+                                    e
+                                );
                                 consecutive_failures += 1;
                                 break (String::new(), false);
                             }
-                            tracing::debug!("Page {} retry {}/{}: {}", page, retry_count, max_retries, e);
+                            tracing::debug!(
+                                "Page {} retry {}/{}: {}",
+                                page,
+                                retry_count,
+                                max_retries,
+                                e
+                            );
                             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
                             continue;
                         }
@@ -285,31 +305,48 @@ impl ContractFetcher {
                         Err(e) => {
                             retry_count += 1;
                             if retry_count >= max_retries {
-                                tracing::warn!("Page {} read failed after {} retries: {}", page, max_retries, e);
+                                tracing::warn!(
+                                    "Page {} read failed after {} retries: {}",
+                                    page,
+                                    max_retries,
+                                    e
+                                );
                                 consecutive_failures += 1;
                                 break (String::new(), false);
                             }
-                            tracing::debug!("Page {} read retry {}/{}: {}", page, retry_count, max_retries, e);
+                            tracing::debug!(
+                                "Page {} read retry {}/{}: {}",
+                                page,
+                                retry_count,
+                                max_retries,
+                                e
+                            );
                             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
                             continue;
                         }
                     };
-                    
+
                     break (text, true);
                 };
-                
+
                 if !should_continue {
                     if consecutive_failures >= max_consecutive_failures {
                         // Try rotating to next API key
                         if keys.len() > 1 {
                             current_key_idx += 1;
                             if current_key_idx - idx < keys.len() {
-                                tracing::info!("Rotating to API key {} after failures", (current_key_idx % keys.len()) + 1);
+                                tracing::info!(
+                                    "Rotating to API key {} after failures",
+                                    (current_key_idx % keys.len()) + 1
+                                );
                                 consecutive_failures = 0;
                                 continue; // Retry this page with new key
                             }
                         }
-                        tracing::warn!("Stopping pagination after {} consecutive failures", consecutive_failures);
+                        tracing::warn!(
+                            "Stopping pagination after {} consecutive failures",
+                            consecutive_failures
+                        );
                         break;
                     }
                     continue; // Skip this page, try next
@@ -330,7 +367,8 @@ impl ContractFetcher {
                 if json["status"].as_str() != Some("1") {
                     // Check if it's an error or just no more results
                     if let Some(msg) = json["message"].as_str() {
-                        if msg.contains("No records found") || msg.contains("No transactions found") {
+                        if msg.contains("No records found") || msg.contains("No transactions found")
+                        {
                             tracing::info!("No more results at page {}", page);
                             break;
                         }
@@ -363,15 +401,25 @@ impl ContractFetcher {
 
                 // If we got less than 100 results, we've reached the end
                 if logs.len() < 100 {
-                    tracing::info!("Pagination complete at page {} ({} total addresses)", page, all_addresses.len());
+                    tracing::info!(
+                        "Pagination complete at page {} ({} total addresses)",
+                        page,
+                        all_addresses.len()
+                    );
                     break;
                 }
             }
 
-            tracing::info!("Fetched {} unique addresses from {} after {} pages", all_addresses.len(), chain.as_str(), last_page);
+            tracing::info!(
+                "Fetched {} unique addresses from {} after {} pages",
+                all_addresses.len(),
+                chain.as_str(),
+                last_page
+            );
             return Ok(all_addresses.into_iter().collect());
         }
 
-        Err(last_error.unwrap_or_else(|| anyhow::anyhow!("All API keys failed for {}", chain.as_str())))
+        Err(last_error
+            .unwrap_or_else(|| anyhow::anyhow!("All API keys failed for {}", chain.as_str())))
     }
 }

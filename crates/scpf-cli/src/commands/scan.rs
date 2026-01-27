@@ -6,6 +6,9 @@ use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
+use futures::stream::{self, StreamExt};
+use tokio::sync::Semaphore;
+use chrono;
 
 struct ExploitabilityStats {
     exploitable: Vec<(usize, scpf_types::Match, scpf_core::ExploitAnalysis)>,
@@ -45,163 +48,211 @@ async fn scan_contracts(
     templates: Vec<Template>,
     fetcher: Arc<ContractFetcher>,
     min_severity: Severity,
-) -> Result<(Vec<ScanResult>, Arc<Cache>)> {
-    let scanner = Arc::new(tokio::sync::Mutex::new(Scanner::new(templates)?));
+    concurrency: usize,
+) -> Result<(Vec<ScanResult>, Arc<Cache>, Vec<(String, Chain, f64)>)> {
+    let scanner = Arc::new(Scanner::new(templates)?);
     let cache_dir = dirs::cache_dir()
         .map(|d| d.join("scpf"))
         .unwrap_or_else(|| PathBuf::from(".cache"));
     let cache = Arc::new(Cache::new(cache_dir).await?);
 
-    let mut all_scan_results = Vec::new();
     let total = contracts.len();
-
+    let scan_start = Instant::now();
+    let start_time = chrono::Local::now();
+    
     eprintln!("⏳ Scanning {} contracts...", total);
+    eprintln!("🕐 Started: {}", start_time.format("%Y-%m-%d %H:%M:%S"));
 
     let is_tty = std::io::stderr().is_terminal();
+    let progress = Arc::new(tokio::sync::Mutex::new(0usize));
+    let findings_count = Arc::new(tokio::sync::Mutex::new(0usize));
+    
+    // Use concurrency parameter for both API and scan limits
+    let api_semaphore = Arc::new(Semaphore::new(concurrency));
+    let scan_semaphore = Arc::new(Semaphore::new(concurrency));
 
-    for (idx, (address, chain)) in contracts.into_iter().enumerate() {
-        let contract_num = idx + 1;
-        let short_addr = if address.len() >= 12 {
-            &address[..12]
-        } else {
-            &address
-        };
+    let results: Vec<_> = stream::iter(contracts.into_iter().enumerate())
+        .map(|(_idx, (address, chain))| {
+            let scanner = Arc::clone(&scanner);
+            let fetcher = Arc::clone(&fetcher);
+            let cache = Arc::clone(&cache);
+            let progress = Arc::clone(&progress);
+            let findings_count = Arc::clone(&findings_count);
+            let api_semaphore = Arc::clone(&api_semaphore);
+            let scan_semaphore = Arc::clone(&scan_semaphore);
+            
+            async move {
+                let short_addr = if address.len() >= 12 {
+                    &address[..12]
+                } else {
+                    &address
+                };
 
-        // Progress reporting - every contract for piped output, every 10 for TTY
-        if is_tty {
-            if idx > 0 && idx % 10 == 0 {
-                // Interactive terminal: overwrite line with carriage return
-                eprint!(
-                    "\r   Progress: {}/{} contracts ({:.1}%)...   ",
-                    contract_num,
-                    total,
-                    (contract_num as f64 / total as f64) * 100.0
-                );
-                use std::io::Write;
-                std::io::stderr().flush().ok();
-            }
-        } else {
-            // Piped output: show progress for each contract with percentage
-            let percent = (contract_num as f64 / total as f64) * 100.0;
-            eprintln!(
-                "   [{}/{}] ({:.1}%) Scanning {} ({})...",
-                contract_num,
-                total,
-                percent,
-                short_addr,
-                chain.as_str()
-            );
-        }
-
-        // Rate limiting: 100ms delay every 3 contracts (balance speed vs rate limits)
-        // With 6 keys @ 5 calls/sec each = 30 calls/sec theoretical
-        // This gives ~10 calls/sec actual to stay under limits
-        if idx > 0 && idx % 3 == 0 {
-            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-        }
-        let cache_key = format!("{}:{}", chain, address);
-        // Check cache, but invalidate empty entries (0 bytes = failed fetch that was cached)
-        let cached_source = cache.get(&cache_key).await.filter(|s| !s.is_empty());
-
-        let (source, from_cache) = if let Some(cached) = cached_source {
-            (cached, true)
-        } else {
-            if !is_tty {
-                eprintln!("      📡 Fetching source from API...");
-            }
-            match fetcher.fetch_source(&address, chain).await {
-                Ok(src) => {
-                    // Only cache non-empty sources
-                    if !src.is_empty() {
-                        cache.set(&cache_key, &src).await?;
-                    }
-                    if !is_tty {
+                // Progress reporting
+                {
+                    let mut p = progress.lock().await;
+                    *p += 1;
+                    if is_tty {
+                        if *p % 10 == 0 {
+                            let elapsed = scan_start.elapsed().as_secs_f64();
+                            let rate = *p as f64 / elapsed;
+                            let remaining = total - *p;
+                            let eta_secs = (remaining as f64 / rate) as u64;
+                            let eta_mins = eta_secs / 60;
+                            let findings = findings_count.lock().await;
+                            
+                            eprint!(
+                                "\r   [{}/{}] {:.1}% | ETA: {}m{}s | Critical: {} | {:.1}/s   ",
+                                *p, total, (*p as f64 / total as f64) * 100.0,
+                                eta_mins, eta_secs % 60, *findings, rate
+                            );
+                            use std::io::Write;
+                            std::io::stderr().flush().ok();
+                        }
+                    } else {
                         eprintln!(
-                            "      ✓ Source fetched ({:.1} KB)",
-                            src.len() as f64 / 1024.0
+                            "   [{}/{}] ({:.1}%) Scanning {} ({})...",
+                            *p, total, (*p as f64 / total as f64) * 100.0, short_addr, chain.as_str()
                         );
                     }
-                    (src, false)
                 }
-                Err(e) => {
-                    eprintln!("      ✗ Error fetching {}: {}", short_addr, e);
-                    continue;
+                let cache_key = format!("{}:{}", chain, address);
+                let cached_source = cache.get(&cache_key).await.filter(|s| !s.is_empty());
+
+                let (source, from_cache) = if let Some(cached) = cached_source {
+                    (cached, true)
+                } else {
+                    // Acquire API semaphore for rate limiting
+                    let _permit = api_semaphore.acquire().await.unwrap();
+                    // Add 300ms delay between API calls to avoid rate limits (safe buffer)
+                    tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+                    if !is_tty {
+                        eprintln!("      📡 Fetching source from API...");
+                    }
+                    match fetcher.fetch_source(&address, chain).await {
+                        Ok(src) => {
+                            if !src.is_empty() {
+                                cache.set(&cache_key, &src).await.ok();
+                            }
+                            if !is_tty {
+                                eprintln!("      ✓ Source fetched ({:.1} KB)", src.len() as f64 / 1024.0);
+                            }
+                            (src, false)
+                        }
+                        Err(e) => {
+                            eprintln!("      ✗ Error fetching {}: {}", short_addr, e);
+                            return Ok::<_, anyhow::Error>(None);
+                        }
+                    }
+                };
+
+                if !is_tty && from_cache {
+                    eprintln!("      📦 Using cached source ({:.1} KB)", source.len() as f64 / 1024.0);
                 }
-            }
-        };
 
-        if !is_tty && from_cache {
-            eprintln!(
-                "      📦 Using cached source ({:.1} KB)",
-                source.len() as f64 / 1024.0
-            );
-        }
+                let source_size_kb = source.len() as f64 / 1024.0;
+                if source_size_kb > 5120.0 {
+                    if !is_tty {
+                        eprintln!("      ⏭️  Skipping extremely large contract ({:.1} KB)", source_size_kb);
+                    }
+                    return Ok(None);
+                }
 
-        let source_size_kb = source.len() as f64 / 1024.0;
+                let start = Instant::now();
+                
+                // Acquire scan semaphore for CPU-bound work
+                let _permit = scan_semaphore.acquire().await.unwrap();
+                let scanner_clone = Arc::clone(&scanner);
+                let source_clone = source.clone();
+                let address_clone = address.clone();
+                
+                let scan_task = tokio::task::spawn_blocking(move || {
+                    scanner_clone.scan(&source_clone, PathBuf::from(&address_clone))
+                });
+                
+                let matches = match tokio::time::timeout(std::time::Duration::from_secs(60), scan_task).await {
+                    Ok(Ok(Ok(m))) => m,
+                    Ok(Ok(Err(e))) => {
+                        eprintln!("      ✗ Scan error: {}", e);
+                        return Ok(None);
+                    }
+                    Ok(Err(e)) => {
+                        eprintln!("      ✗ Task error: {}", e);
+                        return Ok(None);
+                    }
+                    Err(_) => {
+                        eprintln!("      ⏱️  TIMEOUT after 60s - {} ({}) - {:.1} KB", address, chain.as_str(), source_size_kb);
+                        return Ok(Some((None, Some((address.clone(), chain, source_size_kb)))));
+                    }
+                };
         
-        // Skip extremely large contracts (>5 MB) to avoid excessive scan time
-        if source_size_kb > 5120.0 {
-            if !is_tty {
-                eprintln!("      ⏭️  Skipping extremely large contract ({:.1} KB)", source_size_kb);
-            }
-            continue;
-        }
+                let scan_time_ms = start.elapsed().as_millis() as u64;
 
-        let start = Instant::now();
-        let matches = scanner
-            .lock()
-            .await
-            .scan(&source, PathBuf::from(&address))?;
-        let scan_time_ms = start.elapsed().as_millis() as u64;
+                let filtered_matches: Vec<_> = matches
+                    .into_iter()
+                    .filter(|m| m.severity >= min_severity && m.severity == Severity::Critical)
+                    .collect();
 
-        let filtered_matches: Vec<_> = matches
-            .into_iter()
-            .filter(|m| m.severity >= min_severity && m.severity >= Severity::High)
-            .collect();
+                if !filtered_matches.is_empty() {
+                    let mut findings = findings_count.lock().await;
+                    *findings += filtered_matches.len();
+                    if is_tty {
+                        eprintln!("\r   ✓ {} ({}) - {} findings                    ", short_addr, chain.as_str(), filtered_matches.len());
+                    } else {
+                        eprintln!("      🔍 Scanned in {}ms - {} findings", scan_time_ms, filtered_matches.len());
+                    }
+                } else if !is_tty {
+                    eprintln!("      🔍 Scanned in {}ms - clean", scan_time_ms);
+                }
 
-        // Show scan result for each contract
-        if !filtered_matches.is_empty() {
-            if is_tty {
-                eprintln!(
-                    "\r   ✓ {} ({}) - {} findings                    ",
-                    short_addr,
-                    chain.as_str(),
-                    filtered_matches.len()
-                );
-            } else {
-                eprintln!(
-                    "      🔍 Scanned in {}ms - {} findings",
+                let analyzed_matches: Vec<_> = filtered_matches
+                    .into_iter()
+                    .map(|m| {
+                        let analysis = scpf_core::analyze_exploitability(&m);
+                        (m, analysis)
+                    })
+                    .collect();
+
+                let result = ScanResult {
+                    address,
+                    chain: chain.to_string(),
+                    matches: analyzed_matches.into_iter().map(|(m, _)| m).collect(),
                     scan_time_ms,
-                    filtered_matches.len()
-                );
+                    solidity_version: extract_solidity_version(&source),
+                    source_size_kb: Some(source_size_kb),
+                };
+
+                Ok(Some((Some(result), None)))
             }
-        } else if !is_tty {
-            eprintln!("      🔍 Scanned in {}ms - clean", scan_time_ms);
-        }
-
-        let analyzed_matches: Vec<_> = filtered_matches
-            .into_iter()
-            .map(|m| {
-                let analysis = scpf_core::analyze_exploitability(&m);
-                (m, analysis)
-            })
-            .collect();
-
-        let source_size_kb = source.len() as f64 / 1024.0;
-
-        all_scan_results.push(ScanResult {
-            address,
-            chain: chain.to_string(),
-            matches: analyzed_matches.into_iter().map(|(m, _)| m).collect(),
-            scan_time_ms,
-            solidity_version: extract_solidity_version(&source),
-            source_size_kb: Some(source_size_kb),
-        });
-    }
+        })
+        .buffer_unordered(concurrency)
+        .collect::<Vec<_>>()
+        .await;
 
     eprintln!("\n✅ Scanning complete\n");
+    
+    let end_time = chrono::Local::now();
+    let duration = scan_start.elapsed();
+    let duration_mins = duration.as_secs() / 60;
+    let duration_secs = duration.as_secs() % 60;
+    
+    eprintln!("🕐 Started:  {}", start_time.format("%Y-%m-%d %H:%M:%S"));
+    eprintln!("🕐 Finished: {}", end_time.format("%Y-%m-%d %H:%M:%S"));
+    eprintln!("⏱️  Duration: {}m {}s", duration_mins, duration_secs);
+    eprintln!("📊 Rate: {:.2} contracts/sec\n", total as f64 / duration.as_secs().max(1) as f64);
 
-    Ok((all_scan_results, cache))
+    let mut all_scan_results = Vec::new();
+    let mut skipped_timeouts = Vec::new();
+    
+    for result in results {
+        match result {
+            Ok(Some((Some(scan_result), _))) => all_scan_results.push(scan_result),
+            Ok(Some((None, Some(timeout)))) => skipped_timeouts.push(timeout),
+            _ => {}
+        }
+    }
+
+    Ok((all_scan_results, cache, skipped_timeouts))
 }
 
 fn rank_and_score(mut scan_results: Vec<ScanResult>) -> Vec<ScanResult> {
@@ -345,8 +396,8 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     eprintln!();
 
     let min_sev = parse_severity(&args.min_severity);
-    let (all_scan_results, cache) =
-        scan_contracts(all_contracts, templates, fetcher, min_sev).await?;
+    let (all_scan_results, cache, skipped_timeouts) =
+        scan_contracts(all_contracts, templates, fetcher, min_sev, args.concurrency).await?;
     let scan_results = rank_and_score(all_scan_results);
     eprintln!("⏳ Scanning {} contracts...", scan_results.len());
     let timestamp = std::time::SystemTime::now()
@@ -707,6 +758,23 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     eprintln!("\n{}", "=".repeat(80));
     eprintln!("✅ Scan completed successfully");
     eprintln!("{}", "=".repeat(80));
+
+    // Report skipped contracts
+    if !skipped_timeouts.is_empty() {
+        eprintln!("\n⏱️  {} contracts skipped due to timeout (>60s):", skipped_timeouts.len());
+        for (addr, chain, size_kb) in &skipped_timeouts {
+            eprintln!("   - {} ({}) - {:.1} KB", addr, chain.as_str(), size_kb);
+        }
+        
+        // Write to file
+        let timeout_log = root_dir.join("timeouts.txt");
+        let mut timeout_content = format!("Contracts that timed out (>60s scan time):\n\n");
+        for (addr, chain, size_kb) in &skipped_timeouts {
+            timeout_content.push_str(&format!("{} ({}) - {:.1} KB\n", addr, chain.as_str(), size_kb));
+        }
+        std::fs::write(&timeout_log, timeout_content)?;
+        eprintln!("   📝 Timeout list saved to: {}", timeout_log.display());
+    }
 
     // Play notification sound
     eprintln!("\x07"); // Bell character

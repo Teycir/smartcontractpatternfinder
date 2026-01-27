@@ -71,18 +71,33 @@ impl Scanner {
 
     /// Scan source code for vulnerabilities using parallel pattern matching with rayon
     pub fn scan(&self, source: &str, file_path: PathBuf) -> Result<Vec<Match>> {
-        const MAX_FILE_SIZE: usize = 5_000_000; // 5MB limit
-        const CHUNK_SIZE: usize = 1_500_000; // 1.5MB chunks for large files
-        
-        // For very large files, scan in overlapping chunks
+        const MAX_FILE_SIZE: usize = 1_572_864; // 1.5MB hard limit (1536 KB)
+        const CHUNK_THRESHOLD: usize = 700_000; // 700KB - use chunking above this
+        const CHUNK_SIZE: usize = 200_000; // 200KB chunks
+
+        // Skip files > 1.5MB
         if source.len() > MAX_FILE_SIZE {
-            warn!("File {} size {} exceeds limit, scanning in chunks", file_path.display(), source.len());
+            warn!(
+                "File {} size {} exceeds 1.5MB limit, skipping",
+                file_path.display(),
+                source.len()
+            );
+            return Ok(Vec::new());
+        }
+
+        // Use chunking for files 700KB-1.5MB
+        if source.len() > CHUNK_THRESHOLD {
+            warn!(
+                "File {} size {} exceeds 700KB, scanning in chunks",
+                file_path.display(),
+                source.len()
+            );
             return self.scan_chunked(source, file_path, CHUNK_SIZE);
         }
 
         // Pre-compute newline positions once
         let newlines: Vec<usize> = source.match_indices('\n').map(|(i, _)| i).collect();
-        
+
         // Cache lines for snippet extraction (avoids re-parsing)
         let lines: Vec<&str> = source.lines().collect();
 
@@ -90,9 +105,21 @@ impl Scanner {
         let is_modern_solidity = is_version_gte_0_8(&solidity_version);
 
         // Fast regex-based protection detection (compiled once at init)
-        let has_reentrancy_guard = self.reentrancy_guard_regex.as_ref().map(|r| r.is_match(source).unwrap_or(false)).unwrap_or(false);
-        let has_access_control = self.access_control_regex.as_ref().map(|r| r.is_match(source).unwrap_or(false)).unwrap_or(false);
-        let has_pausable = self.pausable_regex.as_ref().map(|r| r.is_match(source).unwrap_or(false)).unwrap_or(false);
+        let has_reentrancy_guard = self
+            .reentrancy_guard_regex
+            .as_ref()
+            .map(|r| r.is_match(source).unwrap_or(false))
+            .unwrap_or(false);
+        let has_access_control = self
+            .access_control_regex
+            .as_ref()
+            .map(|r| r.is_match(source).unwrap_or(false))
+            .unwrap_or(false);
+        let has_pausable = self
+            .pausable_regex
+            .as_ref()
+            .map(|r| r.is_match(source).unwrap_or(false))
+            .unwrap_or(false);
 
         // Pre-check if source is OZ library (avoid repeated checks)
         let is_oz_library = is_openzeppelin_library(source);
@@ -110,17 +137,16 @@ impl Scanner {
         };
 
         // Use rayon to parallelize across templates
-        let all_matches: Vec<Vec<Match>> = self.templates
+        let all_matches: Vec<Vec<Match>> = self
+            .templates
             .par_iter()
             .filter(|t| !(is_modern_solidity && t.template_id.contains("integer_overflow")))
-            .map(|compiled_template| {
-                self.scan_template(compiled_template, &scan_ctx)
-            })
+            .map(|compiled_template| self.scan_template(compiled_template, &scan_ctx))
             .collect();
 
         // Flatten and deduplicate results
         let mut matches: Vec<Match> = all_matches.into_iter().flatten().collect();
-        
+
         // Global deduplication
         let mut seen = std::collections::HashSet::new();
         matches.retain(|m| {
@@ -131,7 +157,11 @@ impl Scanner {
         // Apply global limit
         const MAX_PATTERNS_PER_FILE: usize = 10000;
         if matches.len() > MAX_PATTERNS_PER_FILE {
-            warn!("Pattern limit reached for {}, truncating to {}", file_path.display(), MAX_PATTERNS_PER_FILE);
+            warn!(
+                "Pattern limit reached for {}, truncating to {}",
+                file_path.display(),
+                MAX_PATTERNS_PER_FILE
+            );
             matches.truncate(MAX_PATTERNS_PER_FILE);
         }
 
@@ -139,7 +169,11 @@ impl Scanner {
     }
 
     /// Scan a single template (called in parallel by rayon)
-    fn scan_template(&self, compiled_template: &CompiledTemplateOptimized, ctx: &ScanContext) -> Vec<Match> {
+    fn scan_template(
+        &self,
+        compiled_template: &CompiledTemplateOptimized,
+        ctx: &ScanContext,
+    ) -> Vec<Match> {
         let is_reentrancy_template = self.is_reentrancy_pattern(&compiled_template.template_id);
         let mut template_matches = Vec::new();
         let mut seen = std::collections::HashSet::new();
@@ -150,7 +184,7 @@ impl Scanner {
                     Ok(m) => m,
                     Err(_) => continue,
                 };
-                
+
                 let key = (mat.start(), mat.end(), compiled_pattern.index);
                 if !seen.insert(key) {
                     continue;
@@ -163,7 +197,13 @@ impl Scanner {
                     0
                 };
 
-                let context = get_match_context(ctx.source, ctx.newlines, mat.start(), mat.end(), line_number);
+                let context = get_match_context(
+                    ctx.source,
+                    ctx.newlines,
+                    mat.start(),
+                    mat.end(),
+                    line_number,
+                );
 
                 // Fast regex-based false positive filtering
                 if is_reentrancy_template {
@@ -182,7 +222,7 @@ impl Scanner {
                         }
                     }
                 }
-                
+
                 if ctx.has_pausable {
                     if let Some(ref regex) = self.pausable_regex {
                         if regex.is_match(&context).unwrap_or(false) {
@@ -191,7 +231,9 @@ impl Scanner {
                     }
                 }
 
-                if ctx.is_oz_library && is_openzeppelin_safe_pattern(ctx.source, &context, mat.as_str()) {
+                if ctx.is_oz_library
+                    && is_openzeppelin_safe_pattern(ctx.source, &context, mat.as_str())
+                {
                     continue;
                 }
 
@@ -234,7 +276,10 @@ impl Scanner {
         }
         if let Some(ref regex) = self.safe_nft_pattern_regex {
             if regex.is_match(context).unwrap_or(false) {
-                if context.contains("_mint") || context.contains("_burn") || context.contains("_transfer") {
+                if context.contains("_mint")
+                    || context.contains("_burn")
+                    || context.contains("_transfer")
+                {
                     return true;
                 }
             }
@@ -253,19 +298,24 @@ impl Scanner {
             || template_id.contains("external-call")
             || template_id.contains("low-level-call")
     }
-    
+
     /// Scan large files in overlapping chunks to avoid memory issues
-    fn scan_chunked(&self, source: &str, file_path: PathBuf, chunk_size: usize) -> Result<Vec<Match>> {
+    fn scan_chunked(
+        &self,
+        source: &str,
+        file_path: PathBuf,
+        chunk_size: usize,
+    ) -> Result<Vec<Match>> {
         use crate::chunking::ChunkProcessor;
-        
+
         const OVERLAP: usize = 50_000;
         let processor = ChunkProcessor::new(chunk_size, OVERLAP);
         let mut seen_keys = std::collections::HashSet::new();
-        
+
         let all_matches = processor.process(source, |chunk, line_offset| {
             self.scan_chunk_direct(chunk, &file_path, line_offset)
         })?;
-        
+
         // Deduplicate
         let mut deduped = Vec::new();
         for m in all_matches {
@@ -274,25 +324,46 @@ impl Scanner {
                 deduped.push(m);
             }
         }
-        
-        tracing::info!("Scanned {} in chunks, found {} matches", file_path.display(), deduped.len());
+
+        tracing::info!(
+            "Scanned {} in chunks, found {} matches",
+            file_path.display(),
+            deduped.len()
+        );
         Ok(deduped)
     }
-    
+
     /// Scan a chunk directly without size checks (internal use only)
-    fn scan_chunk_direct(&self, source: &str, file_path: &PathBuf, line_offset: usize) -> Result<Vec<Match>> {
+    fn scan_chunk_direct(
+        &self,
+        source: &str,
+        file_path: &PathBuf,
+        line_offset: usize,
+    ) -> Result<Vec<Match>> {
         // Pre-compute newline positions once
         let newlines: Vec<usize> = source.match_indices('\n').map(|(i, _)| i).collect();
-        
+
         // Cache lines for snippet extraction
         let lines: Vec<&str> = source.lines().collect();
 
         let solidity_version = extract_solidity_version(source);
         let is_modern_solidity = is_version_gte_0_8(&solidity_version);
 
-        let has_reentrancy_guard = self.reentrancy_guard_regex.as_ref().map(|r| r.is_match(source).unwrap_or(false)).unwrap_or(false);
-        let has_access_control = self.access_control_regex.as_ref().map(|r| r.is_match(source).unwrap_or(false)).unwrap_or(false);
-        let has_pausable = self.pausable_regex.as_ref().map(|r| r.is_match(source).unwrap_or(false)).unwrap_or(false);
+        let has_reentrancy_guard = self
+            .reentrancy_guard_regex
+            .as_ref()
+            .map(|r| r.is_match(source).unwrap_or(false))
+            .unwrap_or(false);
+        let has_access_control = self
+            .access_control_regex
+            .as_ref()
+            .map(|r| r.is_match(source).unwrap_or(false))
+            .unwrap_or(false);
+        let has_pausable = self
+            .pausable_regex
+            .as_ref()
+            .map(|r| r.is_match(source).unwrap_or(false))
+            .unwrap_or(false);
         let is_oz_library = is_openzeppelin_library(source);
 
         let scan_ctx = ScanContext {
@@ -306,26 +377,29 @@ impl Scanner {
             is_oz_library,
         };
 
-        let all_matches: Vec<Vec<Match>> = self.templates
-            .par_iter()
+        let all_matches: Vec<Vec<Match>> = self
+            .templates
+            .iter()
             .filter(|t| !(is_modern_solidity && t.template_id.contains("integer_overflow")))
-            .map(|compiled_template| {
-                self.scan_template(compiled_template, &scan_ctx)
-            })
+            .map(|compiled_template| self.scan_template(compiled_template, &scan_ctx))
             .collect();
 
         let mut matches: Vec<Match> = all_matches.into_iter().flatten().collect();
-        
+
         // Adjust line numbers based on line_offset
         for m in &mut matches {
             m.line_number += line_offset;
         }
-        
+
         Ok(matches)
     }
 }
 
-fn compile_pattern_optimized(pattern: &Pattern, template_id: &str, index: u32) -> Result<CompiledPatternOptimized> {
+fn compile_pattern_optimized(
+    pattern: &Pattern,
+    template_id: &str,
+    index: u32,
+) -> Result<CompiledPatternOptimized> {
     RegexValidator::validate_pattern(&pattern.pattern).map_err(|e| {
         warn!(
             "Unsafe regex pattern in template '{}', pattern '{}': {}",
@@ -339,20 +413,18 @@ fn compile_pattern_optimized(pattern: &Pattern, template_id: &str, index: u32) -
         )
     })?;
 
-    let regex = RegexBuilder::new(&pattern.pattern)
-        .build()
-        .map_err(|e| {
-            warn!(
-                "Invalid regex in template '{}', pattern '{}': {}",
-                template_id, pattern.id, e
-            );
-            anyhow::anyhow!(
-                "Invalid regex in template '{}', pattern '{}': {}",
-                template_id,
-                pattern.id,
-                e
-            )
-        })?;
+    let regex = RegexBuilder::new(&pattern.pattern).build().map_err(|e| {
+        warn!(
+            "Invalid regex in template '{}', pattern '{}': {}",
+            template_id, pattern.id, e
+        );
+        anyhow::anyhow!(
+            "Invalid regex in template '{}', pattern '{}': {}",
+            template_id,
+            pattern.id,
+            e
+        )
+    })?;
 
     Ok(CompiledPatternOptimized {
         regex,
@@ -455,7 +527,7 @@ fn get_match_context(
         // Include CONTEXT_LINES before and after for better detection
         let start_line = line_number.saturating_sub(CONTEXT_LINES);
         let end_line = (line_number + CONTEXT_LINES).min(newlines.len());
-        
+
         let context_start = if start_line > 1 {
             newlines.get(start_line - 2).copied().unwrap_or(0) + 1
         } else {
@@ -505,7 +577,8 @@ fn extract_code_snippet_cached(
 fn extract_solidity_version(source: &str) -> Option<String> {
     let pragma_regex = fancy_regex::Regex::new(r"pragma\s+solidity\s+([^;]+);").ok()?;
     pragma_regex
-        .captures(source).ok()?
+        .captures(source)
+        .ok()?
         .and_then(|cap| cap.get(1))
         .map(|m| m.as_str().trim().to_string())
 }
@@ -537,10 +610,11 @@ fn is_version_gte_0_8(version: &Option<String>) -> bool {
 #[allow(dead_code)]
 fn is_openzeppelin_library(source: &str) -> bool {
     // Only consider it library code if it's in a library file path or has library/abstract contract
-    let has_library_indicators = source.contains("library ") || source.contains("abstract contract");
+    let has_library_indicators =
+        source.contains("library ") || source.contains("abstract contract");
     let has_oz_attribution = source.contains("@openzeppelin") || source.contains("OpenZeppelin");
     let has_solady_attribution = source.contains("@solady") || source.contains("Solady");
-    
+
     // Must have both library indicators AND attribution to be considered library code
     has_library_indicators && (has_oz_attribution || has_solady_attribution)
 }
@@ -571,14 +645,15 @@ fn is_openzeppelin_safe_pattern(source: &str, context: &str, matched_text: &str)
             return true;
         }
         // High-level delegatecall wrapper functions
-        if context.contains("target.delegatecall(data)") 
-            || context.contains("functionDelegateCall") {
+        if context.contains("target.delegatecall(data)") || context.contains("functionDelegateCall")
+        {
             return true;
         }
         // Proxy-related contexts
-        if context.contains("_implementation") 
-            || context.contains("Proxy") 
-            || context.contains("@dev This abstract contract") {
+        if context.contains("_implementation")
+            || context.contains("Proxy")
+            || context.contains("@dev This abstract contract")
+        {
             return true;
         }
     }
