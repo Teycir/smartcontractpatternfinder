@@ -11,7 +11,7 @@ use std::str::FromStr;
     about = "Smart Contract Pattern Finder - Detect vulnerabilities in smart contracts"
 )]
 #[command(
-    long_about = "A high-performance tool for detecting security vulnerabilities and patterns in smart contracts.\n\nExamples:\n  scpf scan --chains ethereum,polygon,arbitrum --days 10\n  scpf scan 0x1234... --chains ethereum\n  scpf scan 0x1234... 0x5678... --concurrency 20\n  scpf scan 0x1234... --output json > results.json\n  scpf init --yes\n\nMore: https://github.com/Teycir/smartcontractpatternfinder"
+    long_about = "A high-performance tool for detecting security vulnerabilities and patterns in smart contracts.\n\nExamples:\n  scpf scan --chains ethereum,polygon,arbitrum --pages 10\n  scpf scan 0x1234... --chains ethereum\n  scpf scan 0x1234... 0x5678... --concurrency 20\n  scpf scan 0x1234... --output json > results.json\n  scpf init --yes\n\nMore: https://github.com/Teycir/smartcontractpatternfinder"
 )]
 pub struct Cli {
     #[arg(short, long, action = clap::ArgAction::Count, global = true, help = "Increase verbosity (-v, -vv, -vvv)")]
@@ -83,8 +83,8 @@ pub struct ScanArgs {
     pub fetch_zero_day: Option<u32>,
 
     // Filtering options
-    #[arg(long, default_value = "10", help = "Scan contracts from last N days")]
-    pub days: u64,
+    #[arg(long, default_value = "5", help = "Number of pages to fetch (100 contracts per page)")]
+    pub pages: u64,
 
     #[arg(
         long,

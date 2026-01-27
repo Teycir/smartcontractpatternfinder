@@ -99,7 +99,7 @@ enum ScanStatus {
 struct ScanConfig {
     addresses: Vec<String>,
     chain: String,
-    days: u64,
+    pages: u64,
     concurrency: usize,
     tags: Option<String>,
     contract_type: Option<String>,
@@ -111,9 +111,9 @@ impl Default for ScanConfig {
     fn default() -> Self {
         Self {
             addresses: vec![],
-            chain: "ethereum".to_string(),
-            days: 100,
-            concurrency: 3,
+            chain: "ethereum,polygon,arbitrum".to_string(),
+            pages: 5,
+            concurrency: 2,
             tags: None,
             contract_type: None,
             extract_sources: None,
@@ -427,7 +427,7 @@ async fn stream_logs(
 async fn run_scan(state: AppState, config: ScanConfig) {
     send_log(&state, "🔍 Starting scan...").await;
     send_log(&state, &format!("Chain: {}", config.chain)).await;
-    send_log(&state, &format!("Days: {}", config.days)).await;
+    send_log(&state, &format!("Pages: {}", config.pages)).await;
     send_log(&state, &format!("Concurrency: {}", config.concurrency)).await;
 
     let project_root = find_project_root().unwrap_or_else(|| std::env::current_dir().unwrap());
@@ -444,8 +444,8 @@ async fn run_scan(state: AppState, config: ScanConfig) {
         .arg("scan")
         .arg("--chains")
         .arg(&config.chain)
-        .arg("--days")
-        .arg(config.days.to_string())
+        .arg("--pages")
+        .arg(config.pages.to_string())
         .arg("--concurrency")
         .arg(config.concurrency.to_string())
         .arg("--min-severity")
@@ -697,6 +697,7 @@ fn parse_and_update_progress(state: &AppState, line: &str) {
     }
 
     // Pattern: "Extracted N contract sources" - track extraction count
+    // This should NOT affect contracts_scanned or contracts_total
     if line.contains("Extracted") && line.contains("contract sources") {
         if let Some(extracted_pos) = line.find("Extracted") {
             let after_extracted = &line[extracted_pos + 9..].trim_start();
@@ -704,7 +705,7 @@ fn parse_and_update_progress(state: &AppState, line: &str) {
                 let num_str = &after_extracted[..space_pos];
                 if let Ok(count) = num_str.parse::<u32>() {
                     state.progress.contracts_extracted.store(count, Ordering::SeqCst);
-                    tracing::debug!("Extracted contracts: {}", count);
+                    tracing::debug!("Extracted contracts: {} (scanned count unchanged)", count);
                     return;
                 }
             }

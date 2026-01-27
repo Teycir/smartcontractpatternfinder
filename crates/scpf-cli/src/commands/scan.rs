@@ -23,12 +23,12 @@ fn get_supported_chains() -> Vec<Chain> {
 async fn fetch_contracts(
     fetcher: &ContractFetcher,
     chains: &[Chain],
-    days: u64,
+    pages: u64,
 ) -> Vec<(String, Chain)> {
     let mut all_contracts = Vec::new();
     for chain in chains {
         eprintln!("📡 Fetching from {}...", chain.as_str());
-        match fetcher.fetch_recent_contracts(*chain, days).await {
+        match fetcher.fetch_recent_contracts(*chain, pages).await {
             Ok(addresses) => {
                 eprintln!("   ✓ Found {} contracts", addresses.len());
                 for addr in addresses {
@@ -350,8 +350,8 @@ fn categorize_findings(scan_results: &[ScanResult]) -> ExploitabilityStats {
 
 pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     eprintln!(
-        "🔍 Scanning contracts updated in last {} days...",
-        args.days
+        "🔍 Fetching {} pages of contracts...",
+        args.pages
     );
     eprintln!(
         "   Severity filter: {} and above",
@@ -366,7 +366,7 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
         args.chains.clone()
     };
 
-    let all_contracts = fetch_contracts(&fetcher, &chains, args.days).await;
+    let all_contracts = fetch_contracts(&fetcher, &chains, args.pages).await;
     if all_contracts.is_empty() {
         eprintln!("⚠️  No recent contracts found");
         
@@ -487,7 +487,7 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     let mut summary = String::new();
     summary.push_str("# 🚨 Vulnerability Scan Summary\n\n");
     summary.push_str(&format!("**Generated:** {}\n", timestamp));
-    summary.push_str(&format!("**Period:** Last {} days\n", args.days));
+    summary.push_str(&format!("**Pages:** {}\n", args.pages));
     summary.push_str(&format!("**Chains:** {}\n", chains.iter().map(|c| c.as_str()).collect::<Vec<_>>().join(", ")));
     summary.push_str(&format!("**Min Severity:** {}\n\n", args.min_severity.to_uppercase()));
     summary.push_str("---\n\n");
@@ -617,7 +617,7 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     log.push_str(&format!("Start: {}\n", timestamp));
     log.push_str(&format!("End: {}\n", scan_end_timestamp));
     log.push_str(&format!("Duration: {}\n\n", duration_display));
-    log.push_str(&format!("Period: Last {} days\n", args.days));
+    log.push_str(&format!("Pages: {}\n", args.pages));
     log.push_str(&format!("Chains: {}\n", chains.iter().map(|c| c.as_str()).collect::<Vec<_>>().join(", ")));
     log.push_str(&format!("Min Severity: {}\n", args.min_severity.to_uppercase()));
     log.push_str(&format!("Templates Loaded: {}\n", template_count));

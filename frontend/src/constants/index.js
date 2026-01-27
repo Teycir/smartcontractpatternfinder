@@ -49,8 +49,8 @@ export const INITIAL_PROGRESS = {
 
 export const INITIAL_CONFIG = {
   addresses: '',
-  chain: 'all',
-  days: 100,
+  chain: 'ethereum',
+  pages: 5,
   concurrency: 2,
   tags: '',
   contract_type: '',
@@ -61,7 +61,7 @@ export const INITIAL_CONFIG = {
 // Scan Presets
 export const SCAN_PRESETS = {
   quick: {
-    days: 7,
+    pages: 3,
     chain: 'ethereum',
     concurrency: 5,
     tags: '',
@@ -70,7 +70,7 @@ export const SCAN_PRESETS = {
     fetch_zero_day: false,
   },
   deep: {
-    days: 30,
+    pages: 10,
     chain: 'all',
     concurrency: 3,
     tags: '',
@@ -79,7 +79,7 @@ export const SCAN_PRESETS = {
     fetch_zero_day: true,
   },
   zeroday: {
-    days: 0,
+    pages: 0,
     chain: 'all',
     concurrency: 2,
     tags: '',
@@ -91,8 +91,8 @@ export const SCAN_PRESETS = {
 
 // Validation Rules
 export const VALIDATION = {
-  DAYS_MIN: 0,
-  DAYS_MAX: 365,
+  PAGES_MIN: 0,
+  PAGES_MAX: 100,
   CONCURRENCY_MIN: 1,
   CONCURRENCY_MAX: 20,
 }

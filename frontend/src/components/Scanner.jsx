@@ -8,7 +8,7 @@ import {
   SCAN_PRESETS,
   SCAN_STATUS,
 } from '../constants'
-import { validateDays, validateConcurrency, buildScanPayload } from '../utils/validation'
+import { validatePages, validateConcurrency, buildScanPayload } from '../utils/validation'
 import { fetchScanStatus, startScan, pauseScan, resumeScan, stopScan, getErrorMessage } from '../utils/api'
 
 /**
@@ -65,6 +65,7 @@ const Scanner = () => {
       setStatus(data.status || SCAN_STATUS.IDLE)
 
       if (data.progress) {
+        console.log('Progress data received:', data.progress)
         setProgress(data.progress)
       }
 
@@ -75,7 +76,7 @@ const Scanner = () => {
           ...prev,
           addresses: cfg.addresses?.join(', ') || prev.addresses,
           chain: cfg.chain || prev.chain,
-          days: cfg.days ?? prev.days,
+          pages: cfg.pages ?? prev.pages,
           concurrency: cfg.concurrency ?? prev.concurrency,
           tags: cfg.tags || prev.tags,
           contract_type: cfg.contract_type || prev.contract_type,
@@ -101,9 +102,9 @@ const Scanner = () => {
     setValidationErrors({})
 
     try {
-      const daysValidation = validateDays(config.days)
-      if (!daysValidation.isValid) {
-        throw new Error(daysValidation.error)
+      const pagesValidation = validatePages(config.pages)
+      if (!pagesValidation.isValid) {
+        throw new Error(pagesValidation.error)
       }
 
       const concurrencyValidation = validateConcurrency(config.concurrency)
@@ -174,12 +175,12 @@ const Scanner = () => {
     setConfig(prev => ({ ...prev, [name]: newValue }))
 
     // Inline validation for specific fields
-    if (name === 'days') {
-      const validation = validateDays(value)
+    if (name === 'pages') {
+      const validation = validatePages(value)
       if (!validation.isValid) {
-        setValidationErrors(prev => ({ ...prev, days: validation.error }))
+        setValidationErrors(prev => ({ ...prev, pages: validation.error }))
       } else {
-        clearValidationError('days')
+        clearValidationError('pages')
       }
     } else if (name === 'concurrency') {
       const validation = validateConcurrency(value)
@@ -219,20 +220,10 @@ const Scanner = () => {
     }
   }, [pollStatus])
 
-  // Detect scan completion for success animation
+  // Track previous status
   useEffect(() => {
-    const wasRunning = prevStatusRef.current === SCAN_STATUS.RUNNING
-    const isNowIdle = status === SCAN_STATUS.IDLE
-    const hasProgress = progress.contracts_scanned > 0
-    const isComplete = progress.contracts_scanned >= progress.contracts_total
-
-    if (wasRunning && isNowIdle && hasProgress && isComplete) {
-      setShowSuccess(true)
-      const timer = setTimeout(() => setShowSuccess(false), TIMEOUTS.SUCCESS_DISPLAY)
-      return () => clearTimeout(timer)
-    }
     prevStatusRef.current = status
-  }, [status, progress])
+  }, [status])
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -300,7 +291,7 @@ const Scanner = () => {
     return undefined
   }, [status])
 
-  const isZeroDayMode = config.days === 0 || config.days === '0'
+  const isZeroDayMode = config.pages === 0 || config.pages === '0'
 
   // ===== RENDER =====
 
@@ -322,16 +313,7 @@ const Scanner = () => {
         </div>
       )}
 
-      {/* Success Celebration */}
-      {showSuccess && (
-        <div className="success-celebration" role="status" aria-live="polite">
-          <div className="celebration-content">
-            <span className="celebration-icon">🎉</span>
-            <span className="celebration-text">Scan Complete!</span>
-            <span className="celebration-icon">✨</span>
-          </div>
-        </div>
-      )}
+
 
       {/* Scanner Controls */}
       <div className="scanner-controls">
@@ -419,7 +401,7 @@ const Scanner = () => {
                 aria-valuemax="100"
               />
               <div className="progress-bar-text">
-                {progress.contracts_scanned} / {progress.contracts_total}
+                {progress.contracts_scanned} contracts scanned
               </div>
             </div>
           )}
@@ -440,7 +422,7 @@ const Scanner = () => {
               className="btn-preset" 
               onClick={() => applyPreset('quick')}
               disabled={isControlsDisabled}
-              title="Quick scan: Last 7 days, Ethereum only, Fast"
+              title="Quick scan: 5 pages, All chains, Fast"
             >
               🚀 Quick
             </button>
@@ -448,7 +430,7 @@ const Scanner = () => {
               className="btn-preset" 
               onClick={() => applyPreset('deep')}
               disabled={isControlsDisabled}
-              title="Deep scan: Last 30 days, All chains, Full analysis"
+              title="Deep scan: 50 pages, All chains, Full analysis"
             >
               🔍 Deep
             </button>
@@ -498,29 +480,29 @@ const Scanner = () => {
           </div>
 
           <div className="config-group">
-            <label htmlFor="days">
-              Days to Scan{' '}
+            <label htmlFor="pages">
+              Pages to Fetch{' '}
               {isZeroDayMode && (
                 <span className="label-hint">(no scan, only 0-day reports)</span>
               )}
             </label>
             <input
-              id="days"
+              id="pages"
               type="number"
-              name="days"
-              value={config.days}
+              name="pages"
+              value={config.pages}
               onChange={handleInputChange}
               min="0"
-              max="365"
+              max="100"
               disabled={isControlsDisabled}
-              className={validationErrors.days ? 'input-error' : ''}
-              title="Set to 0 for only 0-day reports without scanning"
-              aria-invalid={!!validationErrors.days}
-              aria-describedby={validationErrors.days ? 'days-error' : undefined}
+              className={validationErrors.pages ? 'input-error' : ''}
+              title="Number of pages to fetch (100 contracts per page). Set to 0 for only 0-day reports without scanning"
+              aria-invalid={!!validationErrors.pages}
+              aria-describedby={validationErrors.pages ? 'pages-error' : undefined}
             />
-            {validationErrors.days && (
-              <span id="days-error" className="validation-error" role="alert">
-                {validationErrors.days}
+            {validationErrors.pages && (
+              <span id="pages-error" className="validation-error" role="alert">
+                {validationErrors.pages}
               </span>
             )}
           </div>

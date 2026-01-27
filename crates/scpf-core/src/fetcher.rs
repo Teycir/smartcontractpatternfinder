@@ -181,21 +181,23 @@ impl ContractFetcher {
         ))
     }
 
-    /// Fetch recently deployed contracts from last N days
-    pub async fn fetch_recent_contracts(&self, chain: Chain, days: u64) -> Result<Vec<String>> {
+    /// Fetch recently deployed contracts from last N pages (approximately last 7 days)
+    pub async fn fetch_recent_contracts(&self, chain: Chain, pages: u64) -> Result<Vec<String>> {
         let keys = self.api_keys.get(chain).unwrap_or(&[]);
         if keys.is_empty() {
             anyhow::bail!("No API keys configured for {}", chain.as_str());
         }
 
+        let max_pages = pages.min(100); // Cap at 100 pages
+        
+        // Calculate starting block from ~7 days ago to keep results recent
         let cutoff_timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)?
             .as_secs()
-            - (days * 24 * 60 * 60);
-
-        let mut last_error = None;
+            - (7 * 24 * 60 * 60);
 
         for (idx, key) in keys.iter().enumerate() {
+            // Get starting block number
             let block_url = format!(
                 "{}?chainid={}&module=block&action=getblocknobytime&timestamp={}&closest=before&apikey={}",
                 chain.api_base_url(),
@@ -207,45 +209,41 @@ impl ContractFetcher {
             let response = match self.client.get(&block_url).send().await {
                 Ok(r) => r,
                 Err(e) => {
-                    last_error = Some(anyhow::anyhow!("Request failed: {}", e));
-                    continue;
+                    if idx < keys.len() - 1 {
+                        continue;
+                    }
+                    anyhow::bail!("Request failed: {}", e);
                 }
             };
 
             let json: Value = match response.json().await {
                 Ok(j) => j,
                 Err(e) => {
-                    last_error = Some(anyhow::anyhow!("Failed to decode response: {}", e));
-                    continue;
+                    if idx < keys.len() - 1 {
+                        continue;
+                    }
+                    anyhow::bail!("Failed to decode response: {}", e);
                 }
             };
 
             if json["status"].as_str() != Some("1") {
-                last_error = Some(anyhow::anyhow!(
-                    "Failed to get block number: {:?}",
-                    json["message"]
-                ));
                 if idx < keys.len() - 1 {
-                    tracing::warn!(
-                        "API key {} failed for block fetch, trying next key",
-                        idx + 1
-                    );
                     continue;
                 }
-                break;
+                anyhow::bail!("Failed to get block number: {:?}", json["message"]);
             }
 
             let from_block = match json["result"].as_str() {
                 Some(b) => b,
                 None => {
-                    last_error = Some(anyhow::anyhow!("No block number in response"));
-                    continue;
+                    if idx < keys.len() - 1 {
+                        continue;
+                    }
+                    anyhow::bail!("No block number in response");
                 }
             };
-
-            // Paginate through results to get up to 10,000 contracts
+            // Paginate through results to get requested number of pages
             let mut all_addresses = std::collections::HashSet::new();
-            let max_pages = 100; // 100 pages × 100 = 10,000 contracts
             let mut consecutive_failures = 0;
             let max_consecutive_failures = 5;
             let mut current_key_idx = idx;
@@ -419,7 +417,6 @@ impl ContractFetcher {
             return Ok(all_addresses.into_iter().collect());
         }
 
-        Err(last_error
-            .unwrap_or_else(|| anyhow::anyhow!("All API keys failed for {}", chain.as_str())))
+        anyhow::bail!("All API keys failed for {}", chain.as_str())
     }
 }

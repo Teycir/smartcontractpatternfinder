@@ -6,17 +6,17 @@
 import { VALIDATION } from '../constants'
 
 /**
- * Validate days value
- * @param {string|number} value - The days value to validate
+ * Validate pages value
+ * @param {string|number} value - The pages value to validate
  * @returns {{ isValid: boolean, error: string|null }}
  */
-export const validateDays = (value) => {
-  const days = parseInt(value, 10)
-  if (isNaN(days) || days < VALIDATION.DAYS_MIN) {
+export const validatePages = (value) => {
+  const pages = parseInt(value, 10)
+  if (isNaN(pages) || pages < VALIDATION.PAGES_MIN) {
     return { isValid: false, error: 'Must be 0 or greater' }
   }
-  if (days > VALIDATION.DAYS_MAX) {
-    return { isValid: false, error: `Must be ${VALIDATION.DAYS_MAX} or less` }
+  if (pages > VALIDATION.PAGES_MAX) {
+    return { isValid: false, error: `Must be ${VALIDATION.PAGES_MAX} or less` }
   }
   return { isValid: true, error: null }
 }
@@ -52,14 +52,14 @@ export const parseAddresses = (addressString) => {
  * @returns {object}
  */
 export const buildScanPayload = (config) => {
-  const days = parseInt(config.days, 10)
+  const pages = parseInt(config.pages, 10)
   const concurrency = parseInt(config.concurrency, 10)
   const extractSources = parseInt(config.extract_sources, 10)
 
   return {
     addresses: parseAddresses(config.addresses),
     chain: config.chain === 'all' ? 'ethereum,polygon,arbitrum' : config.chain,
-    days,
+    pages,
     concurrency,
     tags: config.tags || null,
     contract_type: config.contract_type || null,
