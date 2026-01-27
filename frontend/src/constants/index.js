@@ -49,7 +49,7 @@ export const INITIAL_PROGRESS = {
 
 export const INITIAL_CONFIG = {
   addresses: '',
-  chain: 'ethereum',
+  chain: 'all',
   pages: 5,
   concurrency: 2,
   tags: '',

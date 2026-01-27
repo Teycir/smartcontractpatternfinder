@@ -12,7 +12,6 @@ use chrono;
 
 struct ExploitabilityStats {
     exploitable: Vec<(usize, scpf_types::Match, scpf_core::ExploitAnalysis)>,
-    false_positives: Vec<(usize, scpf_types::Match, scpf_core::ExploitAnalysis)>,
     needs_review: Vec<(usize, scpf_types::Match, scpf_core::ExploitAnalysis)>,
 }
 
@@ -102,9 +101,9 @@ async fn scan_contracts(
                             let findings = findings_count.lock().await;
                             
                             eprint!(
-                                "\r   [{}/{}] {:.1}% | ETA: {}m{}s | Critical: {} | {:.1}/s   ",
+                                "\r📊 {} / {} contracts scanned ({:.1}%) • {:.1}/s | ETA: {}m{}s | Critical: {}   ",
                                 *p, total, (*p as f64 / total as f64) * 100.0,
-                                eta_mins, eta_secs % 60, *findings, rate
+                                rate, eta_mins, eta_secs % 60, *findings
                             );
                             use std::io::Write;
                             std::io::stderr().flush().ok();
@@ -196,9 +195,7 @@ async fn scan_contracts(
                 if !filtered_matches.is_empty() {
                     let mut findings = findings_count.lock().await;
                     *findings += filtered_matches.len();
-                    if is_tty {
-                        eprintln!("\r   ✓ {} ({}) - {} findings                    ", short_addr, chain.as_str(), filtered_matches.len());
-                    } else {
+                    if !is_tty {
                         eprintln!("      🔍 Scanned in {}ms - {} findings", scan_time_ms, filtered_matches.len());
                     }
                 } else if !is_tty {
@@ -325,7 +322,6 @@ fn extract_solidity_version(source: &str) -> Option<String> {
 
 fn categorize_findings(scan_results: &[ScanResult]) -> ExploitabilityStats {
     let mut exploitable = Vec::new();
-    let mut false_positives = Vec::new();
     let mut needs_review = Vec::new();
 
     for (idx, result) in scan_results.iter().enumerate() {
@@ -333,8 +329,6 @@ fn categorize_findings(scan_results: &[ScanResult]) -> ExploitabilityStats {
             let analysis = scpf_core::analyze_exploitability(m);
             if analysis.is_exploitable {
                 exploitable.push((idx, m.clone(), analysis));
-            } else if analysis.confidence == scpf_core::ExploitConfidence::High {
-                false_positives.push((idx, m.clone(), analysis));
             } else {
                 needs_review.push((idx, m.clone(), analysis));
             }
@@ -343,7 +337,6 @@ fn categorize_findings(scan_results: &[ScanResult]) -> ExploitabilityStats {
 
     ExploitabilityStats {
         exploitable,
-        false_positives,
         needs_review,
     }
 }
@@ -436,7 +429,6 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     let (all_scan_results, cache, skipped_timeouts) =
         scan_contracts(all_contracts, templates, fetcher, min_sev, args.concurrency).await?;
     let scan_results = rank_and_score(all_scan_results);
-    eprintln!("⏳ Scanning {} contracts...", scan_results.len());
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
@@ -458,14 +450,10 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
         exploitable_count,
         stats.exploitable.len()
     );
-    eprintln!(
-        "   ❌ False Positives: {} findings",
-        stats.false_positives.len()
-    );
     eprintln!("   ⚠️  Needs Review: {} findings", stats.needs_review.len());
     eprintln!(
         "   📊 Total: {} findings across {} contracts\n",
-        stats.exploitable.len() + stats.false_positives.len() + stats.needs_review.len(),
+        stats.exploitable.len() + stats.needs_review.len(),
         scan_results.len()
     );
 
@@ -495,9 +483,8 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     summary.push_str("## 📊 Scan Results\n\n");
     summary.push_str(&format!("- **Contracts Scanned:** {}\n", scan_results.len()));
     summary.push_str(&format!("- **Exploitable Contracts:** {}\n", exploitable_count));
-    summary.push_str(&format!("- **Total Findings:** {}\n", stats.exploitable.len() + stats.false_positives.len() + stats.needs_review.len()));
+    summary.push_str(&format!("- **Total Findings:** {}\n", stats.exploitable.len() + stats.needs_review.len()));
     summary.push_str(&format!("  - 🚨 Exploitable: {}\n", stats.exploitable.len()));
-    summary.push_str(&format!("  - ❌ False Positives: {}\n", stats.false_positives.len()));
     summary.push_str(&format!("  - ⚠️  Needs Review: {}\n\n", stats.needs_review.len()));
 
     // Pattern frequency analysis
@@ -613,10 +600,10 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     };
 
     let mut log = String::new();
-    log.push_str(&format!("SCPF Scan Log\n"));
-    log.push_str(&format!("Start: {}\n", timestamp));
-    log.push_str(&format!("End: {}\n", scan_end_timestamp));
-    log.push_str(&format!("Duration: {}\n\n", duration_display));
+    log.push_str("=== SCPF Scan Log ===\n\n");
+    log.push_str(&format!("🕒 Started:  {}\n", chrono::DateTime::from_timestamp(timestamp as i64, 0).unwrap().format("%Y-%m-%d %H:%M:%S")));
+    log.push_str(&format!("🕒 Finished: {}\n", chrono::DateTime::from_timestamp(scan_end_timestamp as i64, 0).unwrap().format("%Y-%m-%d %H:%M:%S")));
+    log.push_str(&format!("⏱️  Duration: {}\n\n", duration_display));
     log.push_str(&format!("Pages: {}\n", args.pages));
     log.push_str(&format!("Chains: {}\n", chains.iter().map(|c| c.as_str()).collect::<Vec<_>>().join(", ")));
     log.push_str(&format!("Min Severity: {}\n", args.min_severity.to_uppercase()));
@@ -626,7 +613,7 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
 
     log.push_str(&format!("Total Contracts Scanned: {}\n", scan_results.len()));
     log.push_str(&format!("Exploitable Contracts: {}\n", exploitable_count));
-    log.push_str(&format!("Total Findings: {}\n\n", stats.exploitable.len() + stats.false_positives.len() + stats.needs_review.len()));
+    log.push_str(&format!("Total Findings: {}\n\n", stats.exploitable.len() + stats.needs_review.len()));
 
     for (i, result) in scan_results.iter().enumerate() {
         log.push_str(&format!("\n[{}] {} ({})\n", i + 1, result.address, result.chain));
@@ -677,7 +664,7 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
         .unwrap_or(false);
 
     // Extract exploitable contracts OR top by risk score
-    if exploitable_count > 0 {
+    let extracted_count = if exploitable_count > 0 {
         eprintln!("\n📄 Extracting top {} exploitable contracts...", top_n);
         let mut sorted_exploitable: Vec<_> = exploitable_contracts
             .iter()
@@ -709,6 +696,7 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
                 );
             }
         }
+        sorted_exploitable.iter().take(top_n).count()
     } else if extract_by_risk && !scan_results.is_empty() {
         eprintln!("\n📄 Extracting top {} contracts by risk score...", top_n);
 
@@ -736,7 +724,14 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
                 );
             }
         }
-    }
+        scan_results.iter().take(top_n).count()
+    } else {
+        0
+    };
+
+    // Print summary
+    eprintln!("\n📊 Scan complete");
+    eprintln!("📁 {} extracted to folder for further analysis\n", extracted_count);
 
     // Extract top N riskiest contract sources if --extract-sources is set
     if let Some(extract_count) = args.extract_sources {
@@ -793,7 +788,7 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     }
 
     eprintln!("\n{}", "=".repeat(80));
-    eprintln!("✅ Scan completed successfully");
+    eprintln!("📂 Report directory: {}", root_dir.display());
     eprintln!("{}", "=".repeat(80));
 
     // Report skipped contracts
