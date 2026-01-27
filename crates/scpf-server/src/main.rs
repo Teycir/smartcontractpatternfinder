@@ -67,7 +67,7 @@ impl ScanProgress {
             *rate = None;
         }
     }
-    
+
     fn to_json(&self) -> serde_json::Value {
         let total = self.contracts_total.load(Ordering::SeqCst);
         let current = self.current_contract.try_read().ok().and_then(|c| c.clone());
@@ -153,7 +153,7 @@ async fn main() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:8080")
         .await
         .unwrap();
-    
+
     tracing::info!("Server listening on http://127.0.0.1:8080");
     axum::serve(listener, app).await.unwrap();
 }
@@ -191,7 +191,7 @@ async fn start_scan(
 
     // Reset progress for new scan
     state.progress.reset();
-    
+
     // Clear previous results
     {
         let mut results = state.results.write().await;
@@ -201,12 +201,12 @@ async fn start_scan(
         let mut report_path = state.report_path.write().await;
         *report_path = None;
     }
-    
+
     {
         let mut status = state.scan_status.write().await;
         *status = ScanStatus::Running;
     }
-    
+
     {
         let mut cfg = state.scan_config.write().await;
         *cfg = Some(config.clone());
@@ -235,7 +235,7 @@ async fn pause_scan(State(state): State<AppState>) -> impl IntoResponse {
     }
 
     let pid = state.child_pid.lock().await.clone();
-    
+
     if let Some(pid) = pid {
         #[cfg(unix)]
         {
@@ -252,14 +252,14 @@ async fn pause_scan(State(state): State<AppState>) -> impl IntoResponse {
                 }
             }
         }
-        
+
         {
             let mut status = state.scan_status.write().await;
             *status = ScanStatus::Paused;
         }
-        
+
         send_log(&state, "⏸️ Scan paused").await;
-        
+
         (
             StatusCode::OK,
             Json(serde_json::json!({"message": "Scan paused"})),
@@ -284,7 +284,7 @@ async fn resume_scan(State(state): State<AppState>) -> impl IntoResponse {
     }
 
     let pid = state.child_pid.lock().await.clone();
-    
+
     if let Some(pid) = pid {
         #[cfg(unix)]
         {
@@ -295,14 +295,14 @@ async fn resume_scan(State(state): State<AppState>) -> impl IntoResponse {
                 unsafe { libc::kill(pid as i32, libc::SIGCONT) };
             }
         }
-        
+
         {
             let mut status = state.scan_status.write().await;
             *status = ScanStatus::Running;
         }
-        
+
         send_log(&state, "▶️ Scan resumed").await;
-        
+
         (
             StatusCode::OK,
             Json(serde_json::json!({"message": "Scan resumed"})),
@@ -327,16 +327,16 @@ async fn stop_scan(State(state): State<AppState>) -> impl IntoResponse {
     }
 
     let pid = state.child_pid.lock().await.take();
-    
+
     if let Some(pid) = pid {
         #[cfg(unix)]
         {
             // First resume if paused, then terminate entire process group
-            unsafe { 
+            unsafe {
                 libc::kill(-(pid as i32), libc::SIGCONT);
                 libc::kill(-(pid as i32), libc::SIGTERM);
             }
-            
+
             // Give it a moment, then force kill if needed
             tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
             unsafe {
@@ -349,14 +349,14 @@ async fn stop_scan(State(state): State<AppState>) -> impl IntoResponse {
         let mut status = state.scan_status.write().await;
         *status = ScanStatus::Idle;
     }
-    
+
     {
         let mut cfg = state.scan_config.write().await;
         *cfg = None;
     }
-    
+
     send_log(&state, "🛑 Scan stopped by user").await;
-    
+
     (
         StatusCode::OK,
         Json(serde_json::json!({"message": "Scan stopped"})),
@@ -373,7 +373,7 @@ async fn get_results(State(state): State<AppState>) -> impl IntoResponse {
 
 async fn export_results(State(state): State<AppState>) -> impl IntoResponse {
     let report_path = state.report_path.read().await;
-    
+
     if let Some(path) = report_path.as_ref() {
         if path.exists() {
             match tokio::fs::read_to_string(path).await {
@@ -393,7 +393,7 @@ async fn export_results(State(state): State<AppState>) -> impl IntoResponse {
             }
         }
     }
-    
+
     (
         StatusCode::NOT_FOUND,
         Json(serde_json::json!({"error": "No report available"}))
@@ -410,7 +410,7 @@ async fn export_logs(
     Json(payload): Json<ExportLogsRequest>,
 ) -> impl IntoResponse {
     let report_path = state.report_path.read().await;
-    
+
     let log_path = if let Some(path) = report_path.as_ref() {
         path.parent().map(|p| p.join("console.log"))
     } else {
@@ -424,7 +424,7 @@ async fn export_logs(
         ));
         Some(default_dir.join("console.log"))
     };
-    
+
     if let Some(path) = log_path {
         if let Some(parent) = path.parent() {
             if let Err(e) = tokio::fs::create_dir_all(parent).await {
@@ -434,7 +434,7 @@ async fn export_logs(
                 ).into_response();
             }
         }
-        
+
         match tokio::fs::write(&path, payload.logs).await {
             Ok(_) => {
                 (
@@ -464,7 +464,7 @@ async fn stream_logs(
     State(state): State<AppState>,
 ) -> Sse<impl Stream<Item = Result<Event, std::convert::Infallible>>> {
     let (tx, mut rx) = mpsc::unbounded_channel::<String>();
-    
+
     {
         let mut log_tx = state.log_tx.write().await;
         log_tx.push(tx);
@@ -472,7 +472,7 @@ async fn stream_logs(
 
     let stream = async_stream::stream! {
         yield Ok(Event::default().data("Connected"));
-        
+
         while let Some(log) = rx.recv().await {
             yield Ok(Event::default().data(log));
         }
@@ -492,7 +492,7 @@ async fn run_scan(state: AppState, config: ScanConfig) {
     send_log(&state, &format!("Concurrency: {}", config.concurrency)).await;
 
     let project_root = find_project_root().unwrap_or_else(|| std::env::current_dir().unwrap());
-    
+
     let mut cmd = tokio::process::Command::new("cargo");
     cmd.current_dir(&project_root);
     cmd.arg("run")
@@ -608,7 +608,7 @@ async fn run_scan(state: AppState, config: ScanConfig) {
             match child.wait().await {
                 Ok(status) => {
                     let current_status = state.scan_status.read().await.clone();
-                    
+
                     if current_status == ScanStatus::Idle {
                         // Was stopped by user - message already sent
                     } else if status.success() {
@@ -656,7 +656,7 @@ fn parse_and_update_progress(state: &AppState, line: &str) {
             results.push(line.to_string());
         }
     }
-    
+
     // Capture report path
     if line.contains("Vulnerability summary:") || line.contains("vuln_summary.md") {
         if let Some(path_start) = line.rfind('/') {
@@ -675,18 +675,20 @@ fn parse_and_update_progress(state: &AppState, line: &str) {
     }
     // Pattern: "[851/10553]" - extract progress from contract scanning lines
     // Using simple string parsing for reliability
-    if let Some(bracket_start) = line.find('[') {
-        if let Some(bracket_end) = line[bracket_start..].find(']') {
-            let bracket_content = &line[bracket_start + 1..bracket_start + bracket_end];
-            if let Some(slash_pos) = bracket_content.find('/') {
-                let current_str = &bracket_content[..slash_pos];
-                let total_str = &bracket_content[slash_pos + 1..];
-                
-                // Only parse if both parts are numeric
-                if let (Ok(current), Ok(total)) = (current_str.parse::<u32>(), total_str.parse::<u32>()) {
-                    state.progress.contracts_scanned.store(current, Ordering::SeqCst);
-                    state.progress.contracts_total.store(total, Ordering::SeqCst);
-                    
+    // Skip if this is extraction progress (contains "Extracting" or "extracted")
+    if !line.contains("Extracting") && !line.contains("extracted") {
+        if let Some(bracket_start) = line.find('[') {
+            if let Some(bracket_end) = line[bracket_start..].find(']') {
+                let bracket_content = &line[bracket_start + 1..bracket_start + bracket_end];
+                if let Some(slash_pos) = bracket_content.find('/') {
+                    let current_str = &bracket_content[..slash_pos];
+                    let total_str = &bracket_content[slash_pos + 1..];
+
+                    // Only parse if both parts are numeric
+                    if let (Ok(current), Ok(total)) = (current_str.parse::<u32>(), total_str.parse::<u32>()) {
+                        state.progress.contracts_scanned.store(current, Ordering::SeqCst);
+                        state.progress.contracts_total.store(total, Ordering::SeqCst);
+
                     // Parse enhanced metrics: "[50/200] 25.0% | ETA: 5m30s | Critical: 42 | 2.5/s"
                     if let Some(eta_pos) = line.find("ETA:") {
                         let after_eta = &line[eta_pos + 4..].trim_start();
@@ -702,7 +704,7 @@ fn parse_and_update_progress(state: &AppState, line: &str) {
                             }
                         }
                     }
-                    
+
                     // Parse critical findings: "Critical: 42"
                     if let Some(critical_pos) = line.find("Critical:") {
                         let after_critical = &line[critical_pos + 9..].trim_start();
@@ -712,7 +714,7 @@ fn parse_and_update_progress(state: &AppState, line: &str) {
                             }
                         }
                     }
-                    
+
                     // Parse rate: "2.5/s"
                     if let Some(rate_match) = line.rfind(|c: char| c.is_ascii_digit() || c == '.') {
                         let before_rate = &line[..=rate_match];
@@ -725,14 +727,15 @@ fn parse_and_update_progress(state: &AppState, line: &str) {
                             }
                         }
                     }
-                    
+
                     tracing::debug!("Progress updated: {}/{}", current, total);
                     return;
                 }
             }
         }
     }
-    
+    }
+
     // Pattern: "Scanning N contracts" - definitive total count at start
     // Only update if new value is higher (to handle multiple scanning phases)
     if line.contains("Scanning") && line.contains("contracts") {
@@ -772,7 +775,7 @@ fn parse_and_update_progress(state: &AppState, line: &str) {
             }
         }
     }
-    
+
     // Pattern: "✅ Scanning complete" - mark as done
     if line.contains("Scanning complete") {
         let total = state.progress.contracts_total.load(Ordering::SeqCst);
@@ -791,13 +794,13 @@ async fn send_log(state: &AppState, message: &str) {
 
 fn find_project_root() -> Option<std::path::PathBuf> {
     let mut current = std::env::current_dir().ok()?;
-    
+
     for _ in 0..5 {
         if current.join("templates").is_dir() && current.join("Cargo.toml").is_file() {
             return Some(current);
         }
         current = current.parent()?.to_path_buf();
     }
-    
+
     None
 }
