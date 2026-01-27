@@ -303,7 +303,7 @@ const Console = () => {
             onClick={clearLogs} 
             className="btn-clear"
             title="Clear all logs"
-            disabled={logs.length === 0}
+            disabled={logs.length === 0 || isScanning}
           >
             🗑️ Clear
           </button>
