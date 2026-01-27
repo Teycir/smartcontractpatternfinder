@@ -128,18 +128,23 @@ const Scanner = () => {
 
     window.addEventListener('keydown', handleKeyPress)
     return () => window.removeEventListener('keydown', handleKeyPress)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status])
 
-  const handleStart = async () => {
+  const handleStart = useCallback(async () => {
     if (isLoading) return
 
+    console.log('Starting scan with config:', config)
     setIsLoading(true)
     setError('')
+    setValidationErrors({})
 
     try {
       // Validate configuration
       const days = parseInt(config.days, 10)
       const concurrency = parseInt(config.concurrency, 10)
+
+      console.log('Validation - days:', days, 'concurrency:', concurrency)
 
       if (isNaN(days) || days < 0) {
         throw new Error('Days must be 0 or greater (0 = only 0-day reports, no scanning)')
@@ -165,7 +170,9 @@ const Scanner = () => {
         fetch_zero_day: config.fetch_zero_day ? 30 : null,
       }
 
-      await axios.post('/api/start', payload, { timeout: 10000 })
+      console.log('Sending payload to /api/start:', payload)
+      const response = await axios.post('/api/start', payload, { timeout: 10000 })
+      console.log('Scan started successfully:', response.data)
       setStatus('running')
     } catch (err) {
       const errorMessage = err.response?.data?.error || err.message || 'Failed to start scan'
@@ -174,9 +181,9 @@ const Scanner = () => {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [isLoading, config, showError])
 
-  const handlePause = async () => {
+  const handlePause = useCallback(async () => {
     if (isLoading) return
 
     setIsLoading(true)
@@ -189,9 +196,9 @@ const Scanner = () => {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [isLoading, showError])
 
-  const handleResume = async () => {
+  const handleResume = useCallback(async () => {
     if (isLoading) return
 
     setIsLoading(true)
@@ -204,9 +211,9 @@ const Scanner = () => {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [isLoading, showError])
 
-  const handleStop = async () => {
+  const handleStop = useCallback(async () => {
     if (isLoading) return
 
     setIsLoading(true)
@@ -231,7 +238,7 @@ const Scanner = () => {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [isLoading, showError])
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target
