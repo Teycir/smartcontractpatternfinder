@@ -362,9 +362,9 @@ const Scanner = () => {
         <div className="progress-section">
           <div className="progress-header">
             <span className="progress-label">
-              📊 {progress.contracts_scanned}
-              {progress.contracts_total ? ` / ${progress.contracts_total}` : ''} contracts scanned
-              {progress.contracts_total > 0 && (
+              📊 {status === SCAN_STATUS.IDLE && progress.contracts_scanned > 0 && progress.contracts_scanned >= progress.contracts_total ? 'All' : progress.contracts_scanned}
+              {progress.contracts_total && !(status === SCAN_STATUS.IDLE && progress.contracts_scanned >= progress.contracts_total) ? ` / ${progress.contracts_total}` : ''} contracts scanned
+              {progress.contracts_total > 0 && !(status === SCAN_STATUS.IDLE && progress.contracts_scanned >= progress.contracts_total) && (
                 <strong className="progress-percent">({progressPercent.toFixed(1)}%)</strong>
               )}
               {etaDisplay && (
@@ -400,9 +400,6 @@ const Scanner = () => {
                 aria-valuemin="0"
                 aria-valuemax="100"
               />
-              <div className="progress-bar-text">
-                {progress.contracts_scanned} contracts scanned
-              </div>
             </div>
           )}
           {progress.current_contract_name && status === SCAN_STATUS.RUNNING && (

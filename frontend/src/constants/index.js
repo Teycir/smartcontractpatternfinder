@@ -12,6 +12,7 @@ export const API_ENDPOINTS = {
   STOP: '/api/stop',
   LOGS: '/api/logs',
   HEALTH: '/api/health',
+  EXPORT_LOGS: '/api/export-logs',
 }
 
 // Timeout Configuration (in milliseconds)

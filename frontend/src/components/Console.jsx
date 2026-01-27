@@ -200,6 +200,18 @@ const Console = () => {
       })
   }, [])
 
+  const copyAllLogs = useCallback(() => {
+    const allLogsText = logs.map(log => `[${log.timestamp}] ${log.message}`).join('\n')
+    navigator.clipboard.writeText(allLogsText)
+      .then(() => {
+        addLog('✅ All logs copied to clipboard', 'system')
+      })
+      .catch(err => {
+        console.error('Failed to copy all logs:', err)
+        addLog('❌ Failed to copy logs', 'system')
+      })
+  }, [logs, addLog])
+
   // ===== EFFECTS =====
 
   // Initialize connection and polling
@@ -291,8 +303,18 @@ const Console = () => {
             onClick={clearLogs} 
             className="btn-clear"
             title="Clear all logs"
+            disabled={logs.length === 0}
           >
             🗑️ Clear
+          </button>
+          
+          <button 
+            onClick={copyAllLogs} 
+            className="btn-copy-all"
+            title="Copy all logs to clipboard"
+            disabled={logs.length === 0 || isScanning}
+          >
+            📋 Copy All
           </button>
         </div>
       </header>

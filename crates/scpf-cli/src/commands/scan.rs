@@ -469,7 +469,6 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     std::fs::create_dir_all(&root_dir)?;
 
     let vuln_summary = root_dir.join("vuln_summary.md");
-    let scan_log = root_dir.join("scan.log");
 
     // Generate enhanced summary
     let mut summary = String::new();
@@ -585,60 +584,6 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
 
     std::fs::write(&vuln_summary, summary)?;
     eprintln!("📊 Vulnerability summary: {}", vuln_summary.display());
-
-    // Write full scan log
-    let scan_end_timestamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
-    let duration_secs = scan_end_timestamp - timestamp;
-    let duration_mins = duration_secs / 60;
-    let duration_display = if duration_mins > 0 {
-        format!("{}m {}s", duration_mins, duration_secs % 60)
-    } else {
-        format!("{}s", duration_secs)
-    };
-
-    let mut log = String::new();
-    log.push_str("=== SCPF Scan Log ===\n\n");
-    log.push_str(&format!("🕒 Started:  {}\n", chrono::DateTime::from_timestamp(timestamp as i64, 0).unwrap().format("%Y-%m-%d %H:%M:%S")));
-    log.push_str(&format!("🕒 Finished: {}\n", chrono::DateTime::from_timestamp(scan_end_timestamp as i64, 0).unwrap().format("%Y-%m-%d %H:%M:%S")));
-    log.push_str(&format!("⏱️  Duration: {}\n\n", duration_display));
-    log.push_str(&format!("Pages: {}\n", args.pages));
-    log.push_str(&format!("Chains: {}\n", chains.iter().map(|c| c.as_str()).collect::<Vec<_>>().join(", ")));
-    log.push_str(&format!("Min Severity: {}\n", args.min_severity.to_uppercase()));
-    log.push_str(&format!("Templates Loaded: {}\n", template_count));
-    log.push_str(&"=".repeat(80));
-    log.push_str("\n\n");
-
-    log.push_str(&format!("Total Contracts Scanned: {}\n", scan_results.len()));
-    log.push_str(&format!("Exploitable Contracts: {}\n", exploitable_count));
-    log.push_str(&format!("Total Findings: {}\n\n", stats.exploitable.len() + stats.needs_review.len()));
-
-    for (i, result) in scan_results.iter().enumerate() {
-        log.push_str(&format!("\n[{}] {} ({})\n", i + 1, result.address, result.chain));
-        log.push_str(&format!("    Risk Score: {:.1} (Raw: {})\n", result.weighted_risk_score(), result.total_risk_score()));
-        log.push_str(&format!("    Size: {:.1} KB\n", result.source_size_kb.unwrap_or(0.0)));
-        log.push_str(&format!("    Scan Time: {}ms\n", result.scan_time_ms));
-        if let Some(version) = &result.solidity_version {
-            log.push_str(&format!("    Solidity: {}\n", version));
-        }
-        log.push_str(&format!("    Findings: {}\n", result.matches.len()));
-        
-        for (j, m) in result.matches.iter().enumerate() {
-            log.push_str(&format!("      [{}] {} ({:?})\n", j + 1, m.pattern_id, m.severity));
-            log.push_str(&format!("          Line: {}\n", m.line_number));
-            if let Some(ctx) = &m.function_context {
-                log.push_str(&format!("          Function: {}() [{:?}]\n", ctx.name, ctx.visibility));
-            }
-            if let Some(snippet) = &m.code_snippet {
-                log.push_str(&format!("          Snippet: {}\n", snippet.vulnerable_line.trim()));
-            }
-        }
-    }
-
-    std::fs::write(&scan_log, log)?;
-    eprintln!("📝 Full scan log: {}", scan_log.display());
 
     // Generate 0-day summary if fetch_zero_day was enabled
     if let Some(days) = args.fetch_zero_day {

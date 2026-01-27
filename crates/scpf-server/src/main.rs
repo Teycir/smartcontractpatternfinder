@@ -146,6 +146,7 @@ async fn main() {
         .route("/api/logs", get(stream_logs))
         .route("/api/results", get(get_results))
         .route("/api/export", get(export_results))
+        .route("/api/export-logs", post(export_logs))
         .layer(CorsLayer::permissive())
         .with_state(state);
 
@@ -397,6 +398,66 @@ async fn export_results(State(state): State<AppState>) -> impl IntoResponse {
         StatusCode::NOT_FOUND,
         Json(serde_json::json!({"error": "No report available"}))
     ).into_response()
+}
+
+#[derive(Deserialize)]
+struct ExportLogsRequest {
+    logs: String,
+}
+
+async fn export_logs(
+    State(state): State<AppState>,
+    Json(payload): Json<ExportLogsRequest>,
+) -> impl IntoResponse {
+    let report_path = state.report_path.read().await;
+    
+    let log_path = if let Some(path) = report_path.as_ref() {
+        path.parent().map(|p| p.join("console.log"))
+    } else {
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let default_dir = std::path::PathBuf::from(format!(
+            "/home/teycir/smartcontractpatternfinderReports/report_{}",
+            timestamp
+        ));
+        Some(default_dir.join("console.log"))
+    };
+    
+    if let Some(path) = log_path {
+        if let Some(parent) = path.parent() {
+            if let Err(e) = tokio::fs::create_dir_all(parent).await {
+                return (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({"error": format!("Failed to create directory: {}", e)}))
+                ).into_response();
+            }
+        }
+        
+        match tokio::fs::write(&path, payload.logs).await {
+            Ok(_) => {
+                (
+                    StatusCode::OK,
+                    Json(serde_json::json!({
+                        "message": "Logs exported successfully",
+                        "path": path.display().to_string()
+                    }))
+                ).into_response()
+            }
+            Err(e) => {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({"error": format!("Failed to write logs: {}", e)}))
+                ).into_response()
+            }
+        }
+    } else {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": "Could not determine export path"}))
+        ).into_response()
+    }
 }
 
 async fn stream_logs(

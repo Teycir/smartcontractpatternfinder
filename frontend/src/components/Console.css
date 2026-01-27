@@ -298,3 +298,50 @@
 .btn-copy-log:active {
   transform: scale(0.95);
 }
+
+/* Copy All and Export buttons */
+.btn-copy-all,
+.btn-export {
+  padding: 0.5rem 1rem;
+  background: #21262d;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  color: #c9d1d9;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-copy-all:hover:not(:disabled),
+.btn-export:hover:not(:disabled) {
+  background: #30363d;
+  border-color: #484f58;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.btn-copy-all:active:not(:disabled),
+.btn-export:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-copy-all:disabled,
+.btn-export:disabled,
+.btn-clear:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-export {
+  background: linear-gradient(135deg, #1f6feb 0%, #58a6ff 100%);
+  border-color: #58a6ff;
+  color: #ffffff;
+}
+
+.btn-export:hover:not(:disabled) {
+  background: linear-gradient(135deg, #58a6ff 0%, #79c0ff 100%);
+  border-color: #79c0ff;
+  box-shadow: 0 2px 8px rgba(88, 166, 255, 0.4);
+}
