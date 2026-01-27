@@ -366,7 +366,7 @@ const Scanner = () => {
           <div className="progress-header">
             <span className="progress-label">
               📊 {progress.contracts_scanned}
-              {progress.contracts_total ? ` / ${progress.contracts_total}` : ''} contracts scanned
+              {progress.contracts_total ? ` / ${progress.contracts_total}` : ''} contracts
               {progress.contracts_total > 0 && (
                 <strong className="progress-percent">({progressPercent.toFixed(1)}%)</strong>
               )}
