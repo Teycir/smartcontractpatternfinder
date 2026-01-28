@@ -154,6 +154,15 @@ impl Scanner {
             seen.insert(key)
         });
 
+        // Filter out interface declarations (functions ending with semicolon)
+        matches.retain(|m| {
+            // Check if matched text or context contains interface pattern
+            let is_interface = m.context.contains(";")
+                && !m.context.contains("{")
+                && (m.matched_text.contains("function") || m.context.contains("function"));
+            !is_interface
+        });
+
         // Apply global limit
         const MAX_PATTERNS_PER_FILE: usize = 10000;
         if matches.len() > MAX_PATTERNS_PER_FILE {
