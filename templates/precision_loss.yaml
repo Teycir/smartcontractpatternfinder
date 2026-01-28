@@ -8,8 +8,10 @@ tags:
   - 0-day
 patterns:
   - id: division-before-multiplication
+    kind: regex
     pattern: '(amount|balance|fee|reward|share)\s*\/\s*\w+\s*\*\s*\w+'
     message: Division before multiplication - precision loss (BalancerV2 $120M exploit)
   - id: unsafe-downcast
+    kind: regex
     pattern: 'uint128\([^)]{0,50}uint256'
     message: Unsafe uint256→uint128 downcast without overflow check

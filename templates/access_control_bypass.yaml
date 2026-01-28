@@ -9,26 +9,34 @@ tags:
   - 0-day-2025
 patterns:
   - id: public-withdraw-no-auth
+    kind: regex
     pattern: 'function\s+withdraw[^{]{0,100}public'
     message: TokenHolder pattern - public withdraw without access control
   - id: external-mint-no-modifier
+    kind: regex
     pattern: 'function\s+mint\([^)]{0,50}\)\s*external'
     message: Public mint without access control - unlimited minting
   - id: external-burn-no-modifier
+    kind: regex
     pattern: 'function\s+burn\([^)]{0,50}\)\s*external'
     message: Public burn without access control
   - id: setowner-no-auth
+    kind: regex
     pattern: 'function\s+setOwner[^{]{0,100}external'
     message: setOwner without access control - ownership takeover
   - id: unprotected-initialize
+    kind: regex
     pattern: 'function\s+initialize[^{]{0,100}public'
     message: SuperRare pattern - unprotected initialize (proxy takeover)
   - id: arbitrary-call-no-check
+    kind: regex
     pattern: '\.call\{value:[^}]{0,50}\}\([^)]{0,50}\)'
     message: Arbitrary call without access control - fund drainage
   - id: delegatecall-no-whitelist
+    kind: regex
     pattern: 'delegatecall\([^)]{0,50}\)'
     message: Delegatecall without whitelist - arbitrary code execution
   - id: selfdestruct-no-auth
+    kind: regex
     pattern: 'selfdestruct\([^)]{0,50}\)'
     message: Unprotected selfdestruct - contract destruction

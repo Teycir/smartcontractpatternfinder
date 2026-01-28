@@ -9,20 +9,26 @@ tags:
   - 0-day-2026
 patterns:
   - id: claim-without-state-update
+    kind: regex
     pattern: 'function\s+claim[Rr]eward[^{]{0,100}\{(?!.{0,500}(?:rewards\[.*\]\s*=\s*0|_updateReward|delete\s+rewards))'
     message: PRXVT pattern - claim without zeroing rewards (double-claim risk)
   - id: stake-claim-same-tx
+    kind: regex
     pattern: 'function\s+stake[^{]{0,100}\{[^}]{0,300}claim'
     message: PRXVT pattern - stake() calls claim() in same tx (loop exploit)
   - id: reward-earned-view-mutable
+    kind: regex
     pattern: 'function\s+earned[^{]{0,100}view[^{]{0,100}returns[^{]{0,100}\{[^}]{0,200}\+='
     message: View function modifying state - reward calculation error
   - id: claim-no-reentrancy-guard
+    kind: regex
     pattern: 'function\s+claim[^{]{0,100}\{(?!.{0,500}(?:nonReentrant|locked\s*=\s*true|ReentrancyGuard)).{0,500}transfer'
     message: Claim with transfer but no reentrancy protection
   - id: reward-update-after-transfer
+    kind: regex
     pattern: '(transfer|call\{value)[^\n]{0,50}\n[^\n]{0,100}rewards\['
     message: State update after transfer - reentrancy vulnerable (CEI violation)
   - id: getreward-public-callable
+    kind: regex
     pattern: 'function\s+getReward[^{]{0,100}public(?!.{0,200}(?:nonReentrant|only)).{0,300}transfer'
     message: Public getReward without protection - inflation risk

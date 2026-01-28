@@ -8,5 +8,6 @@ tags:
   - SWC-105
 patterns:
   - id: critical-function-no-modifier
+    kind: regex
     pattern: 'function\s+(?:withdraw|mint|setOwner|transferOwnership|upgrade|initialize)\s*\([^)]*\)\s+(?:public|external)(?!.{0,1000}(?:onlyOwner|onlyRole|onlyAdmin))'
     message: Critical function without access control modifier

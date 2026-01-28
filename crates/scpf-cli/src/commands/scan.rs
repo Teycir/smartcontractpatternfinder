@@ -1,6 +1,6 @@
 use crate::cli::ScanArgs;
 use anyhow::Result;
-use scpf_core::{Cache, ContractFetcher, Scanner, TemplateLoader};
+use scpf_core::{Cache, ContractFetcher, Scanner, TemplateLoader, HoneypotFilter};
 use scpf_types::{Chain, ScanResult, Severity, Template};
 use std::io::IsTerminal;
 use std::path::PathBuf;
@@ -61,6 +61,8 @@ async fn scan_contracts(
     let progress = Arc::new(tokio::sync::Mutex::new(0usize));
     let findings_count = Arc::new(tokio::sync::Mutex::new(0usize));
     let seen_hashes = Arc::new(tokio::sync::Mutex::new(std::collections::HashSet::new()));
+    let honeypot_filter = Arc::new(HoneypotFilter::new().expect("Failed to create honeypot filter"));
+    let honeypot_count = Arc::new(tokio::sync::Mutex::new(0usize));
     
     // Use concurrency parameter for both API and scan limits
     let api_semaphore = Arc::new(Semaphore::new(concurrency));
@@ -74,6 +76,8 @@ async fn scan_contracts(
             let progress = Arc::clone(&progress);
             let findings_count = Arc::clone(&findings_count);
             let seen_hashes = Arc::clone(&seen_hashes);
+            let honeypot_filter = Arc::clone(&honeypot_filter);
+            let honeypot_count = Arc::clone(&honeypot_count);
             let api_semaphore = Arc::clone(&api_semaphore);
             let scan_semaphore = Arc::clone(&scan_semaphore);
             
@@ -171,6 +175,17 @@ async fn scan_contracts(
                     return Ok(None);
                 }
 
+                // Honeypot detection
+                let (is_honeypot, honeypot_patterns) = honeypot_filter.is_honeypot(&source);
+                if is_honeypot {
+                    let mut hp_count = honeypot_count.lock().await;
+                    *hp_count += 1;
+                    if !is_tty {
+                        eprintln!("      🍯 Honeypot detected - skipping (patterns: {})", honeypot_patterns.join(", "));
+                    }
+                    return Ok(None);
+                }
+
                 let start = Instant::now();
                 
                 // Acquire scan semaphore for CPU-bound work
@@ -247,10 +262,16 @@ async fn scan_contracts(
     let duration_mins = duration.as_secs() / 60;
     let duration_secs = duration.as_secs() % 60;
     
+    let honeypot_total = *honeypot_count.lock().await;
+    
     eprintln!("🕐 Started:  {}", start_time.format("%Y-%m-%d %H:%M:%S"));
     eprintln!("🕐 Finished: {}", end_time.format("%Y-%m-%d %H:%M:%S"));
     eprintln!("⏱️  Duration: {}m {}s", duration_mins, duration_secs);
-    eprintln!("📊 Rate: {:.2} contracts/sec\n", total as f64 / duration.as_secs().max(1) as f64);
+    eprintln!("📊 Rate: {:.2} contracts/sec", total as f64 / duration.as_secs().max(1) as f64);
+    if honeypot_total > 0 {
+        eprintln!("🍯 Honeypots filtered: {}", honeypot_total);
+    }
+    eprintln!();
 
     let mut all_scan_results = Vec::new();
     let mut skipped_timeouts = Vec::new();

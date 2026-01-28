@@ -7,8 +7,10 @@ tags:
   - gas
 patterns:
   - id: external-call-in-loop
+    kind: regex
     pattern: 'for\s*\([^)]+\)[^{]*\{[^}]{0,500}(?:call|transfer|send)\s*\('
     message: External call in loop - single failure can DoS entire function
   - id: unbounded-loop
+    kind: regex
     pattern: 'for\s*\([^)]{1,200}\.length[^)]{0,100}\)[^{]*\{[^}]{200,}'
     message: Unbounded array iteration with complex logic - may exceed gas limit

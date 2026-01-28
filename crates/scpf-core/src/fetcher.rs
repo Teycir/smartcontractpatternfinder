@@ -189,7 +189,7 @@ impl ContractFetcher {
         }
 
         let max_pages = pages.min(100); // Cap at 100 pages
-        
+
         // Calculate starting block from ~7 days ago to keep results recent
         let cutoff_timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)?

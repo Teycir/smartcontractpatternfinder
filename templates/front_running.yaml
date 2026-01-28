@@ -7,5 +7,6 @@ tags:
   - MEV
 patterns:
   - id: block-randomness
+    kind: regex
     pattern: '(?:keccak256|sha256)\s*\(\s*abi\.(?:encode|encodePacked)\s*\([^)]{0,100}block\.(?:timestamp|number|difficulty|prevrandao)'
     message: Block properties used for randomness - predictable and manipulable

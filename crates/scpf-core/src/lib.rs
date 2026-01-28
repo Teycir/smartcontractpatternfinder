@@ -21,6 +21,7 @@ pub mod invariant_gen;
 pub mod poc_stager;
 pub mod analysis;
 pub mod exploitability;
+pub mod honeypot_filter;
 
 pub use scanner::Scanner;
 pub use semantic::SemanticScanner;
@@ -44,6 +45,7 @@ pub use invariant_gen::{InvariantGenerator, GeneratedInvariant, InvariantCategor
 pub use poc_stager::{PocStager, PocCandidate, PocContext, PocPriority};
 pub use analysis::{SymbolCollector, classify_modifiers};
 pub use exploitability::{analyze_exploitability, ExploitAnalysis, ExploitConfidence};
+pub use honeypot_filter::HoneypotFilter;
 
 #[cfg(test)]
 mod tests;
