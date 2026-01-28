@@ -1,0 +1,115 @@
+id: flash-loan-collateral
+name: Flash Loan Collateral & Liquidation Manipulation
+description: |
+  Detects collateral and liquidation vulnerabilities exploitable via flash loans.
+  Covers patterns from Venus Protocol ($11M), Compound liquidation exploits,
+  Mango Markets ($114M), and various lending protocol attacks.
+severity: critical
+tags:
+  - flash-loan
+  - collateral
+  - liquidation
+  - lending
+  - defi
+  - 0-day
+
+patterns:
+  # === COLLATERAL VALUATION MANIPULATION ===
+
+  - id: collateral-from-spot-price
+    kind: regex
+    pattern: '^\s*(?!\/\/|\/\*|\*)[^\n]*(?:collateral|collateralValue|_collateral)\s*=[^\n]{0,100}(?:balanceOf|getReserves|slot0)[^\n]{0,50}(?:\*|mul)'
+    message: Venus pattern - collateral from spot price (flash manipulable)
+
+  - id: collateral-check-no-oracle
+    kind: regex
+    pattern: '^\s*function\s+(?:borrow|withdraw)(?![^}]{0,1500}\b(?:oracle|chainlink|getPrice|latestAnswer|priceFeed|priceOracle|ORACLE)\b)[^{]{0,200}\{(?![^}]{0,2000}(?:require|assert)\s*\([^;]{0,100}(?:collateral|balance)\s*(?:>=|>))'
+    message: Collateral check without oracle - direct balance manipulation
+
+  - id: ltv-from-balance-ratio
+    kind: regex
+    pattern: '^\s*(?!\/\/|\/\*|\*)[^\n]*(?:ltv|loanToValue|healthFactor|_ltv)\s*=[^\n]{0,80}(?:balance|deposit|_balance)[^\n]{0,50}\/[^\n]{0,50}(?:debt|borrow|_debt)'
+    message: LTV from balance ratio - flash loan health factor manipulation
+
+  - id: collateral-update-balance-based
+    kind: regex
+    pattern: '^\s*function\s+(?:updateCollateral|accrueInterest|_updateCollateral)[^{]{0,150}\{[^}]{0,2000}balanceOf\s*\(\s*address\s*\(\s*this\s*\)\s*\)'
+    message: Collateral update from contract balance - flash inflation vector
+
+  # === LIQUIDATION MANIPULATION ===
+
+  - id: liquidate-no-price-freshness
+    kind: regex
+    pattern: '^\s*function\s+(?:liquidate|liquidateBorrow)[^{]*\{(?![^}]{0,2000}(?:updatedAt|lastUpdate|timestamp|stale|freshness))'
+    message: Liquidation without price freshness check - stale price exploitation
+
+  - id: liquidate-from-balance
+    kind: regex
+    pattern: '^\s*function\s+(?:liquidate|liquidateBorrow)[^{]{0,200}\{[^}]{0,2000}balanceOf\s*\(\s*address\s*\(\s*this\s*\)\s*\)[^}]{0,2000}(?:seize|transfer)'
+    message: Liquidation using contract balance - flash loan liquidation attack
+
+  - id: liquidate-no-close-factor
+    kind: regex
+    pattern: '^\s*function\s+(?:liquidate|liquidateBorrow)[^{]{0,200}\{(?![^}]{0,2000}(?:closeFactor|maxLiquidate|liquidationIncentive|maxClose))'
+    message: Liquidation without close factor limit - full liquidation attack
+
+  - id: self-liquidation-allowed
+    kind: regex
+    pattern: '^\s*function\s+(?:liquidate|liquidateBorrow)[^{]*\{(?![^}]{0,2000}(?:require|assert)\s*\([^;]{0,100}(?:borrower|liquidatee|msg\.sender))'
+    message: Self-liquidation not prevented - flash loan self-liquidation exploit
+
+  - id: liquidation-no-health-recheck
+    kind: regex
+    pattern: '^\s*function\s+(?:liquidate|liquidateBorrow)[^{]{0,200}\{[^}]{0,2000}(?:seize|transfer)(?![^}]{0,2000}(?:health|ltv|collateral|getHealth))'
+    message: No health factor recheck after liquidation - over-liquidation risk
+
+  # === BORROW/LEND MANIPULATION ===
+
+  - id: borrow-limit-from-balance
+    kind: regex
+    pattern: '^\s*(?!\/\/|\/\*|\*)[^\n]*(?:borrowLimit|maxBorrow|availableBorrow|_borrowLimit)\s*=[^\n]{0,100}balanceOf'
+    message: Borrow limit from balance - flash loan borrow inflation
+
+  - id: interest-accrual-manipulable
+    kind: regex
+    pattern: '^\s*function\s+(?:accrueInterest|_accrueInterest)[^{]{0,150}\{[^}]{0,2000}(?:totalBorrows|totalSupply)[^}]{0,2000}(?:balanceOf|getReserves)'
+    message: Interest accrual using spot values - manipulation before accrual
+
+  - id: utilization-rate-spot
+    kind: regex
+    pattern: '^\s*(?!\/\/|\/\*|\*)[^\n]*(?:utilization|utilizationRate|_utilization)\s*=[^\n]{0,80}(?:totalBorrows|borrows)[^\n]{0,50}\/[^\n]{0,50}(?:totalSupply|cash|balance)'
+    message: Utilization rate from spot values - flash loan rate manipulation
+
+  - id: borrow-no-collateral-lock
+    kind: regex
+    pattern: '^\s*function\s+borrow[^{]*\{(?![^}]{0,2000}(?:lock|freeze|hold|_lock|locked))'
+    message: Borrow without collateral lock - withdraw collateral during borrow
+
+  # === MARGIN/LEVERAGE MANIPULATION ===
+
+  - id: margin-call-spot-price
+    kind: regex
+    pattern: '^\s*function\s+(?:marginCall|checkMargin|_marginCall)[^{]{0,150}\{[^}]{0,2000}(?:getReserves|slot0|balanceOf)'
+    message: Mango pattern - margin call using spot price (flash manipulable)
+
+  - id: leverage-no-position-cap
+    kind: regex
+    pattern: '^\s*function\s+(?:openPosition|leverage|addMargin)[^{]{0,200}\{(?![^}]{0,2000}(?:maxLeverage|positionCap|maxPosition|leverageCap))'
+    message: Leverage without position cap - unlimited flash loan leverage
+
+  - id: funding-rate-spot
+    kind: regex
+    pattern: '^\s*(?!\/\/|\/\*|\*)[^\n]*(?:fundingRate|funding|_funding)\s*=[^\n]{0,100}(?:mark|index|spot)[^\n]{0,50}(?:\-|sub)'
+    message: Funding rate from spot prices - flash loan funding manipulation
+
+  # === CROSS-ASSET MANIPULATION ===
+
+  - id: cross-collateral-no-isolation
+    kind: regex
+    pattern: '^\s*function\s+(?:borrow|withdraw)(?![^}]{0,800}\b(?:isolation|isolated|isolationMode)\b)[^{]{0,200}\{[^}]{0,2000}(?:collateral|asset)\[[^\]]{0,50}\][^}]{0,2000}(?:collateral|asset)\['
+    message: Cross-collateral without isolation mode - cascade liquidation risk
+
+  - id: shared-collateral-pool
+    kind: regex
+    pattern: '^\s*(?!\/\/|\/\*|\*)[^\n]*(?:totalCollateral|poolCollateral|_totalCollateral)\s*[\+]?=[^\n]{0,50}(?:amount|value|_amount)'
+    message: Shared collateral pool - one user's deposit affects others' health

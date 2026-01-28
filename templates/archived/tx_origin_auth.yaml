@@ -14,11 +14,11 @@ patterns:
     pattern: 'require\s*\(\s*.{0,200}?tx\.origin\s*[!=]='
     message: |
       tx.origin used for authentication.
-      
+
       tx.origin returns the original sender of a transaction, which can be 
       exploited in phishing attacks where a malicious contract tricks users 
       into calling it.
-      
+
       Replace with: require(msg.sender == owner);
     kind: regex
 

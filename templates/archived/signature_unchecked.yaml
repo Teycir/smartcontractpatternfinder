@@ -11,9 +11,9 @@ tags:
 patterns:
   - id: ecrecover-call
     kind: regex
-    pattern: 'ecrecover\s*\('
+    pattern: ecrecover\s*\(
     message: ecrecover call - verify return is not address(0) and add replay protection (nonce/deadline)
   - id: ecdsa-recover-call
     kind: regex
-    pattern: 'ECDSA\.recover\s*\('
+    pattern: ECDSA\.recover\s*\(
     message: ECDSA.recover call - verify return value and add replay protection

@@ -22,5 +22,5 @@ patterns:
 
   - id: cross-chain-message-call
     kind: regex
-    pattern: '(?:sendMessage|sendCrossDomainMessage|relayMessage|sendToL1|sendToL2)\s*\('
+    pattern: (?:sendMessage|sendCrossDomainMessage|relayMessage|sendToL1|sendToL2)\s*\(
     message: Cross-chain message call - verify it occurs before value transfers to prevent state inconsistency

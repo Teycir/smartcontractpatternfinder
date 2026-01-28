@@ -7,5 +7,5 @@ tags:
   - legacy
 patterns:
   - id: array-length-decrement
-    pattern: '\w+\.length\s*--'
+    pattern: \w+\.length\s*--
     message: Array length decrement - can underflow in Solidity <0.8

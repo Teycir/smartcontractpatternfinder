@@ -8,7 +8,7 @@ tags:
   - transfer-restriction
 patterns:
   - id: sell-block-pattern
-    pattern: 'if\s*\(\s*_isSuper\s*\(\s*recipient\s*\)\s*\)\s*return\s+false'
+    pattern: if\s*\(\s*_isSuper\s*\(\s*recipient\s*\)\s*\)\s*return\s+false
     message: Blocks transfers to DEX pair (prevents selling)
   - id: asymmetric-transfer-logic
     pattern: 'function\s+_canTransfer.{0,500}return\s+false'

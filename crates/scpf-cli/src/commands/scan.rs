@@ -60,6 +60,7 @@ async fn scan_contracts(
     let is_tty = std::io::stderr().is_terminal();
     let progress = Arc::new(tokio::sync::Mutex::new(0usize));
     let findings_count = Arc::new(tokio::sync::Mutex::new(0usize));
+    let seen_hashes = Arc::new(tokio::sync::Mutex::new(std::collections::HashSet::new()));
     
     // Use concurrency parameter for both API and scan limits
     let api_semaphore = Arc::new(Semaphore::new(concurrency));
@@ -72,6 +73,7 @@ async fn scan_contracts(
             let cache = Arc::clone(&cache);
             let progress = Arc::clone(&progress);
             let findings_count = Arc::clone(&findings_count);
+            let seen_hashes = Arc::clone(&seen_hashes);
             let api_semaphore = Arc::clone(&api_semaphore);
             let scan_semaphore = Arc::clone(&scan_semaphore);
             
@@ -142,6 +144,23 @@ async fn scan_contracts(
 
                 if !is_tty && from_cache {
                     eprintln!("      📦 Using cached source ({:.1} KB)", source.len() as f64 / 1024.0);
+                }
+
+                // Content-based deduplication using hash
+                use std::collections::hash_map::DefaultHasher;
+                use std::hash::{Hash, Hasher};
+                let mut hasher = DefaultHasher::new();
+                source.hash(&mut hasher);
+                let content_hash = hasher.finish();
+                
+                {
+                    let mut hashes = seen_hashes.lock().await;
+                    if !hashes.insert(content_hash) {
+                        if !is_tty {
+                            eprintln!("      ⏭️  Skipping duplicate content (hash: {:x})", content_hash);
+                        }
+                        return Ok(None);
+                    }
                 }
 
                 let source_size_kb = source.len() as f64 / 1024.0;
@@ -387,10 +406,12 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     
     let template_count = templates.len();
     eprintln!("✅ Loaded {} templates", template_count);
+    
     let mut template_by_severity = std::collections::HashMap::new();
     for t in &templates {
         *template_by_severity.entry(t.severity).or_insert(0) += 1;
     }
+    
     eprintln!("   📋 By severity:");
     if let Some(count) = template_by_severity.get(&Severity::Critical) {
         eprintln!("      - Critical: {}", count);
@@ -445,10 +466,16 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     ));
 
     // Pattern frequency analysis
+    // Pattern frequency analysis
     let mut pattern_counts = std::collections::HashMap::new();
+    let mut template_counts = std::collections::HashMap::new();
+    let mut severity_counts = std::collections::HashMap::new();
+    
     for result in &scan_results {
         for m in &result.matches {
             *pattern_counts.entry(m.pattern_id.as_str()).or_insert(0) += 1;
+            *template_counts.entry(m.template_id.as_str()).or_insert(0) += 1;
+            *severity_counts.entry(m.severity).or_insert(0) += 1;
         }
     }
     let mut pattern_vec: Vec<_> = pattern_counts.into_iter().collect();
@@ -457,6 +484,25 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     summary.push_str("## 🔍 Pattern Frequency\n\n");
     for (pattern, count) in pattern_vec.iter().take(10) {
         summary.push_str(&format!("- **{}**: {} occurrences\n", pattern, count));
+    }
+    summary.push_str("\n");
+    
+    // Template breakdown
+    summary.push_str("## 📋 Findings by Template\n\n");
+    let mut template_vec: Vec<_> = template_counts.into_iter().collect();
+    template_vec.sort_by(|a, b| b.1.cmp(&a.1));
+    for (template, count) in template_vec {
+        summary.push_str(&format!("- **{}**: {} findings\n", template, count));
+    }
+    summary.push_str("\n");
+    
+    // Severity breakdown
+    summary.push_str("## ⚠️ Findings by Severity\n\n");
+    if let Some(count) = severity_counts.get(&Severity::Critical) {
+        summary.push_str(&format!("- **Critical**: {}\n", count));
+    }
+    if let Some(count) = severity_counts.get(&Severity::High) {
+        summary.push_str(&format!("- **High**: {}\n", count));
     }
     summary.push_str("\n");
 

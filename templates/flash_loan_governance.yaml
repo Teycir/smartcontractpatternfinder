@@ -1,0 +1,104 @@
+id: flash-loan-governance
+name: Flash Loan Governance Attacks
+description: |
+  Detects governance vulnerabilities exploitable via flash loans.
+  Covers patterns from Beanstalk ($182M), Build Finance ($470K),
+  Tornado Cash governance, and True Seigniorage Dollar exploits.
+severity: critical
+tags:
+  - flash-loan
+  - governance
+  - voting
+  - defi
+  - 0-day
+
+patterns:
+  # === VOTING POWER MANIPULATION ===
+
+  - id: vote-from-current-balance
+    kind: regex
+    pattern: '^\s*function\s+(?:vote|castVote|_vote)(?![^{]{0,100}\b(?:snapshot|checkpointed)\b)[^{]{0,150}\{[^}]{0,2000}balanceOf\s*\([^)]{0,50}\)'
+    message: Beanstalk pattern - voting power from current balance (flash loanable)
+
+  - id: voting-no-snapshot
+    kind: regex
+    pattern: '^\s*function\s+(?:vote|castVote|propose)(?![^{]{0,100}\b(?:snapshot|checkpointed|Snapshot)\b)[^{]{0,150}\{(?![^}]{0,2000}\b(?:getPriorVotes|getPastVotes|checkpoints|snapshot|balanceOfAt|historicalBalance|votesAtBlock|getVotes)\b)'
+    message: Voting without historical snapshot - flash loan vote manipulation
+
+  - id: quorum-check-current-supply
+    kind: regex
+    pattern: '^\s*(?!\/\/|\/\*|\*)[^\n]*(?:quorum|threshold|_quorum)[^\n]{0,80}totalSupply\(\)'
+    message: Quorum from current totalSupply - flash loan quorum manipulation
+
+  - id: proposal-no-delay
+    kind: regex
+    pattern: '^\s*function\s+(?:propose|_propose)[^{]*\{(?![^}]{0,2000}\b(?:proposalDelay|votingDelay|delay|startBlock|proposalStart)\b)'
+    message: Proposal creation without delay - flash loan proposal attack
+
+  # === SNAPSHOT BYPASS ===
+
+  - id: checkpoint-same-block-vote
+    kind: regex
+    pattern: '^\s*function\s+(?:vote|castVote)[^{]*\{(?![^}]{0,2000}\b(?:block\.number|proposalSnapshot|snapshotBlock)\b)'
+    message: Voting without block number validation - same-block snapshot bypass
+
+  - id: delegate-no-checkpoint
+    kind: regex
+    pattern: '^\s*function\s+(?:delegate|_delegate)[^{]{0,150}\{(?![^}]{0,2000}\b(?:_writeCheckpoint|checkpoint|moveDelegates|_moveDelegates)\b)'
+    message: Delegation without checkpoint update - vote double-counting
+
+  - id: transfer-no-voting-update
+    kind: regex
+    pattern: '^\s*function\s+_transfer[^{]{0,150}\{(?![^}]{0,2000}\b(?:_moveVotingPower|moveDelegates|transferVotingUnits|_transferVotingUnits)\b)'
+    message: Token transfer without voting power update - inconsistent voting state
+
+  # === EXECUTION MANIPULATION ===
+
+  - id: execute-function-found
+    kind: regex
+    pattern: '^\s*function\s+execute\s*\('
+    message: Governance execute function found - manual review required for timelock validation
+
+  - id: executeProposal-function-found
+    kind: regex
+    pattern: '^\s*function\s+executeProposal\s*\('
+    message: Governance executeProposal function found - manual review required for timelock validation
+
+  - id: queue-execute-same-tx
+    kind: regex
+    pattern: '^\s*function\s+(?:queue|execute)[^{]{0,200}\{[^}]{0,2000}(?:execute|queue)\s*\('
+    message: Queue and execute callable in sequence - potential same-tx execution
+
+  - id: cancel-no-proposer-check
+    kind: regex
+    pattern: '^\s*function\s+(?:cancel|_cancel)[^{]*\{(?![^}]{0,2000}(?:require|assert)\s*\([^;]{0,100}(?:proposer|msg\.sender))'
+    message: Cancel without proposer validation - griefing attack
+
+  # === GOVERNANCE TOKEN MANIPULATION ===
+
+  - id: mint-governance-no-lock
+    kind: regex
+    pattern: '^\s*function\s+(?:mint|issue|_mint)[^{]{0,150}(?:governance|gov|vote)[^{]{0,150}\{(?![^}]{0,2000}\b(?:vest|lock|timelock|vestingSchedule)\b)'
+    message: Governance token minting without vesting - instant voting power
+
+  - id: staking-instant-voting
+    kind: regex
+    pattern: '^\s*function\s+(?:stake|_stake)[^{]{0,200}\{[^}]{0,2000}(?:votingPower|votes|_votes)\s*[+]?='
+    message: Staking grants instant voting power - flash loan stake-vote attack
+
+  - id: unstake-keeps-votes
+    kind: regex
+    pattern: '^\s*function\s+(?:unstake|withdraw)[^{]{0,200}\{(?![^}]{0,2000}(?:votingPower|votes|_delegates)\s*[-]?=)'
+    message: Unstaking without removing voting power - vote retention bug
+
+  # === THRESHOLD MANIPULATION ===
+
+  - id: dynamic-quorum-no-bounds
+    kind: regex
+    pattern: '^\s*(?!\/\/|\/\*|\*)[^\n]*(?:quorum|threshold|_quorum)\s*=\s*(?:totalSupply|staked)[^\n]{0,50}(?:\/|\*|mul|div)'
+    message: Dynamic quorum from manipulable supply - flash loan threshold attack
+
+  - id: proposal-threshold-balance
+    kind: regex
+    pattern: '^\s*function\s+(?:propose|_propose)[^{]{0,200}\{[^}]{0,2000}(?:require|assert)\s*\([^;]{0,80}balanceOf[^;]{0,50}(?:>=|>)[^;]{0,50}(?:threshold|minimum)'
+    message: Proposal threshold from current balance - flash loan bypass

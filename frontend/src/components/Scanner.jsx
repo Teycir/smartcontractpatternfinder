@@ -79,8 +79,6 @@ const Scanner = () => {
           chain: cfg.chain || prev.chain,
           pages: cfg.pages ?? prev.pages,
           concurrency: cfg.concurrency ?? prev.concurrency,
-          tags: cfg.tags || prev.tags,
-          contract_type: cfg.contract_type || prev.contract_type,
           extract_sources: cfg.extract_sources != null ? cfg.extract_sources.toString() : prev.extract_sources,
           fetch_zero_day: cfg.fetch_zero_day ?? prev.fetch_zero_day,
         }))
@@ -487,41 +485,6 @@ const Scanner = () => {
                 {validationErrors.pages}
               </span>
             )}
-          </div>
-
-          <div className="config-group">
-            <label htmlFor="contract_type">Contract Type</label>
-            <select 
-              id="contract_type"
-              name="contract_type" 
-              value={config.contract_type} 
-              onChange={handleInputChange} 
-              disabled={isControlsDisabled}
-            >
-              <option value="">All Types</option>
-              <option value="erc20">ERC-20</option>
-              <option value="erc721">ERC-721</option>
-              <option value="erc1155">ERC-1155</option>
-              <option value="proxy">Proxy</option>
-              <option value="defi">DeFi</option>
-            </select>
-          </div>
-
-          <div className="config-group">
-            <label htmlFor="tags">Tags (filter templates)</label>
-            <select 
-              id="tags"
-              name="tags" 
-              value={config.tags} 
-              onChange={handleInputChange} 
-              disabled={isControlsDisabled}
-            >
-              <option value="">All Templates</option>
-              <option value="security">Security</option>
-              <option value="reentrancy">Reentrancy</option>
-              <option value="access-control">Access Control</option>
-              <option value="defi">DeFi</option>
-            </select>
           </div>
         </div>
 
