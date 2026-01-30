@@ -1,0 +1,11 @@
+id: integer-overflow-risk
+name: Integer Overflow (Legacy)
+description: Only for Solidity <0.8 (scanner auto-skips for 0.8+)
+severity: high
+tags:
+  - overflow
+  - legacy
+patterns:
+  - id: array-length-decrement
+    pattern: \w+\.length\s*--
+    message: Array length decrement - can underflow in Solidity <0.8

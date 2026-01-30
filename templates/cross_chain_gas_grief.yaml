@@ -1,0 +1,26 @@
+id: cross-chain-gas-grief
+name: Cross-Chain Gas Griefing Attack
+description: |
+  Detects L1-L2 bridge patterns where ETH transfer occurs before cross-chain message.
+  Attacker can consume gas to prevent L1 registration while keeping L2 funds.
+severity: high
+tags:
+  - security
+  - cross-chain
+  - gas-griefing
+  - bridge
+patterns:
+  - id: eth-transfer-before-message
+    kind: regex
+    pattern: '\.call\{value:'
+    message: ETH transfer with value - in cross-chain context verify gas limits and message ordering
+
+  - id: unbounded-gas-forward
+    kind: regex
+    pattern: '\.call\{[^}]*gas\(\)[^}]*\}'
+    message: Unbounded gas forwarding - attacker can consume all gas
+
+  - id: cross-chain-message-call
+    kind: regex
+    pattern: (?:sendMessage|sendCrossDomainMessage|relayMessage|sendToL1|sendToL2)\s*\(
+    message: Cross-chain message call - verify it occurs before value transfers to prevent state inconsistency

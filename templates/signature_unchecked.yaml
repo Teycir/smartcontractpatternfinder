@@ -1,0 +1,19 @@
+id: signature-return-unchecked-v3
+name: Unchecked Signature Recovery & Replay Protection
+description: |
+  Detects ecrecover/ECDSA.recover calls.
+  Verify return is not address(0) and implement replay protection (nonce/deadline).
+severity: high
+tags:
+  - security
+  - signatures
+  - replay-attack
+patterns:
+  - id: ecrecover-call
+    kind: regex
+    pattern: ecrecover\s*\(
+    message: ecrecover call - verify return is not address(0) and add replay protection (nonce/deadline)
+  - id: ecdsa-recover-call
+    kind: regex
+    pattern: ECDSA\.recover\s*\(
+    message: ECDSA.recover call - verify return value and add replay protection
