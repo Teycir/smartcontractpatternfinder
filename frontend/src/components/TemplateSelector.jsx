@@ -11,7 +11,10 @@ const TemplateSelector = ({ selectedTemplates, onChange, disabled }) => {
       .then(res => res.json())
       .then(data => {
         setTemplates(data.templates || [])
-        if (!selectedTemplates.length) {
+        const saved = localStorage.getItem('selectedTemplates')
+        if (saved) {
+          onChange(JSON.parse(saved))
+        } else if (!selectedTemplates.length) {
           onChange(data.templates || [])
         }
       })
@@ -30,18 +33,21 @@ const TemplateSelector = ({ selectedTemplates, onChange, disabled }) => {
 
   const handleToggle = (template) => {
     const isSelected = selectedTemplates.includes(template)
-    onChange(isSelected 
+    const newSelection = isSelected 
       ? selectedTemplates.filter(t => t !== template)
       : [...selectedTemplates, template]
-    )
+    onChange(newSelection)
+    localStorage.setItem('selectedTemplates', JSON.stringify(newSelection))
   }
 
   const handleSelectAll = () => {
     onChange(templates)
+    localStorage.setItem('selectedTemplates', JSON.stringify(templates))
   }
 
   const handleDeselectAll = () => {
     onChange([])
+    localStorage.setItem('selectedTemplates', JSON.stringify([]))
   }
 
   return (
