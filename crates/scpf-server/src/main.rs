@@ -105,6 +105,7 @@ struct ScanConfig {
     contract_type: Option<String>,
     extract_sources: Option<usize>,
     fetch_zero_day: Option<u32>,
+    templates: Option<Vec<String>>,
 }
 
 impl Default for ScanConfig {
@@ -118,6 +119,7 @@ impl Default for ScanConfig {
             contract_type: None,
             extract_sources: None,
             fetch_zero_day: None,
+            templates: None,
         }
     }
 }
@@ -139,6 +141,7 @@ async fn main() {
     let app = Router::new()
         .route("/api/health", get(health_check))
         .route("/api/status", get(get_status))
+        .route("/api/templates", get(get_templates))
         .route("/api/start", post(start_scan))
         .route("/api/pause", post(pause_scan))
         .route("/api/resume", post(resume_scan))
@@ -173,6 +176,25 @@ async fn get_status(State(state): State<AppState>) -> impl IntoResponse {
         "config": config,
         "progress": state.progress.to_json()
     }))
+}
+
+async fn get_templates() -> impl IntoResponse {
+    let templates_dir = find_project_root()
+        .unwrap_or_else(|| std::env::current_dir().unwrap())
+        .join("templates");
+    
+    let mut templates = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(&templates_dir) {
+        for entry in entries.flatten() {
+            if let Some(name) = entry.file_name().to_str() {
+                if name.ends_with(".yaml") || name.ends_with(".yml") {
+                    templates.push(name.to_string());
+                }
+            }
+        }
+    }
+    templates.sort();
+    Json(serde_json::json!({ "templates": templates }))
 }
 
 async fn start_scan(
@@ -530,6 +552,18 @@ async fn run_scan(state: AppState, config: ScanConfig) {
 
     if let Some(days) = config.fetch_zero_day {
         cmd.arg("--fetch-zero-day").arg(days.to_string());
+    }
+
+    if let Some(templates) = &config.templates {
+        if !templates.is_empty() {
+            let template_ids: Vec<String> = templates.iter()
+                .filter_map(|t| t.strip_suffix(".yaml").or_else(|| t.strip_suffix(".yml")))
+                .map(|s| s.to_string())
+                .collect();
+            if !template_ids.is_empty() {
+                cmd.arg("--only-templates").arg(template_ids.join(","));
+            }
+        }
     }
 
     for addr in &config.addresses {

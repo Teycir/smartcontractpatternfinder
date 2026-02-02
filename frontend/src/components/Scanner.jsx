@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import Console from './Console'
+import TemplateSelector from './TemplateSelector'
 import './Scanner.css'
 import {
   TIMEOUTS,
@@ -25,6 +26,7 @@ const Scanner = () => {
   const [progress, setProgress] = useState(INITIAL_PROGRESS)
   const [config, setConfig] = useState(INITIAL_CONFIG)
   const [userStopped, setUserStopped] = useState(false)
+  const [selectedTemplates, setSelectedTemplates] = useState([])
 
   // Refs for intervals and cleanup
   const statusIntervalRef = useRef(null)
@@ -112,7 +114,7 @@ const Scanner = () => {
         throw new Error(concurrencyValidation.error)
       }
 
-      const payload = buildScanPayload(config)
+      const payload = { ...buildScanPayload(config), templates: selectedTemplates }
       await startScan(payload)
       setStatus(SCAN_STATUS.RUNNING)
     } catch (err) {
@@ -518,6 +520,15 @@ const Scanner = () => {
             <option value="200">Top 200</option>
             <option value="0">Don't Extract</option>
           </select>
+        </div>
+
+        <div className="config-group">
+          <label>Templates</label>
+          <TemplateSelector
+            selectedTemplates={selectedTemplates}
+            onChange={setSelectedTemplates}
+            disabled={isControlsDisabled}
+          />
         </div>
       </div>
 
