@@ -6,14 +6,19 @@ This directory contains a React-based web interface for the Smart Contract Patte
 
 - **Start/Pause/Stop Controls**: Full control over the scanning process
 - **Real-time Console**: Live output from the scan process via Server-Sent Events
+- **Template Selection**: Choose which vulnerability templates to use with a dropdown checkbox selector
+  - Select/deselect individual templates
+  - Select all or deselect all with one click
+  - Selection persisted in browser localStorage
+  - Automatically syncs with available templates
 - **Configurable Options**: All CLI options available through the UI with default settings
   - Contract addresses
   - Blockchain chain selection
-  - Time range (days)
+  - Pages to fetch
   - Concurrency settings
-  - Severity filtering
-  - Template management
-  - Performance options (fast mode, cache control)
+  - Template filtering
+  - Extract top riskiest sources
+  - 0-day exploit fetching
   - And more...
 
 ## Architecture
@@ -59,20 +64,24 @@ The web app will be available at `http://localhost:3000`
 ## API Endpoints
 
 - `GET /api/status` - Get current scan status and configuration
+- `GET /api/templates` - Get list of available vulnerability templates
 - `POST /api/start` - Start a new scan with provided configuration
 - `POST /api/pause` - Pause the current scan
+- `POST /api/resume` - Resume a paused scan
 - `POST /api/stop` - Stop the current scan
 - `GET /api/logs` - Server-Sent Events stream for real-time logs
+- `POST /api/export-logs` - Export console logs to file
 
 ## Default Configuration
 
-The UI uses the following defaults (matching `full_scan.sh`):
+The UI uses the following defaults:
 
-- **Chain**: ethereum
-- **Days**: 100
-- **Concurrency**: 3
-- **Min Severity**: high
-- **Update Templates**: 0 (disabled)
+- **Chain**: all (Ethereum, Polygon, Arbitrum)
+- **Pages**: 5
+- **Concurrency**: 2
+- **Extract Sources**: 50
+- **Fetch 0-day**: enabled
+- **Templates**: all templates selected by default
 
 ## Development
 
@@ -98,20 +107,29 @@ cargo run --release --bin scpf-server    # Run in release mode
 frontend/
 ├── src/
 │   ├── components/
-│   │   ├── Scanner.jsx       # Main scanner component with controls
+│   │   ├── Scanner.jsx           # Main scanner component with controls
 │   │   ├── Scanner.css
-│   │   ├── Console.jsx       # Real-time log console
-│   │   └── Console.css
+│   │   ├── Console.jsx           # Real-time log console
+│   │   ├── Console.css
+│   │   ├── TemplateSelector.jsx  # Template dropdown with checkboxes
+│   │   └── TemplateSelector.css
+│   ├── constants/
+│   │   └── index.js              # API endpoints and configuration
+│   ├── utils/
+│   │   ├── api.js                # API client functions
+│   │   └── validation.js         # Input validation utilities
 │   ├── App.jsx
 │   ├── App.css
 │   ├── main.jsx
 │   └── index.css
+├── .env                          # Environment variables (symlinked)
+├── .env.example                  # Example environment configuration
 ├── index.html
 ├── vite.config.js
 └── package.json
 
 crates/scpf-server/
 ├── src/
-│   └── main.rs               # Axum backend server
+│   └── main.rs                   # Axum backend server
 └── Cargo.toml
 ```
