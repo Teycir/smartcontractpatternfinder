@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import './TemplateSelector.css'
-
-const API_BASE = 'http://127.0.0.1:8080'
+import { fetchTemplates } from '../utils/api'
 
 const TemplateSelector = ({ selectedTemplates, onChange, disabled }) => {
   const [templates, setTemplates] = useState([])
@@ -15,8 +14,7 @@ const TemplateSelector = ({ selectedTemplates, onChange, disabled }) => {
     initializedRef.current = true
 
     setLoading(true)
-    fetch(`${API_BASE}/api/templates`)
-      .then(res => res.json())
+    fetchTemplates()
       .then(data => {
         const templateList = data.templates || []
         setTemplates(templateList)

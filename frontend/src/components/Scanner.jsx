@@ -65,7 +65,8 @@ const Scanner = () => {
     try {
       const data = await fetchScanStatus()
       setServerOnline(true)
-      setStatus(data.status || SCAN_STATUS.IDLE)
+      const currentStatus = data.status || SCAN_STATUS.IDLE
+      setStatus(currentStatus)
 
       if (data.progress) {
         console.log('Progress data received:', data.progress)
@@ -73,7 +74,7 @@ const Scanner = () => {
       }
 
       // Sync config from server when running
-      if (data.config && status !== SCAN_STATUS.IDLE) {
+      if (data.config && currentStatus !== SCAN_STATUS.IDLE) {
         const cfg = data.config
         setConfig(prev => ({
           ...prev,
@@ -91,7 +92,7 @@ const Scanner = () => {
         console.debug('Status fetch failed:', err.message)
       }
     }
-  }, [status])
+  }, [])
 
   // ===== ACTION HANDLERS =====
 
@@ -228,30 +229,6 @@ const Scanner = () => {
     prevStatusRef.current = status
   }, [status])
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyPress = (e) => {
-      const isTyping = ['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName)
-      if (isTyping) return
-
-      if (e.code === 'Space') {
-        e.preventDefault()
-        if (status === SCAN_STATUS.IDLE) handleStart()
-        else if (status === SCAN_STATUS.RUNNING) handlePause()
-        else if (status === SCAN_STATUS.PAUSED) handleResume()
-      } else if (e.code === 'Escape') {
-        if (status === SCAN_STATUS.RUNNING || status === SCAN_STATUS.PAUSED) {
-          e.preventDefault()
-          handleStop()
-        }
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyPress)
-    return () => window.removeEventListener('keydown', handleKeyPress)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status])
-
   // ===== COMPUTED VALUES =====
 
   const statusIcon = useMemo(() => {
@@ -337,7 +314,7 @@ const Scanner = () => {
             onClick={handleStart}
             disabled={status === SCAN_STATUS.RUNNING || status === SCAN_STATUS.PAUSED || isLoading || !serverOnline}
             className="btn btn-start"
-            title={!serverOnline ? 'Server is offline' : status === SCAN_STATUS.RUNNING ? 'Scan in progress' : 'Start scan (Space)'}
+            title={!serverOnline ? 'Server is offline' : status === SCAN_STATUS.RUNNING ? 'Scan in progress' : 'Start scan'}
           >
             {isLoading && status !== SCAN_STATUS.RUNNING ? '⏳' : '▶️'} Start
           </button>
@@ -345,7 +322,7 @@ const Scanner = () => {
             onClick={status === SCAN_STATUS.PAUSED ? handleResume : handlePause}
             disabled={(status !== SCAN_STATUS.RUNNING && status !== SCAN_STATUS.PAUSED) || isLoading}
             className={`btn ${status === SCAN_STATUS.PAUSED ? 'btn-resume' : 'btn-pause'}`}
-            title={status === SCAN_STATUS.PAUSED ? 'Resume (Space)' : 'Pause (Space)'}
+            title={status === SCAN_STATUS.PAUSED ? 'Resume' : 'Pause'}
           >
             {status === SCAN_STATUS.PAUSED ? '▶️ Resume' : '⏸️ Pause'}
           </button>
@@ -353,7 +330,7 @@ const Scanner = () => {
             onClick={handleStop}
             disabled={(status !== SCAN_STATUS.RUNNING && status !== SCAN_STATUS.PAUSED) || isLoading}
             className="btn btn-stop"
-            title="Stop scan (Esc)"
+            title="Stop scan"
           >
             ⏹️ Stop
           </button>

@@ -25,7 +25,6 @@ const Console = () => {
   const eventSourceRef = useRef(null)
   const reconnectTimeoutRef = useRef(null)
   const statusIntervalRef = useRef(null)
-  const isInitializedRef = useRef(false)
   const reconnectAttemptsRef = useRef(0)
 
   // ===== CALLBACKS =====
@@ -216,9 +215,6 @@ const Console = () => {
 
   // Initialize connection and polling
   useEffect(() => {
-    if (isInitializedRef.current) return
-    isInitializedRef.current = true
-    
     performHealthCheck()
     statusIntervalRef.current = setInterval(pollScanStatus, TIMEOUTS.LOG_STATUS_POLL_INTERVAL)
     
@@ -228,7 +224,7 @@ const Console = () => {
         clearInterval(statusIntervalRef.current)
       }
     }
-  }, [performHealthCheck, cleanupConnection, pollScanStatus])
+  }, [])
 
   // Auto-scroll to bottom on new logs
   useEffect(() => {

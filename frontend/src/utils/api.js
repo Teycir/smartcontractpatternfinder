@@ -4,7 +4,11 @@
  */
 
 import axios from 'axios'
-import { API_ENDPOINTS, TIMEOUTS } from '../constants'
+import { API_ENDPOINTS, API_BASE_URL, TIMEOUTS } from '../constants'
+
+const api = axios.create({
+  baseURL: API_BASE_URL,
+})
 
 /**
  * Extract error message from axios error
@@ -21,7 +25,7 @@ export const getErrorMessage = (error, fallback = 'An error occurred') => {
  * @returns {Promise<object>}
  */
 export const fetchScanStatus = async () => {
-  const response = await axios.get(API_ENDPOINTS.STATUS, { 
+  const response = await api.get(API_ENDPOINTS.STATUS, { 
     timeout: TIMEOUTS.API_STATUS 
   })
   return response.data
@@ -33,7 +37,7 @@ export const fetchScanStatus = async () => {
  * @returns {Promise<object>}
  */
 export const startScan = async (payload) => {
-  const response = await axios.post(API_ENDPOINTS.START, payload, { 
+  const response = await api.post(API_ENDPOINTS.START, payload, { 
     timeout: TIMEOUTS.API_START 
   })
   return response.data
@@ -44,7 +48,7 @@ export const startScan = async (payload) => {
  * @returns {Promise<object>}
  */
 export const pauseScan = async () => {
-  const response = await axios.post(API_ENDPOINTS.PAUSE, {}, { 
+  const response = await api.post(API_ENDPOINTS.PAUSE, {}, { 
     timeout: TIMEOUTS.API_ACTION 
   })
   return response.data
@@ -55,7 +59,7 @@ export const pauseScan = async () => {
  * @returns {Promise<object>}
  */
 export const resumeScan = async () => {
-  const response = await axios.post(API_ENDPOINTS.RESUME, {}, { 
+  const response = await api.post(API_ENDPOINTS.RESUME, {}, { 
     timeout: TIMEOUTS.API_ACTION 
   })
   return response.data
@@ -66,7 +70,7 @@ export const resumeScan = async () => {
  * @returns {Promise<object>}
  */
 export const stopScan = async () => {
-  const response = await axios.post(API_ENDPOINTS.STOP, {}, { 
+  const response = await api.post(API_ENDPOINTS.STOP, {}, { 
     timeout: TIMEOUTS.API_ACTION 
   })
   return response.data
@@ -77,7 +81,14 @@ export const stopScan = async () => {
  * @returns {Promise<object>}
  */
 export const checkHealth = async () => {
-  const response = await axios.get(API_ENDPOINTS.HEALTH, { 
+  const response = await api.get(API_ENDPOINTS.HEALTH, { 
+    timeout: TIMEOUTS.API_STATUS 
+  })
+  return response.data
+}
+
+export const fetchTemplates = async () => {
+  const response = await api.get(API_ENDPOINTS.TEMPLATES, { 
     timeout: TIMEOUTS.API_STATUS 
   })
   return response.data
