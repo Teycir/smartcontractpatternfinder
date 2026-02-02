@@ -56,6 +56,10 @@ export const buildScanPayload = (config) => {
   const concurrency = parseInt(config.concurrency, 10)
   const extractSources = parseInt(config.extract_sources, 10)
 
+  if (isNaN(pages) || isNaN(concurrency)) {
+    throw new Error('Invalid numeric values in configuration')
+  }
+
   return {
     addresses: parseAddresses(config.addresses),
     chain: config.chain === 'all' ? 'ethereum,polygon,arbitrum' : config.chain,
@@ -63,7 +67,7 @@ export const buildScanPayload = (config) => {
     concurrency,
     tags: config.tags || null,
     contract_type: config.contract_type || null,
-    extract_sources: extractSources > 0 ? extractSources : null,
+    extract_sources: !isNaN(extractSources) && extractSources > 0 ? extractSources : null,
     fetch_zero_day: config.fetch_zero_day ? 30 : null,
   }
 }
