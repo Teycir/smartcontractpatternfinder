@@ -604,7 +604,7 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
                 eprintln!(
                     "   ✅ [{}] {} - Weighted Risk: {:.1} ({} KB, {} lines)",
                     count + 1,
-                    &result.address[..12],
+                    &result.address,
                     weighted_risk,
                     size / 1024,
                     lines
@@ -655,7 +655,7 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
                     "   [{}/{}] {} ({}) - Risk: {:.1}",
                     rank + 1,
                     extract_count,
-                    &result.address[..12],
+                    &result.address,
                     result.chain,
                     weighted_risk
                 );
