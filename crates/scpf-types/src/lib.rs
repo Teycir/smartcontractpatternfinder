@@ -31,7 +31,7 @@ pub struct Pattern {
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "kebab-case")]
 pub enum PatternKind {
     #[default]
     Regex,

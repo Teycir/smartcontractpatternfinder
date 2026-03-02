@@ -1,3 +1,4 @@
+use crate::ast::{AstAnalyzer, ValidationResult};
 use crate::regex_validator::RegexValidator;
 use anyhow::Result;
 use fancy_regex::RegexBuilder;
@@ -50,6 +51,7 @@ pub struct Scanner {
     proxy_pattern_regex: Option<fancy_regex::Regex>,
     safe_nft_pattern_regex: Option<fancy_regex::Regex>,
     timestamp_pattern_regex: Option<fancy_regex::Regex>,
+    ast_analyzer: Option<AstAnalyzer>,
 }
 
 impl Scanner {
@@ -72,6 +74,7 @@ impl Scanner {
             proxy_pattern_regex: fancy_regex::Regex::new(r"\b(Proxy|ERC1967|TransparentUpgradeable|BeaconProxy|_implementation|_delegate|_fallback)\b").ok(),
             safe_nft_pattern_regex: fancy_regex::Regex::new(r"\b(ERC721|ERC1155|_mint|_burn|_transfer|_safeMint|tokenId|balanceOf)\b").ok(),
             timestamp_pattern_regex: fancy_regex::Regex::new(r"\b(block\.timestamp|block\.number|now)\b").ok(),
+            ast_analyzer: Some(AstAnalyzer::new()),
         })
     }
 
@@ -152,6 +155,19 @@ impl Scanner {
 
         // Flatten and deduplicate results
         let mut matches: Vec<Match> = all_matches.into_iter().flatten().collect();
+
+        // AST-based validation (second pass)
+        if let Some(ref analyzer) = self.ast_analyzer {
+            matches.retain(|m| {
+                let result = analyzer.validate(source, &m.pattern_id, m.line_number);
+                match result {
+                    ValidationResult::Vulnerable => true,
+                    ValidationResult::Protected(_) => false,
+                    ValidationResult::NotApplicable => true,
+                    ValidationResult::ParseError => true,
+                }
+            });
+        }
 
         // Global deduplication
         let mut seen = std::collections::HashSet::new();

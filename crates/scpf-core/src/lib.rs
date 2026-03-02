@@ -24,6 +24,7 @@ pub mod exploitability;
 pub mod honeypot_filter;
 pub mod limits;
 pub mod ignore;
+pub mod ast;
 
 pub use scanner::Scanner;
 pub use semantic::SemanticScanner;
@@ -50,6 +51,7 @@ pub use exploitability::{analyze_exploitability, ExploitAnalysis, ExploitConfide
 pub use honeypot_filter::HoneypotFilter;
 pub use limits::{MatcherLimits, LoaderLimits};
 pub use ignore::{IgnoreRule, load_ignore_patterns};
+pub use ast::{AstAnalyzer, ValidationResult};
 
 #[cfg(test)]
 mod tests;
