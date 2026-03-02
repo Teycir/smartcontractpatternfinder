@@ -9,5 +9,5 @@ tags:
 patterns:
   - id: critical-function-no-modifier
     kind: fancy-regex
-    pattern: 'function\s+(?:withdraw|mint|setOwner|transferOwnership|upgrade|initialize)\s*\([^)]*\)\s+(?:public|external)(?!.{0,1000}(?:onlyOwner|onlyRole|onlyAdmin))'
-    message: Critical function without access control modifier
+    pattern: 'function\s+(?:withdraw|mint|setOwner|transferOwnership|upgrade|initialize)\s*\([^)]*\)\s+(?:public|external)(?!.{0,200}(?:onlyOwner|onlyRole|onlyAdmin|require\s*\(msg\.sender|if\s*\(msg\.sender))'
+    message: Critical function without access control modifier or inline check

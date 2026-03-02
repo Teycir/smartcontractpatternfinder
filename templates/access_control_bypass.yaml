@@ -29,12 +29,12 @@ patterns:
     pattern: 'function\s+initialize[^{]{0,100}public(?!.*initializer)(?!.*reinitializer)'
     message: SuperRare pattern - unprotected initialize (proxy takeover)
   - id: arbitrary-call-no-check
-    kind: regex
-    pattern: '\.call\{value:[^}]{0,50}\}\([^)]{0,50}\)'
+    kind: fancy-regex
+    pattern: 'function\s+\w+[^{]{0,100}\{[^}]{0,300}\.call\{value:(?!.*onlyOwner)(?!.*onlyAdmin)(?!.*require\s*\(msg\.sender)'
     message: Arbitrary call without access control - fund drainage
   - id: delegatecall-no-whitelist
-    kind: regex
-    pattern: 'delegatecall\([^)]{0,50}\)'
+    kind: fancy-regex
+    pattern: 'function\s+\w+[^{]{0,100}\{[^}]{0,300}delegatecall\((?!.*onlyOwner)(?!.*onlyAdmin)(?!.*whitelist)'
     message: Delegatecall without whitelist - arbitrary code execution
   - id: selfdestruct-no-auth
     kind: regex

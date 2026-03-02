@@ -1,4 +1,5 @@
 use crate::ast::{AstAnalyzer, ValidationResult};
+use crate::contract_type::ContractTypeDetector;
 use crate::regex_validator::RegexValidator;
 use anyhow::Result;
 use fancy_regex::RegexBuilder;
@@ -132,6 +133,9 @@ impl Scanner {
 
         // Pre-check if source is OZ library (avoid repeated checks)
         let is_oz_library = is_openzeppelin_library(source);
+        
+        // Detect contract type for pattern filtering
+        let contract_type = ContractTypeDetector::detect(source);
 
         // Create shared context for parallel processing
         let scan_ctx = ScanContext {
@@ -149,7 +153,16 @@ impl Scanner {
         let all_matches: Vec<Vec<Match>> = self
             .templates
             .par_iter()
-            .filter(|t| !(is_modern_solidity && t.template_id.contains("integer_overflow")))
+            .filter(|t| {
+                // Skip integer overflow for modern Solidity
+                if is_modern_solidity && t.template_id.contains("integer_overflow") {
+                    return false;
+                }
+                // Skip patterns not applicable to contract type
+                !t.patterns.iter().any(|p| {
+                    ContractTypeDetector::should_skip_pattern(contract_type, &p.pattern_id)
+                })
+            })
             .map(|compiled_template| self.scan_template(compiled_template, &scan_ctx))
             .collect();
 

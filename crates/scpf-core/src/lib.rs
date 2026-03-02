@@ -25,6 +25,7 @@ pub mod honeypot_filter;
 pub mod limits;
 pub mod ignore;
 pub mod ast;
+pub mod contract_type;
 
 pub use scanner::Scanner;
 pub use semantic::SemanticScanner;
@@ -52,6 +53,7 @@ pub use honeypot_filter::HoneypotFilter;
 pub use limits::{MatcherLimits, LoaderLimits};
 pub use ignore::{IgnoreRule, load_ignore_patterns};
 pub use ast::{AstAnalyzer, ValidationResult};
+pub use contract_type::{ContractType, ContractTypeDetector};
 
 #[cfg(test)]
 mod tests;

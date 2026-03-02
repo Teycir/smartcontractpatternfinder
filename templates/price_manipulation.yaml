@@ -35,9 +35,9 @@ patterns:
     pattern: 'price\s*=[^\n]{0,50}pair\.get'
     message: Price from single pool - no cross-pool validation
   - id: sqrt-price-no-bounds
-    kind: regex
-    pattern: 'sqrtPriceX96'
-    message: UniswapV3 sqrtPrice without bounds check - manipulation risk
+    kind: fancy-regex
+    pattern: 'sqrtPriceX96.*slot0\(\)|slot0\(\).*sqrtPriceX96'
+    message: UniswapV3 sqrtPrice from slot0 without bounds check - manipulation risk
   - id: flash-loan-price-query
     kind: regex
     pattern: 'flash[Ll]oan[^{]{0,50}\{[^}]{0,500}(getPrice|getReserves|balanceOf)'
