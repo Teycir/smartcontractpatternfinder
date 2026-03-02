@@ -16,77 +16,77 @@ patterns:
   # === CALLBACK REENTRANCY PATTERNS ===
 
   - id: aave-callback-no-reentrancy-guard
-    kind: regex
+    kind: fancy-regex
     pattern: '^\s*function\s+(?:executeOperation|onFlashLoan)\s*\([^)]{0,200}\)(?![^{]{0,100}\b(?:nonReentrant|lock|whenNotPaused|noReentr|guard)\b)[^{]{0,100}\{(?![^}]{0,2000}\b(?:nonReentrant|_lock|locked|_status|_entered|_guard|noReentr)\b)'
     message: Aave flash loan callback without reentrancy guard - reentry risk during loan execution
 
   - id: uniswap-v2-callback-no-guard
-    kind: regex
+    kind: fancy-regex
     pattern: '^\s*function\s+uniswapV2Call\s*\([^)]{0,200}\)(?![^{]{0,100}\b(?:nonReentrant|lock|noReentr|guard)\b)[^{]{0,100}\{(?![^}]{0,2000}\b(?:nonReentrant|_lock|locked|_status|_entered|noReentr)\b)'
     message: Uniswap V2 flash swap callback without reentrancy protection
 
   - id: uniswap-v3-callback-no-guard
-    kind: regex
+    kind: fancy-regex
     pattern: '^\s*function\s+uniswapV3(?:Flash|Swap)Callback\s*\([^)]{0,200}\)(?![^{]{0,100}\b(?:nonReentrant|lock|noReentr|guard)\b)[^{]{0,100}\{(?![^}]{0,2000}\b(?:nonReentrant|_lock|_status|_entered|noReentr)\b)'
     message: Uniswap V3 callback without reentrancy guard - vulnerable to reentry
 
   - id: balancer-callback-no-guard
-    kind: regex
+    kind: fancy-regex
     pattern: '^\s*function\s+receiveFlashLoan\s*\([^)]{0,200}\)(?![^{]{0,100}\b(?:nonReentrant|lock|noReentr|guard)\b)[^{]{0,100}\{(?![^}]{0,2000}\b(?:nonReentrant|_lock|_status|_entered|noReentr)\b)'
     message: Balancer flash loan callback without reentrancy protection
 
   - id: dydx-callback-no-guard
-    kind: regex
+    kind: fancy-regex
     pattern: '^\s*function\s+callFunction\s*\([^)]{0,200}\)(?![^{]{0,100}\b(?:nonReentrant|lock|noReentr|guard)\b)[^{]{0,100}\{(?![^}]{0,2000}\b(?:nonReentrant|_lock|_status|_entered|noReentr)\b)'
     message: dYdX flash loan callback without reentrancy guard
 
   # === CALLBACK VALIDATION PATTERNS ===
 
   - id: callback-no-sender-validation
-    kind: regex
+    kind: fancy-regex
     pattern: '^\s*function\s+(?:executeOperation|onFlashLoan|uniswapV2Call|receiveFlashLoan)\s*\([^)]*\)[^{]*\{(?![^}]{0,2000}(?:require|assert)\s*\([^;]{0,100}(?:msg\.sender|lendingPool|pool|factory|POOL|LENDING_POOL))'
     message: Flash loan callback without sender validation - allows malicious callbacks
 
   - id: callback-no-initiator-check
-    kind: regex
+    kind: fancy-regex
     pattern: '^\s*function\s+(?:executeOperation|onFlashLoan)[^{]*\{(?![^}]{0,2000}(?:initiator|_initiator|msg\.sender|origin))'
     message: Aave callback without initiator validation - third-party can trigger callback
 
   - id: callback-accepts-any-token
-    kind: regex
+    kind: fancy-regex
     pattern: '^\s*function\s+(?:executeOperation|onFlashLoan|receiveFlashLoan)[^{]*\{(?![^}]{0,2000}(?:require|assert)\s*\([^;]{0,100}(?:token|asset|_asset|_token|assets\[))'
     message: Callback accepts any token without validation - token substitution attack
 
   - id: pair-validation-missing
-    kind: regex
+    kind: fancy-regex
     pattern: '^\s*function\s+uniswapV2Call[^{]*\{(?![^}]{0,2000}(?:require|assert)\s*\([^;]{0,100}(?:pair|factory|msg\.sender|FACTORY))'
     message: Uniswap callback without pair validation - fake pair attack vector
 
   # === CALLBACK STATE MANIPULATION ===
 
   - id: callback-external-call-before-state
-    kind: regex
+    kind: fancy-regex
     pattern: '^\s*function\s+(?:executeOperation|onFlashLoan|uniswapV2Call|receiveFlashLoan)[^{]{0,150}\{[^}]{0,1500}\.call[^}]{0,1500}(?:balances|_balances|amount)\s*[\+\-]?='
     message: External call before state update in callback - CEI violation
 
   - id: callback-transfer-before-accounting
-    kind: regex
+    kind: fancy-regex
     pattern: '^\s*function\s+(?:executeOperation|onFlashLoan|receiveFlashLoan)[^{]{0,150}\{[^}]{0,2000}(?:transfer|safeTransfer)\([^}]{0,1500}(?:balance|amount|debt)\s*[\+\-]?='
     message: Token transfer before balance accounting in callback - manipulation window
 
   # === GENERIC FLASH LOAN CALLBACK PATTERNS ===
 
   - id: flash-callback-public-visibility
-    kind: regex
+    kind: fancy-regex
     pattern: '^\s*function\s+(?:executeOperation|onFlashLoan|uniswapV2Call|uniswapV3FlashCallback|receiveFlashLoan|callFunction)\s*\([^)]{0,200}\)\s+public(?!\s+override)'
     message: Flash loan callback with public visibility - should be external only
 
   - id: callback-no-amount-validation
-    kind: regex
+    kind: fancy-regex
     pattern: '^\s*function\s+(?:executeOperation|onFlashLoan|receiveFlashLoan)[^{]*\{(?![^}]{0,2000}(?:require|assert)\s*\([^;]{0,100}(?:amount|_amount))'
     message: Callback without amount validation - zero or overflow amount attack
 
   - id: callback-cross-function-reentrancy
-    kind: regex
+    kind: fancy-regex
     pattern: '^\s*function\s+(?:executeOperation|onFlashLoan|receiveFlashLoan)[^{]{0,150}\{[^}]{0,1500}\b(?:withdraw|claim|transfer)\s*\([^)]{0,80}(?:balances\[|userInfo\[|users\[)'
     message: Callback calls user-facing function before state update - cross-function reentrancy

@@ -16,45 +16,45 @@ patterns:
   # === PRICE ORACLE VULNERABILITIES ===
 
   - id: spot-price-without-twap
-    kind: regex
+    kind: fancy-regex
     pattern: 'function\s+\w+[^;]{0,500}\{[^}]{0,500}getReserves[^}]{0,500}(?:price|rate|value)\s*='
     message: Uses spot price from getReserves - vulnerable to flash loan manipulation
 
   - id: single-dex-price-source
-    kind: regex
+    kind: fancy-regex
     pattern: 'IUniswapV2Pair[^;]{0,500}\{[^}]{0,500}getReserves[^}]{0,500}(?:price|amount)'
     message: Single DEX as price source - flash loan can manipulate reserves
 
   - id: balance-based-pricing
-    kind: regex
+    kind: fancy-regex
     pattern: 'function\s+(?:getPrice|calculatePrice|getRate)[^;]{0,300}\{[^}]{0,300}balanceOf[^}]{0,300}(?:price|rate|value)\s*='
     message: Price calculation based on token balance - flash loan manipulable
 
   - id: reserve-ratio-pricing
-    kind: regex
+    kind: fancy-regex
     pattern: '(?:price|rate|value)\s*=[^;]{0,100}(?:reserve0|reserve1)[^}]{0,100}\/[^}]{0,100}(?:reserve1|reserve0)'
     message: Direct reserve ratio for pricing - vulnerable to flash loan manipulation
 
   # === VULNERABLE CALCULATION PATTERNS ===
 
   - id: collateral-value-spot-price
-    kind: regex
+    kind: fancy-regex
     pattern: 'function\s+(?:getCollateralValue|calculateCollateral|borrowLimit)[^;]{0,300}\{[^}]{0,300}(?:getReserves|balanceOf)[^}]{0,300}(?:collateral|value)'
     message: Collateral valuation using spot price - flash loan can inflate value
 
   - id: share-price-manipulable
-    kind: regex
+    kind: fancy-regex
     pattern: '(?:shares|amount)\s*=[^;]{0,100}(?:totalSupply|balanceOf\(address\(this\)\))[^}]{0,100}\/[^}]{0,100}(?:balanceOf\(address\(this\)\)|totalSupply)'
     message: Share price calculation vulnerable to balance manipulation
 
   # === MISSING FLASH LOAN PROTECTION ===
 
   - id: deposit-no-block-check
-    kind: regex
+    kind: fancy-regex
     pattern: 'function\s+(?:deposit|stake)\s*\([^;)]{0,200}\)\s*(?:public|external)(?![^{]{0,100}(?:internal|private|;))[^{]{0,100}\{(?!.*(?:block\.number|block\.timestamp|lastDeposit))'
     message: Deposit without same-block withdrawal protection - flash loan attack vector
 
   - id: swap-no-slippage
-    kind: regex
+    kind: fancy-regex
     pattern: 'function\s+swap\s*\([^;)]{0,200}\)\s*(?:public|external)(?![^{]{0,100}(?:internal|private|;))[^{]{0,100}\{(?!.*(?:amountOutMin|minReturn|slippage))'
     message: Swap without slippage protection - vulnerable to sandwich + flash loan

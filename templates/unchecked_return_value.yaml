@@ -11,21 +11,21 @@ tags:
 
 patterns:
   - id: unchecked-call-statement
-    kind: regex
+    kind: fancy-regex
     pattern: '^\s*(?!\/\/|\/\*|\*)(?!.*(?:bool|require|if|assert))[^\n]*\.(?:call|delegatecall)\s*[\({]'
     message: Unchecked low-level call - return value ignored
 
   - id: unchecked-send-statement
-    kind: regex
+    kind: fancy-regex
     pattern: ^\s*(?!\/\/|\/\*|\*)(?!.*(?:require|if|assert))\w+\.send\([^)]+\)\s*;
     message: Unchecked .send() - return value ignored
 
   - id: declared-but-unchecked
-    kind: regex
+    kind: fancy-regex
     pattern: ^\s*(?!\/\/|\/\*|\*)\(bool\s+\w+\s*,\s*\)\s*=.*\.call
     message: Low-level call return declared but may not be checked - verify success is validated
 
   - id: arbitrary-call-with-data
-    kind: regex
+    kind: fancy-regex
     pattern: '^\s*(?!\/\/|\/\*|\*)\.call\{value:\s*\w+\}\s*\(\s*\w*data\w*\s*\)'
     message: Low-level call with arbitrary data parameter - implement whitelist validation for target address

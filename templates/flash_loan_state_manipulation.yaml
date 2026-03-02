@@ -16,106 +16,106 @@ patterns:
   # === BALANCE CHECK MANIPULATION ===
 
   - id: balance-check-same-block
-    kind: regex
+    kind: fancy-regex
     pattern: '\b(?:require|assert|if)\s*\([^)]*balanceOf\s*\(\s*address\s*\(\s*this\s*\)\s*\)'
     message: Balance check on contract address - flash loan can inflate temporarily
 
   - id: balance-delta-no-snapshot
-    kind: regex
+    kind: fancy-regex
     pattern: '(?:balance|_balance|previousBalance)\s*=\s*(?:IERC20|token|ERC20)[^\n]{0,40}balanceOf[^\n]{0,80}(?:balance|_balance)\s*[\-\+]'
     message: Balance delta without pre-tx snapshot - flash loan manipulation window
 
   - id: token-balance-as-reserve
-    kind: regex
+    kind: fancy-regex
     pattern: '(?:reserve\d?|_reserve)\s*=\s*(?:IERC20|token|ERC20)[^\n]{0,40}balanceOf\s*\(\s*address\s*\(\s*this\s*\)\s*\)'
     message: Cream pattern - using token balance as reserve (flash inflatable)
 
   # === SHARE/LP TOKEN MANIPULATION ===
 
   - id: share-calculation-from-balance
-    kind: regex
+    kind: fancy-regex
     pattern: '(?:shares|lpTokens|_shares|sharesToMint)\s*=[^\n]{0,40}balanceOf\s*\(\s*address\s*\(\s*this\s*\)\s*\)[^\n]{0,40}(?:\/|mul|div)[^\n]{0,40}totalSupply'
     message: Share calculation from spot balance - flash loan share inflation
 
   - id: mint-shares-from-balance
-    kind: regex
+    kind: fancy-regex
     pattern: '_mint\([^)]*\)[^\n]*\n[^\n]*balanceOf\s*\(\s*address\s*\(\s*this\s*\)\s*\)'
     message: Minting shares based on contract balance - flash loan mint manipulation
 
   - id: deposit-no-min-output
-    kind: regex
+    kind: fancy-regex
     pattern: '^\s*function\s+(?:deposit|mint)[^{]*\{(?![^}]{0,1500}\b(?:min|minimum|slippage|_minOut|minShares|minAmount|minimumShares)\b)'
     message: Deposit without minimum output validation - sandwich attack vector
 
   # === CEI PATTERN VIOLATIONS ===
 
   - id: state-update-after-external-call
-    kind: regex
+    kind: fancy-regex
     pattern: '(?:\.call\{|\.transfer\(|safeTransfer\()[^\n]{0,80}\n[^\n]{0,40}(?:balances\[|_balances\[|amounts\[|userInfo\[)[^\n]{0,40}='
     message: State update after external call - flash loan reentrancy window
 
   - id: accounting-after-swap
-    kind: regex
+    kind: fancy-regex
     pattern: '(?:swap|exchange|trade)\([^\n]{0,120}\n[^\n]{0,80}(?:balance|reserve|totalDeposit|_balance)\s*[\+\-]?='
     message: Accounting after swap operation - manipulation between operations
 
   - id: repay-before-effect
-    kind: regex
+    kind: fancy-regex
     pattern: '(?:repay|_repay)[^\n]{0,80}(?:transfer|safeTransfer)[^\n]{0,150}(?:debt|loan|borrow|_debt)\s*[\-\+]?='
     message: Value DeFi pattern - repayment before debt state update
 
   # === SAME-TX MANIPULATION ===
 
   - id: borrow-repay-same-block
-    kind: regex
+    kind: fancy-regex
     pattern: '^\s*function\s+(?:borrow|loan)[^{]{0,200}\{[^}]{0,1500}(?:repay|payback|_repay)'
     message: Borrow and repay in same function - flash loan arbitrage vector
 
   - id: deposit-withdraw-no-delay
-    kind: regex
+    kind: fancy-regex
     pattern: '^\s*function\s+(?:withdraw|redeem)[^{]*\{(?![^}]{0,1500}\b(?:block\.(?:number|timestamp)|lockTime|delay|cooldown|lastDeposit)\b)'
     message: Withdraw without time delay - same-block deposit-withdraw attack
 
   - id: stake-unstake-same-tx
-    kind: regex
+    kind: fancy-regex
     pattern: '^\s*function\s+(?:unstake|withdraw)[^{]*\{(?![^}]{0,1500}\b(?:lastStake|stakeTime|lockPeriod|stakingStart|minStakePeriod)\b)'
     message: Unstake without time lock - flash loan stake manipulation
 
   # === ORACLE/PRICE IN SAME TX ===
 
   - id: price-update-no-delay
-    kind: regex
+    kind: fancy-regex
     pattern: '^\s*function\s+(?:updatePrice|setPrice|syncPrice|_updatePrice)[^{]*\{(?![^}]{0,1000}\b(?:block\.(?:number|timestamp)|lastUpdate|updateTime)\b)'
     message: Price update without delay - same-tx manipulation
 
   - id: oracle-update-balance-use
-    kind: regex
+    kind: fancy-regex
     pattern: '(?:updateReserve|sync|skim)[^\n]{0,120}(?:getPrice|getReserve|quote|_getPrice)'
     message: Oracle updated and used in same context - manipulation window
 
   # === VAULT/POOL MANIPULATION ===
 
   - id: totalassets-from-balance
-    kind: regex
+    kind: fancy-regex
     pattern: '^\s*function\s+(?:totalAssets|_totalAssets)[^{]{0,80}\{[^}]{0,600}balanceOf\s*\(\s*address\s*\(\s*this\s*\)\s*\)'
     message: Yearn pattern - totalAssets from balance (flash inflatable)
 
   - id: convertToShares-spot-balance
-    kind: regex
+    kind: fancy-regex
     pattern: '^\s*function\s+(?:convertToShares|previewDeposit)[^{]{0,80}\{[^}]{0,800}balanceOf'
     message: ERC4626 convertToShares using spot balance - flash loan manipulation
 
   - id: convertToAssets-spot-balance
-    kind: regex
+    kind: fancy-regex
     pattern: '^\s*function\s+(?:convertToAssets|previewRedeem)[^{]{0,80}\{[^}]{0,800}balanceOf'
     message: ERC4626 convertToAssets using spot balance - flash loan manipulation
 
   - id: twap-insufficient-period
-    kind: regex
+    kind: fancy-regex
     pattern: '(?:consult|getTwap)\([^)]*\)(?![^\n]{0,80}(?:period|window|elapsed|minPeriod))'
     message: TWAP oracle without minimum period validation - short-period manipulation
 
   - id: skim-sync-arbitrage
-    kind: regex
+    kind: fancy-regex
     pattern: '^\s*function\s+(?:skim|sync)\s*\([^{]*\{(?![^}]{0,500}\b(?:onlyOwner|authorized|onlyRole|msg\.sender)\b)'
     message: Public skim/sync functions - reserve manipulation arbitrage
