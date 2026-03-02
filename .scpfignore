@@ -1,0 +1,45 @@
+# SCPF Ignore Patterns
+# Exclude files and directories from scanning
+
+# Dependencies
+node_modules/
+.pnp/
+.yarn/
+
+# Build outputs
+target/
+build/
+dist/
+out/
+artifacts/
+cache/
+
+# Test files
+*.test.sol
+*.t.sol
+test/
+tests/
+**/*Test.sol
+**/*Mock.sol
+
+# Version control
+.git/
+.svn/
+.hg/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary files
+*.tmp
+*.bak
+*.log
+
+# Libraries (optional - uncomment to skip)
+# lib/
+# @openzeppelin/
+# @solady/

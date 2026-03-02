@@ -22,6 +22,8 @@ pub mod poc_stager;
 pub mod analysis;
 pub mod exploitability;
 pub mod honeypot_filter;
+pub mod limits;
+pub mod ignore;
 
 pub use scanner::Scanner;
 pub use semantic::SemanticScanner;
@@ -46,6 +48,8 @@ pub use poc_stager::{PocStager, PocCandidate, PocContext, PocPriority};
 pub use analysis::{SymbolCollector, classify_modifiers};
 pub use exploitability::{analyze_exploitability, ExploitAnalysis, ExploitConfidence};
 pub use honeypot_filter::HoneypotFilter;
+pub use limits::{MatcherLimits, LoaderLimits};
+pub use ignore::{IgnoreRule, load_ignore_patterns};
 
 #[cfg(test)]
 mod tests;

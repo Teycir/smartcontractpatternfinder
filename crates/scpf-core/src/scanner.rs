@@ -2,7 +2,7 @@ use crate::regex_validator::RegexValidator;
 use anyhow::Result;
 use fancy_regex::RegexBuilder;
 use rayon::prelude::*;
-use scpf_types::{Match, Pattern, Template};
+use scpf_types::{Match, Pattern, PatternKind, Template};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::warn;
@@ -10,8 +10,14 @@ use tracing::warn;
 /// Shared string type to avoid cloning template/pattern IDs for every match
 type SharedStr = Arc<str>;
 
+enum CompiledMatcher {
+    Regex(regex::Regex),
+    FancyRegex(fancy_regex::Regex),
+    Literal(String),
+}
+
 struct CompiledPatternOptimized {
-    regex: fancy_regex::Regex,
+    matcher: CompiledMatcher,
     pattern_id: SharedStr,
     message: SharedStr,
     index: u32,
@@ -188,18 +194,34 @@ impl Scanner {
         let mut seen = std::collections::HashSet::new();
 
         for compiled_pattern in &compiled_template.patterns {
-            for mat in compiled_pattern.regex.find_iter(ctx.source) {
-                let mat = match mat {
-                    Ok(m) => m,
-                    Err(_) => continue,
-                };
+            // Match based on pattern type
+            let matches: Vec<(usize, usize, String)> = match &compiled_pattern.matcher {
+                CompiledMatcher::Regex(re) => {
+                    re.find_iter(ctx.source)
+                        .map(|m| (m.start(), m.end(), m.as_str().to_string()))
+                        .collect()
+                }
+                CompiledMatcher::FancyRegex(re) => {
+                    re.find_iter(ctx.source)
+                        .filter_map(|m| m.ok())
+                        .map(|m| (m.start(), m.end(), m.as_str().to_string()))
+                        .collect()
+                }
+                CompiledMatcher::Literal(literal) => {
+                    ctx.source
+                        .match_indices(literal.as_str())
+                        .map(|(start, matched)| (start, start + matched.len(), matched.to_string()))
+                        .collect()
+                }
+            };
 
-                let key = (mat.start(), mat.end(), compiled_pattern.index);
+            for (start, end, matched_text) in matches {
+                let key = (start, end, compiled_pattern.index);
                 if !seen.insert(key) {
                     continue;
                 }
 
-                let line_number = ctx.newlines.partition_point(|&pos| pos < mat.start()) + 1;
+                let line_number = ctx.newlines.partition_point(|&pos| pos < start) + 1;
                 let line_start = if line_number > 1 {
                     ctx.newlines[line_number - 2] + 1
                 } else {
@@ -209,8 +231,8 @@ impl Scanner {
                 let context = get_match_context(
                     ctx.source,
                     ctx.newlines,
-                    mat.start(),
-                    mat.end(),
+                    start,
+                    end,
                     line_number,
                 );
 
@@ -241,7 +263,7 @@ impl Scanner {
                 }
 
                 if ctx.is_oz_library
-                    && is_openzeppelin_safe_pattern(ctx.source, &context, mat.as_str())
+                    && is_openzeppelin_safe_pattern(ctx.source, &context, &matched_text)
                 {
                     continue;
                 }
@@ -253,8 +275,8 @@ impl Scanner {
                     pattern_id: compiled_pattern.pattern_id.to_string(),
                     file_path: ctx.file_path.clone(),
                     line_number,
-                    column: mat.start() - line_start,
-                    matched_text: mat.as_str().to_string(),
+                    column: start - line_start,
+                    matched_text,
                     context,
                     code_snippet: extract_code_snippet_cached(ctx.lines, line_number),
                     severity: compiled_template.severity,
@@ -409,34 +431,83 @@ fn compile_pattern_optimized(
     template_id: &str,
     index: u32,
 ) -> Result<CompiledPatternOptimized> {
-    RegexValidator::validate_pattern(&pattern.pattern).map_err(|e| {
-        warn!(
-            "Unsafe regex pattern in template '{}', pattern '{}': {}",
-            template_id, pattern.id, e
-        );
-        anyhow::anyhow!(
-            "Unsafe regex pattern in template '{}', pattern '{}': {}",
-            template_id,
-            pattern.id,
-            e
-        )
-    })?;
+    let matcher = match pattern.kind {
+        PatternKind::Regex => {
+            RegexValidator::validate_pattern(&pattern.pattern).map_err(|e| {
+                warn!(
+                    "Unsafe regex pattern in template '{}', pattern '{}': {}",
+                    template_id, pattern.id, e
+                );
+                anyhow::anyhow!(
+                    "Unsafe regex pattern in template '{}', pattern '{}': {}",
+                    template_id,
+                    pattern.id,
+                    e
+                )
+            })?;
 
-    let regex = RegexBuilder::new(&pattern.pattern).build().map_err(|e| {
-        warn!(
-            "Invalid regex in template '{}', pattern '{}': {}",
-            template_id, pattern.id, e
-        );
-        anyhow::anyhow!(
-            "Invalid regex in template '{}', pattern '{}': {}",
-            template_id,
-            pattern.id,
-            e
-        )
-    })?;
+            let re = regex::Regex::new(&pattern.pattern).map_err(|e| {
+                warn!(
+                    "Invalid regex in template '{}', pattern '{}': {}",
+                    template_id, pattern.id, e
+                );
+                anyhow::anyhow!(
+                    "Invalid regex in template '{}', pattern '{}': {}",
+                    template_id,
+                    pattern.id,
+                    e
+                )
+            })?;
+            CompiledMatcher::Regex(re)
+        }
+        PatternKind::FancyRegex => {
+            RegexValidator::validate_pattern(&pattern.pattern).map_err(|e| {
+                warn!(
+                    "Unsafe regex pattern in template '{}', pattern '{}': {}",
+                    template_id, pattern.id, e
+                );
+                anyhow::anyhow!(
+                    "Unsafe regex pattern in template '{}', pattern '{}': {}",
+                    template_id,
+                    pattern.id,
+                    e
+                )
+            })?;
+
+            let re = RegexBuilder::new(&pattern.pattern).build().map_err(|e| {
+                warn!(
+                    "Invalid fancy-regex in template '{}', pattern '{}': {}",
+                    template_id, pattern.id, e
+                );
+                anyhow::anyhow!(
+                    "Invalid fancy-regex in template '{}', pattern '{}': {}",
+                    template_id,
+                    pattern.id,
+                    e
+                )
+            })?;
+            CompiledMatcher::FancyRegex(re)
+        }
+        PatternKind::Literal => {
+            if pattern.pattern.is_empty() {
+                anyhow::bail!(
+                    "Empty literal pattern in template '{}', pattern '{}'",
+                    template_id,
+                    pattern.id
+                );
+            }
+            CompiledMatcher::Literal(pattern.pattern.clone())
+        }
+        PatternKind::Semantic => {
+            // Semantic patterns are handled separately, skip compilation
+            return Err(anyhow::anyhow!(
+                "Semantic patterns should not be compiled in scanner"
+            ));
+        }
+    };
 
     Ok(CompiledPatternOptimized {
-        regex,
+        matcher,
         pattern_id: Arc::from(pattern.id.as_str()),
         message: Arc::from(pattern.message.as_str()),
         index,
@@ -450,9 +521,20 @@ fn compile_template_optimized(
     let mut compiled_patterns = Vec::with_capacity(template.patterns.len());
 
     for pattern in &template.patterns {
-        let compiled = compile_pattern_optimized(pattern, &template.id, *pattern_index)?;
-        compiled_patterns.push(compiled);
-        *pattern_index += 1;
+        // Skip semantic patterns - they're handled separately
+        if pattern.kind == PatternKind::Semantic {
+            continue;
+        }
+        
+        match compile_pattern_optimized(pattern, &template.id, *pattern_index) {
+            Ok(compiled) => {
+                compiled_patterns.push(compiled);
+                *pattern_index += 1;
+            }
+            Err(e) => {
+                warn!("Skipping pattern '{}' in template '{}': {}", pattern.id, template.id, e);
+            }
+        }
     }
 
     if compiled_patterns.is_empty() {

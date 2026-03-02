@@ -1,0 +1,54 @@
+# SCPF Configuration File
+# Place this file in your project root as .scpf.toml
+
+[limits]
+# Maximum file size to scan (bytes)
+max_file_size = 10485760  # 10MB
+
+# Maximum template file size (bytes)
+max_template_file_size = 1048576  # 1MB
+
+# Maximum number of patterns per template
+max_patterns = 1000
+
+# Maximum regex pattern length (characters)
+max_regex_length = 500
+
+# Maximum matches per file
+max_matches = 10000
+
+# Maximum number of templates to load
+max_templates = 100
+
+# Maximum lines in template file (prevent YAML bombs)
+max_lines = 10000
+
+[scanning]
+# Number of concurrent scans
+concurrency = 10
+
+# Timeout for API requests (seconds)
+timeout_secs = 30
+
+# Enable semantic analysis
+semantic_analysis = true
+
+[output]
+# Default output format: console, json, sarif
+default_format = "console"
+
+# Show severity icons in console output
+show_icons = true
+
+# Fail on critical findings
+fail_on_critical = true
+
+[cache]
+# Enable caching of contract source code
+enabled = true
+
+# Cache directory
+cache_dir = ".cache"
+
+# Cache TTL (seconds)
+ttl_secs = 86400  # 24 hours

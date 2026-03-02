@@ -35,6 +35,8 @@ pub struct Pattern {
 pub enum PatternKind {
     #[default]
     Regex,
+    FancyRegex,  // Supports backreferences and lookahead/lookbehind
+    Literal,     // Exact string matching (faster than regex)
     Semantic,
 }
 

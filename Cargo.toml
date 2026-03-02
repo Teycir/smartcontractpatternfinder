@@ -39,6 +39,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 clap = { version = "4.4", features = ["derive"] }
 
 # Regex & Pattern matching
+regex = "1.10"
 fancy-regex = "0.13"
 tree-sitter = "0.26"
 tree-sitter-solidity = "1.2"

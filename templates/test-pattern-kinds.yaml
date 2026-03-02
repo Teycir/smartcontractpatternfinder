@@ -1,0 +1,24 @@
+id: pattern-kind-test
+name: Pattern Kind Test
+description: Test all pattern kinds (literal, regex, fancyregex)
+severity: high
+tags:
+  - test
+patterns:
+  # Literal pattern - exact match
+  - id: literal-test
+    kind: literal
+    pattern: 'selfdestruct'
+    message: Literal pattern match
+  
+  # Regex pattern - standard regex
+  - id: regex-test
+    kind: regex
+    pattern: '\.call\{value:'
+    message: Regex pattern match
+  
+  # FancyRegex pattern - with backreference
+  - id: fancyregex-test
+    kind: fancyregex
+    pattern: '(\w+)\s+\1'
+    message: FancyRegex pattern match (duplicate words)
