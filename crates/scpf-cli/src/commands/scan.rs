@@ -82,11 +82,7 @@ async fn scan_contracts(
             let scan_semaphore = Arc::clone(&scan_semaphore);
             
             async move {
-                let short_addr = if address.len() >= 12 {
-                    &address[..12]
-                } else {
-                    &address
-                };
+                let short_addr = &address;
 
                 // Progress reporting
                 {
@@ -325,7 +321,7 @@ fn rank_and_score(mut scan_results: Vec<ScanResult>) -> Vec<ScanResult> {
         eprintln!(
             "  {}. {} - PoC: {:.1} (Weighted Risk: {:.1}, Raw: {})",
             i + 1,
-            &r.address[..12],
+            &r.address,
             score,
             weighted,
             r.total_risk_score()
@@ -549,7 +545,7 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
             summary.push_str(&format!(
                 "| {} | {} | {} | {:.1} | {} | {:.1} |\n",
                 i + 1,
-                &result.address[..12],
+                &result.address,
                 result.chain,
                 risk,
                 result.matches.len(),
