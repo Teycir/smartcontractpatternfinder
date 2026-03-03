@@ -214,7 +214,7 @@ async fn scan_contracts(
 
                 let filtered_matches: Vec<_> = matches
                     .into_iter()
-                    .filter(|m| m.severity >= min_severity && m.severity == Severity::Critical)
+                    .filter(|m| m.severity >= min_severity && m.severity == Severity::Critical && !m.filtered)
                     .collect();
 
                 if !filtered_matches.is_empty() {
@@ -352,15 +352,6 @@ fn extract_solidity_version(source: &str) -> Option<String> {
 }
 
 pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
-    eprintln!(
-        "🔍 Fetching {} pages of contracts...",
-        args.pages
-    );
-    eprintln!(
-        "   Severity filter: {} and above",
-        args.min_severity.to_uppercase()
-    );
-
     let api_keys = crate::keys::load_api_keys_from_env();
     let fetcher = Arc::new(ContractFetcher::new(api_keys)?);
     let chains = if args.chains.is_empty() {
@@ -369,7 +360,24 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
         args.chains.clone()
     };
 
-    let all_contracts = fetch_contracts(&fetcher, &chains, args.pages).await;
+    // If addresses provided, use them directly instead of fetching
+    let all_contracts = if !args.addresses.is_empty() {
+        eprintln!("🔍 Scanning {} provided addresses...", args.addresses.len());
+        args.addresses.iter().map(|addr| {
+            (addr.clone(), chains.first().cloned().unwrap_or(Chain::Ethereum))
+        }).collect()
+    } else {
+        eprintln!(
+            "🔍 Fetching {} pages of contracts...",
+            args.pages
+        );
+        eprintln!(
+            "   Severity filter: {} and above",
+            args.min_severity.to_uppercase()
+        );
+        fetch_contracts(&fetcher, &chains, args.pages).await
+    };
+    
     let _total_contracts_fetched = all_contracts.len();
     if all_contracts.is_empty() {
         eprintln!("⚠️  No recent contracts found");

@@ -324,6 +324,29 @@ impl Scanner {
     /// Check if match should be filtered
     #[inline]
     fn check_filtered(&self, context: &str) -> bool {
+        // OpenZeppelin Address.sendValue pattern
+        if context.contains("function sendValue(address payable recipient, uint256 amount) internal") {
+            return true;
+        }
+        if context.contains("Address: insufficient balance") || context.contains("Address: unable to send value") {
+            return true;
+        }
+        
+        // Chainlink oracle patterns
+        if context.contains("interface AggregatorV3Interface") 
+            || context.contains("EACAggregatorProxy")
+            || context.contains("function latestRoundData()") {
+            return true;
+        }
+        
+        // Diamond proxy (EIP-2535) patterns
+        if context.contains("ds.selectorToFacetAndPosition") 
+            || context.contains("LibDiamond")
+            || context.contains("IDiamondCut") {
+            return true;
+        }
+        
+        // Existing filters
         if let Some(ref regex) = self.oz_address_lib_regex {
             if regex.is_match(context).unwrap_or(false) {
                 return true;
