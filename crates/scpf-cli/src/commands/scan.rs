@@ -10,6 +10,35 @@ use futures::stream::{self, StreamExt};
 use tokio::sync::Semaphore;
 use chrono;
 
+async fn get_balance(address: &str, chain: &str, _fetcher: &ContractFetcher) -> u64 {
+    let rpc_url = match chain {
+        "ethereum" => "https://eth.llamarpc.com",
+        "polygon" => "https://polygon.llamarpc.com",
+        "arbitrum" => "https://arbitrum.llamarpc.com",
+        _ => return 0,
+    };
+
+    let client = reqwest::Client::new();
+    let payload = serde_json::json!({
+        "jsonrpc": "2.0",
+        "method": "eth_getBalance",
+        "params": [address, "latest"],
+        "id": 1
+    });
+
+    match client.post(rpc_url).json(&payload).send().await {
+        Ok(resp) => {
+            if let Ok(json) = resp.json::<serde_json::Value>().await {
+                if let Some(result) = json.get("result").and_then(|r| r.as_str()) {
+                    return u64::from_str_radix(result.trim_start_matches("0x"), 16).unwrap_or(0);
+                }
+            }
+            0
+        }
+        Err(_) => 0,
+    }
+}
+
 fn get_supported_chains() -> Vec<Chain> {
     vec![Chain::Ethereum, Chain::Polygon, Chain::Arbitrum]
 }
@@ -447,8 +476,9 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     eprintln!();
 
     let min_sev = parse_severity(&args.min_severity);
+    let fetcher_clone = Arc::clone(&fetcher);
     let (all_scan_results, cache, skipped_timeouts, _scan_start_time, _scan_end_time) =
-        scan_contracts(all_contracts, templates, fetcher, min_sev, args.concurrency).await?;
+        scan_contracts(all_contracts, templates, fetcher_clone, min_sev, args.concurrency).await?;
     let _total_scanned = all_scan_results.len();
     let scan_results = rank_and_score(all_scan_results);
     let timestamp = std::time::SystemTime::now()
@@ -636,12 +666,29 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
 
         let mut saved_count = 0;
         let mut total_size: u64 = 0;
+        let mut skipped_zero_balance = 0;
 
         // scan_results is already sorted by weighted risk score (from rank_and_score)
         for (rank, result) in scan_results.iter().take(extract_count).enumerate() {
             let cache_key = format!("{}:{}", result.chain, result.address);
 
             if let Some(source) = cache.get(&cache_key).await {
+                // Balance check if flag enabled
+                if args.skip_zero_balance {
+                    let balance = get_balance(&result.address, &result.chain, &fetcher).await;
+                    if balance == 0 {
+                        skipped_zero_balance += 1;
+                        eprintln!(
+                            "   [{}/{}] {} ({}) - SKIPPED (0 ETH balance)",
+                            rank + 1,
+                            extract_count,
+                            &result.address,
+                            result.chain
+                        );
+                        continue;
+                    }
+                }
+
                 // Create chain subdirectory
                 let chain_dir = sources_dir.join(&result.chain);
                 std::fs::create_dir_all(&chain_dir)?;
@@ -668,6 +715,13 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
                     weighted_risk
                 );
             }
+        }
+
+        if skipped_zero_balance > 0 {
+            eprintln!(
+                "\n   ⏭️  Skipped {} contracts with 0 ETH balance",
+                skipped_zero_balance
+            );
         }
 
         eprintln!(

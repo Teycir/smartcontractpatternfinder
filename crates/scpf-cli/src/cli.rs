@@ -137,6 +137,9 @@ pub struct ScanArgs {
         help = "Extract top N riskiest contract sources to report directory (after ranking)"
     )]
     pub extract_sources: Option<usize>,
+
+    #[arg(long, help = "Skip contracts with 0 ETH balance (post-scan filter)")]
+    pub skip_zero_balance: bool,
 }
 
 fn parse_chain(s: &str) -> Result<Chain, String> {
