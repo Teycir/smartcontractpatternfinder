@@ -8,7 +8,7 @@
 </div>
 <!-- markdownlint-enable MD033 -->
 
-🔍 High-performance tool for detecting security vulnerabilities and patterns in smart contracts across multiple blockchains.
+🔍 High-performance tool for detecting security vulnerabilities and patterns in Ethereum smart contracts.
 
 **How it works:** Define patterns in YAML templates → SCPF scans smart contracts → Finds matching patterns → Reports vulnerabilities
 
@@ -62,7 +62,7 @@
 
 ## ✨ Features
 
-- 🌐 **Multi-chain Support** - Ethereum, BSC, Polygon, Arbitrum, Optimism, Base, Avalanche, Fantom, Linea, and Scroll
+- 🌐 **Ethereum Support** - Mainnet contract scanning via Etherscan API
 - 📁 **Local Project Scanning** - Scan .sol files in your workspace
 - 🔄 **Git Diff Scanning** - Only scan changed files in PRs
 - 🤖 **CI/CD Integration** - GitHub Actions, GitLab CI, Bitbucket Pipelines
@@ -150,7 +150,7 @@ scpf scan --diff main..HEAD
 scpf scan --templates ./my-templates
 
 # Scan multiple contracts
-scpf scan 0xabc... 0xdef... 0x123... --chains bsc
+scpf scan 0xabc... 0xdef... 0x123... --chains ethereum
 
 # Export to JSON/SARIF
 scpf scan --output json > results.json
@@ -261,8 +261,8 @@ scpf scan --diff main..HEAD
 # Scan with custom templates
 scpf scan --templates ./custom-templates
 
-# Scan multiple chains at once
-scpf scan --chains ethereum,polygon,arbitrum --pages 10
+# Scan with more pages
+scpf scan --chains ethereum --pages 10
 
 # Restrict findings to selected templates
 scpf scan --only-templates reentrancy,delegatecall-user-input
@@ -309,18 +309,18 @@ scpf init --yes
 
 | Chain | Network | API Provider | Status |
 |-------|---------|--------------|--------|
-| **Ethereum** | Mainnet | Etherscan V2 API | ✅ Active |
-| **BSC** | BNB Smart Chain | Etherscan V2 API | ✅ Active |
-| **Polygon** | Polygon PoS | Etherscan V2 API | ✅ Active |
-| **Arbitrum** | Arbitrum One | Etherscan V2 API | ✅ Active |
-| **Optimism** | OP Mainnet | Etherscan V2 API | ✅ Active |
-| **Base** | Base Mainnet | Etherscan V2 API | ✅ Active |
-| **Avalanche** | Avalanche C-Chain | Etherscan V2 API | ✅ Active |
-| **Fantom** | Fantom Opera | Etherscan V2 API | ✅ Active |
-| **Linea** | Linea Mainnet | Etherscan V2 API | ✅ Active |
-| **Scroll** | Scroll Mainnet | Etherscan V2 API | ✅ Active |
+| **Ethereum** | Mainnet | Etherscan API | ✅ Active |
+| **BSC** | BNB Smart Chain | BscScan API | 🚧 Planned |
+| **Polygon** | Polygon PoS | PolygonScan API | 🚧 Planned |
+| **Arbitrum** | Arbitrum One | Arbiscan API | 🚧 Planned |
+| **Optimism** | OP Mainnet | Optimistic Etherscan API | 🚧 Planned |
+| **Base** | Base Mainnet | BaseScan API | 🚧 Planned |
+| **Avalanche** | Avalanche C-Chain | SnowTrace API | 🚧 Planned |
+| **Fantom** | Fantom Opera | FtmScan API | 🚧 Planned |
+| **Linea** | Linea Mainnet | LineaScan API | 🚧 Planned |
+| **Scroll** | Scroll Mainnet | ScrollScan API | 🚧 Planned |
 
-**Note**: All chains use Etherscan's unified V2 API. Set `ETHERSCAN_API_KEY` (supports up to 6 keys for fallback).
+**Note**: Currently only Ethereum mainnet is fully supported. Multi-chain support is planned for future releases. See [Chain Support Status](docs/CHAIN_SUPPORT_STATUS.md) for implementation details.
 
 ---
 
@@ -343,8 +343,6 @@ export ETHERSCAN_API_KEY_6="your-key-6"
 ### Getting API Keys
 
 - **Etherscan**: https://etherscan.io/apis (free tier: 5 calls/sec)
-
-**Tip**: The same Etherscan API key works across all supported chains via the unified V2 API.
 
 ---
 
