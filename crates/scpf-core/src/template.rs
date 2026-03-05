@@ -1,9 +1,9 @@
+use crate::limits::LoaderLimits;
 use anyhow::{Context, Result};
 use scpf_types::Template;
 use std::collections::HashSet;
 use std::path::Path;
 use tokio::fs;
-use crate::limits::LoaderLimits;
 
 pub struct TemplateLoader;
 
@@ -12,7 +12,10 @@ impl TemplateLoader {
         Self::load_from_dir_with_limits(dir, LoaderLimits::default()).await
     }
 
-    pub async fn load_from_dir_with_limits(dir: &Path, limits: LoaderLimits) -> Result<Vec<Template>> {
+    pub async fn load_from_dir_with_limits(
+        dir: &Path,
+        limits: LoaderLimits,
+    ) -> Result<Vec<Template>> {
         let mut templates = Vec::new();
         let mut seen_ids = HashSet::new();
         let mut entries = fs::read_dir(dir)

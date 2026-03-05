@@ -133,7 +133,7 @@ impl Scanner {
 
         // Pre-check if source is OZ library (avoid repeated checks)
         let is_oz_library = is_openzeppelin_library(source);
-        
+
         // Detect contract type for pattern filtering
         let contract_type = ContractTypeDetector::detect(source);
 
@@ -225,23 +225,20 @@ impl Scanner {
         for compiled_pattern in &compiled_template.patterns {
             // Match based on pattern type
             let matches: Vec<(usize, usize, String)> = match &compiled_pattern.matcher {
-                CompiledMatcher::Regex(re) => {
-                    re.find_iter(ctx.source)
-                        .map(|m| (m.start(), m.end(), m.as_str().to_string()))
-                        .collect()
-                }
-                CompiledMatcher::FancyRegex(re) => {
-                    re.find_iter(ctx.source)
-                        .filter_map(|m| m.ok())
-                        .map(|m| (m.start(), m.end(), m.as_str().to_string()))
-                        .collect()
-                }
-                CompiledMatcher::Literal(literal) => {
-                    ctx.source
-                        .match_indices(literal.as_str())
-                        .map(|(start, matched)| (start, start + matched.len(), matched.to_string()))
-                        .collect()
-                }
+                CompiledMatcher::Regex(re) => re
+                    .find_iter(ctx.source)
+                    .map(|m| (m.start(), m.end(), m.as_str().to_string()))
+                    .collect(),
+                CompiledMatcher::FancyRegex(re) => re
+                    .find_iter(ctx.source)
+                    .filter_map(|m| m.ok())
+                    .map(|m| (m.start(), m.end(), m.as_str().to_string()))
+                    .collect(),
+                CompiledMatcher::Literal(literal) => ctx
+                    .source
+                    .match_indices(literal.as_str())
+                    .map(|(start, matched)| (start, start + matched.len(), matched.to_string()))
+                    .collect(),
             };
 
             for (start, end, matched_text) in matches {
@@ -257,13 +254,7 @@ impl Scanner {
                     0
                 };
 
-                let context = get_match_context(
-                    ctx.source,
-                    ctx.newlines,
-                    start,
-                    end,
-                    line_number,
-                );
+                let context = get_match_context(ctx.source, ctx.newlines, start, end, line_number);
 
                 // Fast regex-based false positive filtering
                 if is_reentrancy_template {
@@ -325,27 +316,33 @@ impl Scanner {
     #[inline]
     fn check_filtered(&self, context: &str) -> bool {
         // OpenZeppelin Address.sendValue pattern
-        if context.contains("function sendValue(address payable recipient, uint256 amount) internal") {
+        if context
+            .contains("function sendValue(address payable recipient, uint256 amount) internal")
+        {
             return true;
         }
-        if context.contains("Address: insufficient balance") || context.contains("Address: unable to send value") {
+        if context.contains("Address: insufficient balance")
+            || context.contains("Address: unable to send value")
+        {
             return true;
         }
-        
+
         // Chainlink oracle patterns
-        if context.contains("interface AggregatorV3Interface") 
+        if context.contains("interface AggregatorV3Interface")
             || context.contains("EACAggregatorProxy")
-            || context.contains("function latestRoundData()") {
+            || context.contains("function latestRoundData()")
+        {
             return true;
         }
-        
+
         // Diamond proxy (EIP-2535) patterns
-        if context.contains("ds.selectorToFacetAndPosition") 
+        if context.contains("ds.selectorToFacetAndPosition")
             || context.contains("LibDiamond")
-            || context.contains("IDiamondCut") {
+            || context.contains("IDiamondCut")
+        {
             return true;
         }
-        
+
         // Existing filters
         if let Some(ref regex) = self.oz_address_lib_regex {
             if regex.is_match(context).unwrap_or(false) {
@@ -578,14 +575,17 @@ fn compile_template_optimized(
         if pattern.kind == PatternKind::Semantic {
             continue;
         }
-        
+
         match compile_pattern_optimized(pattern, &template.id, *pattern_index) {
             Ok(compiled) => {
                 compiled_patterns.push(compiled);
                 *pattern_index += 1;
             }
             Err(e) => {
-                warn!("Skipping pattern '{}' in template '{}': {}", pattern.id, template.id, e);
+                warn!(
+                    "Skipping pattern '{}' in template '{}': {}",
+                    pattern.id, template.id, e
+                );
             }
         }
     }

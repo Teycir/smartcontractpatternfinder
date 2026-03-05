@@ -28,13 +28,20 @@ pub async fn run(args: FetchZeroDayArgs) -> Result<()> {
     }
 
     eprintln!("{}  Found {} recent exploits", "✓".green(), exploits.len());
-    
+
     // Sort by date (newest first)
     exploits.sort_by(|a, b| b.date.cmp(&a.date));
-    
-    let with_addr = exploits.iter().filter(|e| e.contract_address.is_some()).count();
-    eprintln!("   ✓ {} with addresses, {} without", with_addr, exploits.len() - with_addr);
-    
+
+    let with_addr = exploits
+        .iter()
+        .filter(|e| e.contract_address.is_some())
+        .count();
+    eprintln!(
+        "   ✓ {} with addresses, {} without",
+        with_addr,
+        exploits.len() - with_addr
+    );
+
     eprintln!("⏳ Processing exploits...");
     eprintln!();
 
@@ -53,7 +60,10 @@ pub async fn run(args: FetchZeroDayArgs) -> Result<()> {
         }))
     };
     std::fs::create_dir_all(&root_dir)?;
-    let zeroday_summary = args.output.clone().unwrap_or_else(|| root_dir.join("0day_summary.md"));
+    let zeroday_summary = args
+        .output
+        .clone()
+        .unwrap_or_else(|| root_dir.join("0day_summary.md"));
 
     let mut summary = String::new();
     summary.push_str("# 🔥 0-Day Exploit Summary\n\n");
@@ -62,11 +72,17 @@ pub async fn run(args: FetchZeroDayArgs) -> Result<()> {
         .unwrap()
         .as_secs();
     summary.push_str(&format!("**Generated:** {}\n", timestamp));
-    summary.push_str(&format!("**Period:** Last {} days (fetched {})
+    summary.push_str(&format!(
+        "**Period:** Last {} days (fetched {})
 
-", args.days, days_to_fetch));
+",
+        args.days, days_to_fetch
+    ));
     summary.push_str("---\n\n");
-    let with_address: Vec<_> = exploits.iter().filter(|e| e.contract_address.is_some()).collect();
+    let with_address: Vec<_> = exploits
+        .iter()
+        .filter(|e| e.contract_address.is_some())
+        .collect();
 
     summary.push_str(&format!(
         "## 📊 Overview\n\n- **Total Exploits:** {}\n- **With Contract Address:** {}\n\n",
@@ -78,7 +94,11 @@ pub async fn run(args: FetchZeroDayArgs) -> Result<()> {
 
     for exploit in &with_address {
         summary.push_str(&format!("### {}\n\n", exploit.title));
-        summary.push_str(&format!("**Date:** {} | **Source:** {}\n\n", exploit.date.format("%Y-%m-%d"), exploit.source));
+        summary.push_str(&format!(
+            "**Date:** {} | **Source:** {}\n\n",
+            exploit.date.format("%Y-%m-%d"),
+            exploit.source
+        ));
 
         if let Some(addr) = &exploit.contract_address {
             summary.push_str(&format!("**Contract:** `{}`\n\n", addr));
@@ -105,7 +125,10 @@ pub async fn run(args: FetchZeroDayArgs) -> Result<()> {
                     "base" => format!("https://basescan.org/address/{}", addr),
                     _ => format!("https://etherscan.io/address/{}", addr),
                 };
-                summary.push_str(&format!("- [View Contract on Explorer]({}#code)\n", explorer));
+                summary.push_str(&format!(
+                    "- [View Contract on Explorer]({}#code)\n",
+                    explorer
+                ));
             }
         }
 
@@ -130,8 +153,6 @@ pub async fn run(args: FetchZeroDayArgs) -> Result<()> {
     }
 
     fs::write(&zeroday_summary, summary)?;
-
-
 
     eprintln!("✅ Processing complete");
     eprintln!();

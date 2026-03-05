@@ -1,4 +1,4 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use scpf_core::Scanner;
 use scpf_types::{Pattern, PatternKind, Severity, Template};
 use std::path::PathBuf;
@@ -51,10 +51,12 @@ fn generate_contract(lines: usize) -> String {
 fn bench_scan_small(c: &mut Criterion) {
     let scanner = Scanner::new(vec![create_test_template()]).unwrap();
     let source = generate_contract(50);
-    
+
     c.bench_function("scan_small_50_lines", |b| {
         b.iter(|| {
-            scanner.scan(black_box(&source), PathBuf::from("test.sol")).unwrap()
+            scanner
+                .scan(black_box(&source), PathBuf::from("test.sol"))
+                .unwrap()
         })
     });
 }
@@ -62,10 +64,12 @@ fn bench_scan_small(c: &mut Criterion) {
 fn bench_scan_medium(c: &mut Criterion) {
     let scanner = Scanner::new(vec![create_test_template()]).unwrap();
     let source = generate_contract(200);
-    
+
     c.bench_function("scan_medium_200_lines", |b| {
         b.iter(|| {
-            scanner.scan(black_box(&source), PathBuf::from("test.sol")).unwrap()
+            scanner
+                .scan(black_box(&source), PathBuf::from("test.sol"))
+                .unwrap()
         })
     });
 }
@@ -73,10 +77,12 @@ fn bench_scan_medium(c: &mut Criterion) {
 fn bench_scan_large(c: &mut Criterion) {
     let scanner = Scanner::new(vec![create_test_template()]).unwrap();
     let source = generate_contract(1000);
-    
+
     c.bench_function("scan_large_1000_lines", |b| {
         b.iter(|| {
-            scanner.scan(black_box(&source), PathBuf::from("test.sol")).unwrap()
+            scanner
+                .scan(black_box(&source), PathBuf::from("test.sol"))
+                .unwrap()
         })
     });
 }
@@ -84,12 +90,14 @@ fn bench_scan_large(c: &mut Criterion) {
 fn bench_scan_scaling(c: &mut Criterion) {
     let mut group = c.benchmark_group("scan_scaling");
     let scanner = Scanner::new(vec![create_test_template()]).unwrap();
-    
+
     for size in [100, 500, 1000, 2000].iter() {
         let source = generate_contract(*size);
         group.bench_with_input(BenchmarkId::from_parameter(size), size, |b, _| {
             b.iter(|| {
-                scanner.scan(black_box(&source), PathBuf::from("test.sol")).unwrap()
+                scanner
+                    .scan(black_box(&source), PathBuf::from("test.sol"))
+                    .unwrap()
             })
         });
     }
@@ -98,15 +106,13 @@ fn bench_scan_scaling(c: &mut Criterion) {
 
 fn bench_line_index(c: &mut Criterion) {
     let source = generate_contract(1000);
-    
+
     // Build newlines vector (same as Scanner does internally)
     let newlines: Vec<usize> = source.match_indices('\n').map(|(i, _)| i).collect();
-    
+
     // Generate random byte positions to look up
-    let positions: Vec<usize> = (0..100)
-        .map(|i| (i * source.len()) / 100)
-        .collect();
-    
+    let positions: Vec<usize> = (0..100).map(|i| (i * source.len()) / 100).collect();
+
     c.bench_function("line_index_lookup", |b| {
         b.iter(|| {
             // Benchmark the line-number lookup operation using partition_point

@@ -44,7 +44,9 @@ fn test_templates_show_missing_template_fails() {
         .arg(temp_dir.path())
         .assert()
         .failure()
-        .stderr(predicate::str::contains("Template 'does-not-exist' not found"));
+        .stderr(predicate::str::contains(
+            "Template 'does-not-exist' not found",
+        ));
 }
 
 #[test]

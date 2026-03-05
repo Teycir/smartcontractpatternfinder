@@ -70,8 +70,16 @@ impl ScanProgress {
 
     fn to_json(&self) -> serde_json::Value {
         let total = self.contracts_total.load(Ordering::SeqCst);
-        let current = self.current_contract.try_read().ok().and_then(|c| c.clone());
-        let current_name = self.current_contract_name.try_read().ok().and_then(|c| c.clone());
+        let current = self
+            .current_contract
+            .try_read()
+            .ok()
+            .and_then(|c| c.clone());
+        let current_name = self
+            .current_contract_name
+            .try_read()
+            .ok()
+            .and_then(|c| c.clone());
         let rate = self.rate.try_read().ok().and_then(|r| *r);
         serde_json::json!({
             "contracts_scanned": self.contracts_scanned.load(Ordering::SeqCst),
@@ -182,7 +190,7 @@ async fn get_templates() -> impl IntoResponse {
     let templates_dir = find_project_root()
         .unwrap_or_else(|| std::env::current_dir().unwrap())
         .join("templates");
-    
+
     let mut templates = Vec::new();
     if let Ok(entries) = std::fs::read_dir(&templates_dir) {
         for entry in entries.flatten() {
@@ -400,17 +408,15 @@ async fn export_results(State(state): State<AppState>) -> impl IntoResponse {
         if path.exists() {
             match tokio::fs::read_to_string(path).await {
                 Ok(content) => {
-                    return (
-                        StatusCode::OK,
-                        [("Content-Type", "text/markdown")],
-                        content
-                    ).into_response();
+                    return (StatusCode::OK, [("Content-Type", "text/markdown")], content)
+                        .into_response();
                 }
                 Err(e) => {
                     return (
                         StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(serde_json::json!({"error": format!("Failed to read report: {}", e)}))
-                    ).into_response();
+                        Json(serde_json::json!({"error": format!("Failed to read report: {}", e)})),
+                    )
+                        .into_response();
                 }
             }
         }
@@ -418,8 +424,9 @@ async fn export_results(State(state): State<AppState>) -> impl IntoResponse {
 
     (
         StatusCode::NOT_FOUND,
-        Json(serde_json::json!({"error": "No report available"}))
-    ).into_response()
+        Json(serde_json::json!({"error": "No report available"})),
+    )
+        .into_response()
 }
 
 #[derive(Deserialize)]
@@ -452,33 +459,35 @@ async fn export_logs(
             if let Err(e) = tokio::fs::create_dir_all(parent).await {
                 return (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(serde_json::json!({"error": format!("Failed to create directory: {}", e)}))
-                ).into_response();
+                    Json(
+                        serde_json::json!({"error": format!("Failed to create directory: {}", e)}),
+                    ),
+                )
+                    .into_response();
             }
         }
 
         match tokio::fs::write(&path, payload.logs).await {
-            Ok(_) => {
-                (
-                    StatusCode::OK,
-                    Json(serde_json::json!({
-                        "message": "Logs exported successfully",
-                        "path": path.display().to_string()
-                    }))
-                ).into_response()
-            }
-            Err(e) => {
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(serde_json::json!({"error": format!("Failed to write logs: {}", e)}))
-                ).into_response()
-            }
+            Ok(_) => (
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "message": "Logs exported successfully",
+                    "path": path.display().to_string()
+                })),
+            )
+                .into_response(),
+            Err(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": format!("Failed to write logs: {}", e)})),
+            )
+                .into_response(),
         }
     } else {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"error": "Could not determine export path"}))
-        ).into_response()
+            Json(serde_json::json!({"error": "Could not determine export path"})),
+        )
+            .into_response()
     }
 }
 
@@ -503,7 +512,7 @@ async fn stream_logs(
     Sse::new(stream).keep_alive(
         axum::response::sse::KeepAlive::new()
             .interval(std::time::Duration::from_secs(15))
-            .text("keep-alive")
+            .text("keep-alive"),
     )
 }
 
@@ -556,7 +565,8 @@ async fn run_scan(state: AppState, config: ScanConfig) {
 
     if let Some(templates) = &config.templates {
         if !templates.is_empty() {
-            let template_ids: Vec<String> = templates.iter()
+            let template_ids: Vec<String> = templates
+                .iter()
                 .filter_map(|t| t.strip_suffix(".yaml").or_else(|| t.strip_suffix(".yml")))
                 .map(|s| s.to_string())
                 .collect();
@@ -715,55 +725,74 @@ fn parse_and_update_progress(state: &AppState, line: &str) {
                     let total_str = &bracket_content[slash_pos + 1..];
 
                     // Only parse if both parts are numeric
-                    if let (Ok(current), Ok(total)) = (current_str.parse::<u32>(), total_str.parse::<u32>()) {
-                        state.progress.contracts_scanned.store(current, Ordering::SeqCst);
-                        state.progress.contracts_total.store(total, Ordering::SeqCst);
+                    if let (Ok(current), Ok(total)) =
+                        (current_str.parse::<u32>(), total_str.parse::<u32>())
+                    {
+                        state
+                            .progress
+                            .contracts_scanned
+                            .store(current, Ordering::SeqCst);
+                        state
+                            .progress
+                            .contracts_total
+                            .store(total, Ordering::SeqCst);
 
-                    // Parse enhanced metrics: "[50/200] 25.0% | ETA: 5m30s | Critical: 42 | 2.5/s"
-                    if let Some(eta_pos) = line.find("ETA:") {
-                        let after_eta = &line[eta_pos + 4..].trim_start();
-                        // Parse "5m30s" format
-                        if let Some(m_pos) = after_eta.find('m') {
-                            if let Ok(mins) = after_eta[..m_pos].parse::<u32>() {
-                                let after_m = &after_eta[m_pos + 1..];
-                                if let Some(s_pos) = after_m.find('s') {
-                                    if let Ok(secs) = after_m[..s_pos].parse::<u32>() {
-                                        state.progress.eta_seconds.store(mins * 60 + secs, Ordering::SeqCst);
+                        // Parse enhanced metrics: "[50/200] 25.0% | ETA: 5m30s | Critical: 42 | 2.5/s"
+                        if let Some(eta_pos) = line.find("ETA:") {
+                            let after_eta = &line[eta_pos + 4..].trim_start();
+                            // Parse "5m30s" format
+                            if let Some(m_pos) = after_eta.find('m') {
+                                if let Ok(mins) = after_eta[..m_pos].parse::<u32>() {
+                                    let after_m = &after_eta[m_pos + 1..];
+                                    if let Some(s_pos) = after_m.find('s') {
+                                        if let Ok(secs) = after_m[..s_pos].parse::<u32>() {
+                                            state
+                                                .progress
+                                                .eta_seconds
+                                                .store(mins * 60 + secs, Ordering::SeqCst);
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
 
-                    // Parse critical findings: "Critical: 42"
-                    if let Some(critical_pos) = line.find("Critical:") {
-                        let after_critical = &line[critical_pos + 9..].trim_start();
-                        if let Some(space_pos) = after_critical.find(|c: char| !c.is_ascii_digit()) {
-                            if let Ok(count) = after_critical[..space_pos].parse::<u32>() {
-                                state.progress.critical_findings.store(count, Ordering::SeqCst);
-                            }
-                        }
-                    }
-
-                    // Parse rate: "2.5/s"
-                    if let Some(rate_match) = line.rfind(|c: char| c.is_ascii_digit() || c == '.') {
-                        let before_rate = &line[..=rate_match];
-                        if let Some(space_pos) = before_rate.rfind(|c: char| c.is_whitespace()) {
-                            let rate_str = &before_rate[space_pos + 1..];
-                            if let Ok(rate_val) = rate_str.parse::<f64>() {
-                                if let Ok(mut rate) = state.progress.rate.try_write() {
-                                    *rate = Some(rate_val);
+                        // Parse critical findings: "Critical: 42"
+                        if let Some(critical_pos) = line.find("Critical:") {
+                            let after_critical = &line[critical_pos + 9..].trim_start();
+                            if let Some(space_pos) =
+                                after_critical.find(|c: char| !c.is_ascii_digit())
+                            {
+                                if let Ok(count) = after_critical[..space_pos].parse::<u32>() {
+                                    state
+                                        .progress
+                                        .critical_findings
+                                        .store(count, Ordering::SeqCst);
                                 }
                             }
                         }
-                    }
 
-                    tracing::debug!("Progress updated: {}/{}", current, total);
-                    return;
+                        // Parse rate: "2.5/s"
+                        if let Some(rate_match) =
+                            line.rfind(|c: char| c.is_ascii_digit() || c == '.')
+                        {
+                            let before_rate = &line[..=rate_match];
+                            if let Some(space_pos) = before_rate.rfind(|c: char| c.is_whitespace())
+                            {
+                                let rate_str = &before_rate[space_pos + 1..];
+                                if let Ok(rate_val) = rate_str.parse::<f64>() {
+                                    if let Ok(mut rate) = state.progress.rate.try_write() {
+                                        *rate = Some(rate_val);
+                                    }
+                                }
+                            }
+                        }
+
+                        tracing::debug!("Progress updated: {}/{}", current, total);
+                        return;
+                    }
                 }
             }
         }
-    }
     }
 
     // Pattern: "Scanning N contracts" - definitive total count at start
@@ -779,10 +808,17 @@ fn parse_and_update_progress(state: &AppState, line: &str) {
                     let current_total = state.progress.contracts_total.load(Ordering::SeqCst);
                     // Only update if this is a higher value (prevents overwriting during extraction phase)
                     if total > current_total {
-                        state.progress.contracts_total.store(total, Ordering::SeqCst);
+                        state
+                            .progress
+                            .contracts_total
+                            .store(total, Ordering::SeqCst);
                         tracing::debug!("Total contracts set: {}", total);
                     } else {
-                        tracing::debug!("Ignoring lower total {} (current: {})", total, current_total);
+                        tracing::debug!(
+                            "Ignoring lower total {} (current: {})",
+                            total,
+                            current_total
+                        );
                     }
                     return;
                 }
@@ -798,7 +834,10 @@ fn parse_and_update_progress(state: &AppState, line: &str) {
             if let Some(space_pos) = after_extracted.find(|c: char| !c.is_ascii_digit()) {
                 let num_str = &after_extracted[..space_pos];
                 if let Ok(count) = num_str.parse::<u32>() {
-                    state.progress.contracts_extracted.store(count, Ordering::SeqCst);
+                    state
+                        .progress
+                        .contracts_extracted
+                        .store(count, Ordering::SeqCst);
                     tracing::debug!("Extracted contracts: {} (scanned count unchanged)", count);
                     return;
                 }
@@ -810,7 +849,10 @@ fn parse_and_update_progress(state: &AppState, line: &str) {
     if line.contains("Scanning complete") {
         let total = state.progress.contracts_total.load(Ordering::SeqCst);
         if total > 0 {
-            state.progress.contracts_scanned.store(total, Ordering::SeqCst);
+            state
+                .progress
+                .contracts_scanned
+                .store(total, Ordering::SeqCst);
         }
     }
 }

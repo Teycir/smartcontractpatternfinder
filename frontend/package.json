@@ -2,6 +2,7 @@
   "name": "scpf-frontend",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "dependencies": {
     "react": "^18.2.0",

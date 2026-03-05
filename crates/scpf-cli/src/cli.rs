@@ -79,11 +79,18 @@ pub struct ScanArgs {
     #[arg(long, help = "Only scan files changed in git diff (e.g., main..HEAD)")]
     pub diff: Option<String>,
 
-    #[arg(long, help = "Fetch 0-day exploits from last N days and update templates")]
+    #[arg(
+        long,
+        help = "Fetch 0-day exploits from last N days and update templates"
+    )]
     pub fetch_zero_day: Option<u32>,
 
     // Filtering options
-    #[arg(long, default_value = "5", help = "Number of pages to fetch (100 contracts per page)")]
+    #[arg(
+        long,
+        default_value = "5",
+        help = "Number of pages to fetch (100 contracts per page)"
+    )]
     pub pages: u64,
 
     #[arg(

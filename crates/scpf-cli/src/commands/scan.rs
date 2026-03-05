@@ -1,14 +1,14 @@
 use crate::cli::ScanArgs;
 use anyhow::Result;
-use scpf_core::{Cache, ContractFetcher, Scanner, TemplateLoader, HoneypotFilter};
+use chrono;
+use futures::stream::{self, StreamExt};
+use scpf_core::{Cache, ContractFetcher, HoneypotFilter, Scanner, TemplateLoader};
 use scpf_types::{Chain, ScanResult, Severity, Template};
 use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
-use futures::stream::{self, StreamExt};
 use tokio::sync::Semaphore;
-use chrono;
 
 async fn get_balance(address: &str, chain: &str, _fetcher: &ContractFetcher) -> u64 {
     let rpc_url = match chain {
@@ -72,7 +72,13 @@ async fn scan_contracts(
     fetcher: Arc<ContractFetcher>,
     min_severity: Severity,
     concurrency: usize,
-) -> Result<(Vec<ScanResult>, Arc<Cache>, Vec<(String, Chain, f64)>, chrono::DateTime<chrono::Local>, chrono::DateTime<chrono::Local>)> {
+) -> Result<(
+    Vec<ScanResult>,
+    Arc<Cache>,
+    Vec<(String, Chain, f64)>,
+    chrono::DateTime<chrono::Local>,
+    chrono::DateTime<chrono::Local>,
+)> {
     let scanner = Arc::new(Scanner::new(templates)?);
     let cache_dir = dirs::cache_dir()
         .map(|d| d.join("scpf"))
@@ -82,7 +88,7 @@ async fn scan_contracts(
     let total = contracts.len();
     let scan_start = Instant::now();
     let start_time = chrono::Local::now();
-    
+
     eprintln!("⏳ Scanning {} contracts...", total);
     eprintln!("🕐 Started: {}", start_time.format("%Y-%m-%d %H:%M:%S"));
 
@@ -90,9 +96,10 @@ async fn scan_contracts(
     let progress = Arc::new(tokio::sync::Mutex::new(0usize));
     let findings_count = Arc::new(tokio::sync::Mutex::new(0usize));
     let seen_hashes = Arc::new(tokio::sync::Mutex::new(std::collections::HashSet::new()));
-    let honeypot_filter = Arc::new(HoneypotFilter::new().expect("Failed to create honeypot filter"));
+    let honeypot_filter =
+        Arc::new(HoneypotFilter::new().expect("Failed to create honeypot filter"));
     let honeypot_count = Arc::new(tokio::sync::Mutex::new(0usize));
-    
+
     // Use concurrency parameter for both API and scan limits
     let api_semaphore = Arc::new(Semaphore::new(concurrency));
     let scan_semaphore = Arc::new(Semaphore::new(concurrency));
@@ -109,7 +116,7 @@ async fn scan_contracts(
             let honeypot_count = Arc::clone(&honeypot_count);
             let api_semaphore = Arc::clone(&api_semaphore);
             let scan_semaphore = Arc::clone(&scan_semaphore);
-            
+
             async move {
                 let short_addr = &address;
 
@@ -125,7 +132,7 @@ async fn scan_contracts(
                             let eta_secs = (remaining as f64 / rate) as u64;
                             let eta_mins = eta_secs / 60;
                             let findings = findings_count.lock().await;
-                            
+
                             eprint!(
                                 "\r📊 {} / {} contracts scanned ({:.1}%) • {:.1}/s | ETA: {}m{}s | Critical: {}   ",
                                 *p, total, (*p as f64 / total as f64) * 100.0,
@@ -181,7 +188,7 @@ async fn scan_contracts(
                 let mut hasher = DefaultHasher::new();
                 source.hash(&mut hasher);
                 let content_hash = hasher.finish();
-                
+
                 {
                     let mut hashes = seen_hashes.lock().await;
                     if !hashes.insert(content_hash) {
@@ -212,17 +219,17 @@ async fn scan_contracts(
                 }
 
                 let start = Instant::now();
-                
+
                 // Acquire scan semaphore for CPU-bound work
                 let _permit = scan_semaphore.acquire().await.unwrap();
                 let scanner_clone = Arc::clone(&scanner);
                 let source_clone = source.clone();
                 let address_clone = address.clone();
-                
+
                 let scan_task = tokio::task::spawn_blocking(move || {
                     scanner_clone.scan(&source_clone, PathBuf::from(&address_clone))
                 });
-                
+
                 let matches = match tokio::time::timeout(std::time::Duration::from_secs(60), scan_task).await {
                     Ok(Ok(Ok(m))) => m,
                     Ok(Ok(Err(e))) => {
@@ -238,7 +245,7 @@ async fn scan_contracts(
                         return Ok(Some((None, Some((address.clone(), chain, source_size_kb)))));
                     }
                 };
-        
+
                 let scan_time_ms = start.elapsed().as_millis() as u64;
 
                 let filtered_matches: Vec<_> = matches
@@ -281,18 +288,21 @@ async fn scan_contracts(
         .await;
 
     eprintln!("\n✅ Scanning complete\n");
-    
+
     let end_time = chrono::Local::now();
     let duration = scan_start.elapsed();
     let duration_mins = duration.as_secs() / 60;
     let duration_secs = duration.as_secs() % 60;
-    
+
     let honeypot_total = *honeypot_count.lock().await;
-    
+
     eprintln!("🕐 Started:  {}", start_time.format("%Y-%m-%d %H:%M:%S"));
     eprintln!("🕐 Finished: {}", end_time.format("%Y-%m-%d %H:%M:%S"));
     eprintln!("⏱️  Duration: {}m {}s", duration_mins, duration_secs);
-    eprintln!("📊 Rate: {:.2} contracts/sec", total as f64 / duration.as_secs().max(1) as f64);
+    eprintln!(
+        "📊 Rate: {:.2} contracts/sec",
+        total as f64 / duration.as_secs().max(1) as f64
+    );
     if honeypot_total > 0 {
         eprintln!("🍯 Honeypots filtered: {}", honeypot_total);
     }
@@ -300,7 +310,7 @@ async fn scan_contracts(
 
     let mut all_scan_results = Vec::new();
     let mut skipped_timeouts = Vec::new();
-    
+
     for result in results {
         match result {
             Ok(Some((Some(scan_result), _))) => all_scan_results.push(scan_result),
@@ -309,7 +319,13 @@ async fn scan_contracts(
         }
     }
 
-    Ok((all_scan_results, cache, skipped_timeouts, start_time, end_time))
+    Ok((
+        all_scan_results,
+        cache,
+        skipped_timeouts,
+        start_time,
+        end_time,
+    ))
 }
 
 fn rank_and_score(mut scan_results: Vec<ScanResult>) -> Vec<ScanResult> {
@@ -392,34 +408,37 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     // If addresses provided, use them directly instead of fetching
     let all_contracts = if !args.addresses.is_empty() {
         eprintln!("🔍 Scanning {} provided addresses...", args.addresses.len());
-        args.addresses.iter().map(|addr| {
-            (addr.clone(), chains.first().cloned().unwrap_or(Chain::Ethereum))
-        }).collect()
+        args.addresses
+            .iter()
+            .map(|addr| {
+                (
+                    addr.clone(),
+                    chains.first().cloned().unwrap_or(Chain::Ethereum),
+                )
+            })
+            .collect()
     } else {
-        eprintln!(
-            "🔍 Fetching {} pages of contracts...",
-            args.pages
-        );
+        eprintln!("🔍 Fetching {} pages of contracts...", args.pages);
         eprintln!(
             "   Severity filter: {} and above",
             args.min_severity.to_uppercase()
         );
         fetch_contracts(&fetcher, &chains, args.pages).await
     };
-    
+
     let _total_contracts_fetched = all_contracts.len();
     if all_contracts.is_empty() {
         eprintln!("⚠️  No recent contracts found");
-        
+
         // If 0-day fetch is enabled, continue to generate 0-day report even without contract scanning
         if args.fetch_zero_day.is_some() {
             eprintln!("   ℹ️  Skipping contract scanning, generating 0-day report only...\n");
-            
+
             let timestamp = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
                 .as_secs();
-            
+
             let root_dir = std::env::var("SCPF_REPORT_DIR").unwrap_or_else(|_| {
                 format!(
                     "/home/teycir/smartcontractpatternfinderReports/report_{}",
@@ -428,7 +447,7 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
             });
             let root_dir = PathBuf::from(root_dir);
             std::fs::create_dir_all(&root_dir)?;
-            
+
             // Generate 0-day summary
             if let Some(days) = args.fetch_zero_day {
                 let zeroday_args = crate::cli::FetchZeroDayArgs {
@@ -443,10 +462,10 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
                     eprintln!("📂 Report directory: {}", root_dir.display());
                 }
             }
-            
+
             return Ok(());
         }
-        
+
         return Ok(());
     }
 
@@ -457,15 +476,15 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
         .clone()
         .unwrap_or_else(|| PathBuf::from("templates"));
     let templates = TemplateLoader::load_from_dir(&templates_dir).await?;
-    
+
     let template_count = templates.len();
     eprintln!("✅ Loaded {} templates", template_count);
-    
+
     let mut template_by_severity = std::collections::HashMap::new();
     for t in &templates {
         *template_by_severity.entry(t.severity).or_insert(0) += 1;
     }
-    
+
     eprintln!("   📋 By severity:");
     if let Some(count) = template_by_severity.get(&Severity::Critical) {
         eprintln!("      - Critical: {}", count);
@@ -478,7 +497,14 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     let min_sev = parse_severity(&args.min_severity);
     let fetcher_clone = Arc::clone(&fetcher);
     let (all_scan_results, cache, skipped_timeouts, _scan_start_time, _scan_end_time) =
-        scan_contracts(all_contracts, templates, fetcher_clone, min_sev, args.concurrency).await?;
+        scan_contracts(
+            all_contracts,
+            templates,
+            fetcher_clone,
+            min_sev,
+            args.concurrency,
+        )
+        .await?;
     let _total_scanned = all_scan_results.len();
     let scan_results = rank_and_score(all_scan_results);
     let timestamp = std::time::SystemTime::now()
@@ -487,7 +513,8 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
         .as_secs();
 
     eprintln!("\n📊 Scan Summary:");
-    eprintln!("   📋 Total Findings: {} across {} contracts\n", 
+    eprintln!(
+        "   📋 Total Findings: {} across {} contracts\n",
         scan_results.iter().map(|r| r.matches.len()).sum::<usize>(),
         scan_results.len()
     );
@@ -510,13 +537,27 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     summary.push_str("# 🚨 Vulnerability Scan Summary\n\n");
     summary.push_str(&format!("**Generated:** {}\n", timestamp));
     summary.push_str(&format!("**Pages:** {}\n", args.pages));
-    summary.push_str(&format!("**Chains:** {}\n", chains.iter().map(|c| c.as_str()).collect::<Vec<_>>().join(", ")));
-    summary.push_str(&format!("**Min Severity:** {}\n\n", args.min_severity.to_uppercase()));
+    summary.push_str(&format!(
+        "**Chains:** {}\n",
+        chains
+            .iter()
+            .map(|c| c.as_str())
+            .collect::<Vec<_>>()
+            .join(", ")
+    ));
+    summary.push_str(&format!(
+        "**Min Severity:** {}\n\n",
+        args.min_severity.to_uppercase()
+    ));
     summary.push_str("---\n\n");
-    
+
     summary.push_str("## 📊 Scan Results\n\n");
-    summary.push_str(&format!("- **Contracts Scanned:** {}\n", scan_results.len()));
-    summary.push_str(&format!("- **Total Findings:** {}\n\n", 
+    summary.push_str(&format!(
+        "- **Contracts Scanned:** {}\n",
+        scan_results.len()
+    ));
+    summary.push_str(&format!(
+        "- **Total Findings:** {}\n\n",
         scan_results.iter().map(|r| r.matches.len()).sum::<usize>()
     ));
 
@@ -525,7 +566,7 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     let mut pattern_counts = std::collections::HashMap::new();
     let mut template_counts = std::collections::HashMap::new();
     let mut severity_counts = std::collections::HashMap::new();
-    
+
     for result in &scan_results {
         for m in &result.matches {
             *pattern_counts.entry(m.pattern_id.as_str()).or_insert(0) += 1;
@@ -541,7 +582,7 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
         summary.push_str(&format!("- **{}**: {} occurrences\n", pattern, count));
     }
     summary.push('\n');
-    
+
     // Template breakdown
     summary.push_str("## 📋 Findings by Template\n\n");
     let mut template_vec: Vec<_> = template_counts.into_iter().collect();
@@ -550,7 +591,7 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
         summary.push_str(&format!("- **{}**: {} findings\n", template, count));
     }
     summary.push('\n');
-    
+
     // Severity breakdown
     summary.push_str("## ⚠️ Findings by Severity\n\n");
     if let Some(count) = severity_counts.get(&Severity::Critical) {
@@ -741,16 +782,24 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
 
     // Report skipped contracts
     if !skipped_timeouts.is_empty() {
-        eprintln!("\n⏱️  {} contracts skipped due to timeout (>60s):", skipped_timeouts.len());
+        eprintln!(
+            "\n⏱️  {} contracts skipped due to timeout (>60s):",
+            skipped_timeouts.len()
+        );
         for (addr, chain, size_kb) in &skipped_timeouts {
             eprintln!("   - {} ({}) - {:.1} KB", addr, chain.as_str(), size_kb);
         }
-        
+
         // Write to file
         let timeout_log = root_dir.join("timeouts.txt");
         let mut timeout_content = "Contracts that timed out (>60s scan time):\n\n".to_string();
         for (addr, chain, size_kb) in &skipped_timeouts {
-            timeout_content.push_str(&format!("{} ({}) - {:.1} KB\n", addr, chain.as_str(), size_kb));
+            timeout_content.push_str(&format!(
+                "{} ({}) - {:.1} KB\n",
+                addr,
+                chain.as_str(),
+                size_kb
+            ));
         }
         std::fs::write(&timeout_log, timeout_content)?;
         eprintln!("   📝 Timeout list saved to: {}", timeout_log.display());

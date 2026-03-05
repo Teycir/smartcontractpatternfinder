@@ -21,7 +21,12 @@ impl AstValidator {
         Self
     }
 
-    pub fn validate(&self, ast: &SourceUnit, pattern_id: &str, target_line: usize) -> ValidationResult {
+    pub fn validate(
+        &self,
+        ast: &SourceUnit,
+        pattern_id: &str,
+        target_line: usize,
+    ) -> ValidationResult {
         match pattern_id {
             "unprotected-initialize" => self.validate_initialize(ast, target_line),
             "public-withdraw-no-auth" => self.validate_withdraw(ast, target_line),
@@ -114,12 +119,16 @@ impl AstValidator {
     fn check_initialize_protection(&self, func: &FunctionDefinition) -> ValidationResult {
         for attr in &func.attributes {
             if let FunctionAttribute::BaseOrModifier(_, base) = attr {
-                let modifier_name = base.name.identifiers.iter()
+                let modifier_name = base
+                    .name
+                    .identifiers
+                    .iter()
                     .map(|id| id.name.as_str())
                     .collect::<Vec<_>>()
                     .join(".");
-                
-                if modifier_name.contains("initializer") || modifier_name.contains("reinitializer") {
+
+                if modifier_name.contains("initializer") || modifier_name.contains("reinitializer")
+                {
                     return ValidationResult::Protected("Has initializer modifier");
                 }
             }
@@ -131,17 +140,28 @@ impl AstValidator {
         // Check modifiers
         for attr in &func.attributes {
             if let FunctionAttribute::BaseOrModifier(_, base) = attr {
-                let modifier_name = base.name.identifiers.iter()
+                let modifier_name = base
+                    .name
+                    .identifiers
+                    .iter()
                     .map(|id| id.name.as_str())
                     .collect::<Vec<_>>()
                     .join(".");
-                
+
                 let access_modifiers = [
-                    "onlyOwner", "onlyAdmin", "onlyMinter", "onlyBurner",
-                    "onlyRole", "onlyGovernance", "onlyController", "onlyManager",
-                    "hasRole", "authorized", "onlyAuthorized"
+                    "onlyOwner",
+                    "onlyAdmin",
+                    "onlyMinter",
+                    "onlyBurner",
+                    "onlyRole",
+                    "onlyGovernance",
+                    "onlyController",
+                    "onlyManager",
+                    "hasRole",
+                    "authorized",
+                    "onlyAuthorized",
                 ];
-                
+
                 if access_modifiers.iter().any(|&m| modifier_name.contains(m)) {
                     return ValidationResult::Protected("Has access control modifier");
                 }
@@ -165,16 +185,20 @@ impl AstValidator {
             Statement::If(_, cond, then_branch, _) => {
                 self.is_sender_check(cond) && self.is_revert_or_require(then_branch)
             }
-            Statement::Expression(_, expr) => {
-                self.is_require_with_sender(expr)
-            }
+            Statement::Expression(_, expr) => self.is_require_with_sender(expr),
             _ => false,
         }
     }
 
     fn is_sender_check(&self, expr: &Expression) -> bool {
         // Check for: msg.sender != owner, msg.sender == owner, etc.
-        matches!(expr, Expression::Equal(..) | Expression::NotEqual(..) | Expression::More(..) | Expression::Less(..))
+        matches!(
+            expr,
+            Expression::Equal(..)
+                | Expression::NotEqual(..)
+                | Expression::More(..)
+                | Expression::Less(..)
+        )
     }
 
     fn is_revert_or_require(&self, stmt: &Statement) -> bool {

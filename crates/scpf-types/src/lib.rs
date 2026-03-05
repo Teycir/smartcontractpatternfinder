@@ -1,13 +1,13 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-mod chain;
 mod api_key_config;
+mod chain;
 mod language;
 mod semantic;
 
-pub use chain::Chain;
 pub use api_key_config::ApiKeyConfig;
+pub use chain::Chain;
 pub use language::Language;
 pub use semantic::*;
 
@@ -35,8 +35,8 @@ pub struct Pattern {
 pub enum PatternKind {
     #[default]
     Regex,
-    FancyRegex,  // Supports backreferences and lookahead/lookbehind
-    Literal,     // Exact string matching (faster than regex)
+    FancyRegex, // Supports backreferences and lookahead/lookbehind
+    Literal,    // Exact string matching (faster than regex)
     Semantic,
 }
 
@@ -74,22 +74,22 @@ impl Exploitability {
             "unprotected-selfdestruct" | "unprotected-selfdestruct-fixed" => Self::Trivial,
             "missing-access-control" | "missing-access-control-fixed" => Self::Trivial,
             "reentrancy-pattern" | "reentrancy-pattern-fixed" | "state-after-call" => Self::Trivial,
-            
+
             // EASY - 85-90% PoC success
             "tx-origin-auth" | "tx-origin-auth-fixed" | "tx-origin-regex" => Self::Easy,
             "delegatecall-user-input" => Self::Easy,
             "unchecked-call" | "unchecked-call-fixed" | "unchecked-call-return" => Self::Easy,
-            
+
             // MEDIUM - 50-70% PoC success
             "timestamp-dependence" | "timestamp-dependence-fixed" => Self::Medium,
             "integer-overflow" | "overflow-mul-div" => Self::Medium,
             "frontrun-vulnerable" => Self::Medium,
-            
+
             // HARD - 30-40% PoC success
             "single-source-price" => Self::Hard,
             "flash-loan-vulnerable" => Self::Hard,
             "oracle-manipulation" => Self::Hard,
-            
+
             // IMPOSSIBLE - Cannot generate reliable PoC
             _ => Self::Impossible,
         }
