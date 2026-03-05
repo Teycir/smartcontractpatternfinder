@@ -256,7 +256,7 @@ async fn pause_scan(State(state): State<AppState>) -> impl IntoResponse {
         }
     }
 
-    let pid = state.child_pid.lock().await.clone();
+    let pid = *state.child_pid.lock().await;
 
     if let Some(pid) = pid {
         #[cfg(unix)]
@@ -305,7 +305,7 @@ async fn resume_scan(State(state): State<AppState>) -> impl IntoResponse {
         }
     }
 
-    let pid = state.child_pid.lock().await.clone();
+    let pid = *state.child_pid.lock().await;
 
     if let Some(pid) = pid {
         #[cfg(unix)]
@@ -606,8 +606,8 @@ async fn run_scan(state: AppState, config: ScanConfig) {
 
             // Spawn stdout reader
             let state_stdout = state.clone();
-            let stdout_handle = if let Some(stdout) = stdout {
-                Some(tokio::spawn(async move {
+            let stdout_handle = stdout.map(|stdout| {
+                tokio::spawn(async move {
                     use tokio::io::{AsyncBufReadExt, BufReader};
                     let reader = BufReader::new(stdout);
                     let mut lines = reader.lines();
@@ -615,15 +615,13 @@ async fn run_scan(state: AppState, config: ScanConfig) {
                         parse_and_update_progress(&state_stdout, &line);
                         send_log(&state_stdout, &line).await;
                     }
-                }))
-            } else {
-                None
-            };
+                })
+            });
 
             // Spawn stderr reader
             let state_stderr = state.clone();
-            let stderr_handle = if let Some(stderr) = stderr {
-                Some(tokio::spawn(async move {
+            let stderr_handle = stderr.map(|stderr| {
+                tokio::spawn(async move {
                     use tokio::io::{AsyncBufReadExt, BufReader};
                     let reader = BufReader::new(stderr);
                     let mut lines = reader.lines();
@@ -633,10 +631,8 @@ async fn run_scan(state: AppState, config: ScanConfig) {
                         parse_and_update_progress(&state_stderr, &line);
                         send_log(&state_stderr, &format!("⚠️ {}", line)).await;
                     }
-                }))
-            } else {
-                None
-            };
+                })
+            });
 
             // Wait for process to complete
             match child.wait().await {

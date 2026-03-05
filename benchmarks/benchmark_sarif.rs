@@ -3,7 +3,7 @@ use scpf_core::{Scanner, TemplateLoader};
 use scpf_types::{Match, Severity};
 use serde_json::json;
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use walkdir::WalkDir;
 
 #[tokio::main]
@@ -85,7 +85,7 @@ fn sarif_level(severity: Severity) -> &'static str {
     }
 }
 
-fn path_uri(path: &PathBuf) -> String {
+fn path_uri(path: &Path) -> String {
     path.components()
         .map(|component| component.as_os_str().to_string_lossy())
         .collect::<Vec<_>>()

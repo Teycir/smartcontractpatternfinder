@@ -87,8 +87,8 @@ mod tests {
         assert_eq!(results[0].0, 0);
 
         // Subsequent chunks should have increasing line offsets
-        for i in 1..results.len() {
-            assert!(results[i].0 > 0);
+        for result in results.iter().skip(1) {
+            assert!(result.0 > 0);
         }
     }
 
@@ -111,7 +111,7 @@ mod tests {
             let prev_end = &chunks[i - 1][chunks[i - 1].len().saturating_sub(5)..];
             let curr_start = &chunks[i][..5.min(chunks[i].len())];
             // Some overlap should exist
-            assert!(prev_end.len() > 0 && curr_start.len() > 0);
+            assert!(!prev_end.is_empty() && !curr_start.is_empty());
         }
     }
 

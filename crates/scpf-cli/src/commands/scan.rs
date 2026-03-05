@@ -540,7 +540,7 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     for (pattern, count) in pattern_vec.iter().take(10) {
         summary.push_str(&format!("- **{}**: {} occurrences\n", pattern, count));
     }
-    summary.push_str("\n");
+    summary.push('\n');
     
     // Template breakdown
     summary.push_str("## 📋 Findings by Template\n\n");
@@ -549,7 +549,7 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     for (template, count) in template_vec {
         summary.push_str(&format!("- **{}**: {} findings\n", template, count));
     }
-    summary.push_str("\n");
+    summary.push('\n');
     
     // Severity breakdown
     summary.push_str("## ⚠️ Findings by Severity\n\n");
@@ -559,7 +559,7 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     if let Some(count) = severity_counts.get(&Severity::High) {
         summary.push_str(&format!("- **High**: {}\n", count));
     }
-    summary.push_str("\n");
+    summary.push('\n');
 
     // Chain distribution
     let mut chain_counts = std::collections::HashMap::new();
@@ -570,7 +570,7 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     for (chain, count) in chain_counts {
         summary.push_str(&format!("- **{}**: {} contracts\n", chain, count));
     }
-    summary.push_str("\n");
+    summary.push('\n');
 
     // Top 20 contracts table
     if !scan_results.is_empty() {
@@ -590,7 +590,7 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
                 size
             ));
         }
-        summary.push_str("\n");
+        summary.push('\n');
     }
 
     summary.push_str("\n---\n\n");
@@ -748,7 +748,7 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
         
         // Write to file
         let timeout_log = root_dir.join("timeouts.txt");
-        let mut timeout_content = format!("Contracts that timed out (>60s scan time):\n\n");
+        let mut timeout_content = "Contracts that timed out (>60s scan time):\n\n".to_string();
         for (addr, chain, size_kb) in &skipped_timeouts {
             timeout_content.push_str(&format!("{} ({}) - {:.1} KB\n", addr, chain.as_str(), size_kb));
         }

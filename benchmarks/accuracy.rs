@@ -249,6 +249,9 @@ mod tests {
             start_byte: None,
             end_byte: None,
             code_snippet: None,
+            function_context: None,
+            protections: None,
+            filtered: false,
         }];
 
         let metrics = evaluator.evaluate(&findings);

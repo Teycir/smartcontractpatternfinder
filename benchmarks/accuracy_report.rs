@@ -26,7 +26,7 @@ async fn main() -> Result<()> {
     for entry in walkdir::WalkDir::new(&benchmark_dir)
         .into_iter()
         .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().map_or(false, |ext| ext == "sol"))
+        .filter(|e| e.path().extension().is_some_and(|ext| ext == "sol"))
     {
         let path = entry.path();
         if let Ok(content) = std::fs::read_to_string(path) {

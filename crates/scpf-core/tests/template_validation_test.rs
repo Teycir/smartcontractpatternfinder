@@ -1,6 +1,5 @@
-/// Integration test to validate SCPF templates against real vulnerable contract patterns
-/// Tests patterns extracted from manual analysis of 20 high-risk contracts
-
+//! Integration test to validate SCPF templates against real vulnerable contract patterns.
+//! Tests patterns extracted from manual analysis of 20 high-risk contracts.
 use scpf_core::Scanner;
 use scpf_types::Template;
 use std::path::PathBuf;
@@ -22,7 +21,7 @@ fn test_weak_randomness_detection() {
     let templates = load_template("../../templates/weak_randomness.yaml");
     let contract_code = std::fs::read_to_string(TEST_CONTRACT_PATH).expect("Failed to read contract");
     
-    let mut scanner = Scanner::new(templates).expect("Failed to create scanner");
+    let scanner = Scanner::new(templates).expect("Failed to create scanner");
     let results = scanner.scan(&contract_code, PathBuf::from("test_vulnerable_patterns.sol")).expect("Scan failed");
     
     println!("Total findings: {}", results.len());
@@ -45,7 +44,7 @@ fn test_arbitrary_call_detection() {
     let templates = load_template("../../templates/unchecked_return_value.yaml");
     let contract_code = std::fs::read_to_string(TEST_CONTRACT_PATH).expect("Failed to read contract");
     
-    let mut scanner = Scanner::new(templates).expect("Failed to create scanner");
+    let scanner = Scanner::new(templates).expect("Failed to create scanner");
     let results = scanner.scan(&contract_code, PathBuf::from("test_vulnerable_patterns.sol")).expect("Scan failed");
     
     let arbitrary_call_findings: Vec<_> = results.iter()
@@ -63,7 +62,7 @@ fn test_reentrancy_erc20_detection() {
     let templates = load_template("../../templates/reentrancy.yaml");
     let contract_code = std::fs::read_to_string(TEST_CONTRACT_PATH).expect("Failed to read contract");
     
-    let mut scanner = Scanner::new(templates).expect("Failed to create scanner");
+    let scanner = Scanner::new(templates).expect("Failed to create scanner");
     let results = scanner.scan(&contract_code, PathBuf::from("test_vulnerable_patterns.sol")).expect("Scan failed");
     
     println!("Total findings: {}", results.len());
@@ -89,7 +88,7 @@ fn test_signature_replay_detection() {
     let templates = load_template("../../templates/signature_unchecked.yaml");
     let contract_code = std::fs::read_to_string(TEST_CONTRACT_PATH).expect("Failed to read contract");
     
-    let mut scanner = Scanner::new(templates).expect("Failed to create scanner");
+    let scanner = Scanner::new(templates).expect("Failed to create scanner");
     let results = scanner.scan(&contract_code, PathBuf::from("test_vulnerable_patterns.sol")).expect("Scan failed");
     
     let ecrecover_findings: Vec<_> = results.iter()
@@ -107,7 +106,7 @@ fn test_cross_chain_gas_grief_detection() {
     let templates = load_template("../../templates/cross_chain_gas_grief.yaml");
     let contract_code = std::fs::read_to_string(TEST_CONTRACT_PATH).expect("Failed to read contract");
     
-    let mut scanner = Scanner::new(templates).expect("Failed to create scanner");
+    let scanner = Scanner::new(templates).expect("Failed to create scanner");
     let results = scanner.scan(&contract_code, PathBuf::from("test_vulnerable_patterns.sol")).expect("Scan failed");
     
     let call_findings: Vec<_> = results.iter()
@@ -132,7 +131,7 @@ fn test_delegatecall_detection() {
     let templates = load_template("../../templates/delegatecall_user_input.yaml");
     let contract_code = std::fs::read_to_string(TEST_CONTRACT_PATH).expect("Failed to read contract");
     
-    let mut scanner = Scanner::new(templates).expect("Failed to create scanner");
+    let scanner = Scanner::new(templates).expect("Failed to create scanner");
     let results = scanner.scan(&contract_code, PathBuf::from("test_vulnerable_patterns.sol")).expect("Scan failed");
     
     println!("Total findings: {}", results.len());
@@ -155,7 +154,7 @@ fn test_callback_reentrancy_detection() {
     let templates = load_template("../../templates/reentrancy_callback.yaml");
     let contract_code = std::fs::read_to_string(TEST_CONTRACT_PATH).expect("Failed to read contract");
     
-    let mut scanner = Scanner::new(templates).expect("Failed to create scanner");
+    let scanner = Scanner::new(templates).expect("Failed to create scanner");
     let results = scanner.scan(&contract_code, PathBuf::from("test_vulnerable_patterns.sol")).expect("Scan failed");
     
     let callback_findings: Vec<_> = results.iter()

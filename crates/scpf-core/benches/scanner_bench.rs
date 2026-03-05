@@ -1,6 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
 use scpf_core::Scanner;
-use scpf_types::{Pattern, Severity, Template};
+use scpf_types::{Pattern, PatternKind, Severity, Template};
 use std::path::PathBuf;
 
 fn create_test_template() -> Template {
@@ -15,16 +15,19 @@ fn create_test_template() -> Template {
                 id: "call".to_string(),
                 pattern: r"\.call\{value:".to_string(),
                 message: "External call".to_string(),
+                kind: PatternKind::Regex,
             },
             Pattern {
                 id: "delegatecall".to_string(),
                 pattern: r"\.delegatecall\(".to_string(),
                 message: "Delegatecall".to_string(),
+                kind: PatternKind::Regex,
             },
             Pattern {
                 id: "selfdestruct".to_string(),
                 pattern: r"selfdestruct\(".to_string(),
                 message: "Selfdestruct".to_string(),
+                kind: PatternKind::Regex,
             },
         ],
     }
