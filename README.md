@@ -62,22 +62,22 @@
 
 ## ✨ Features
 
-- 🌐 **Multi-chain Support** - Ethereum, Polygon, Arbitrum (3 active chains)
+- 🌐 **Multi-chain Support** - Ethereum, BSC, Polygon, Arbitrum, Optimism, Base, Avalanche, Fantom, Linea, and Scroll
 - 📁 **Local Project Scanning** - Scan .sol files in your workspace
 - 🔄 **Git Diff Scanning** - Only scan changed files in PRs
 - 🤖 **CI/CD Integration** - GitHub Actions, GitLab CI, Bitbucket Pipelines
 - 📝 **YAML Templates** - Easy-to-write pattern definitions
 - ✅ **ERC Compliance** - Detect ERC-20/721/1155 implementations
 - 📊 **Size-Weighted Risk Scoring** - Normalized per 100KB to eliminate size bias
-- 🔄 **Intelligent Deduplication** - 88% duplicate removal (3 decimal precision)
-- ⚡ **Fast Scanning** - 0.51s per contract average
+- 🧠 **Context-Aware Filtering** - Reduce obvious false positives with semantic and contextual filters
+- ⚡ **Chunked Scanning** - Handle larger sources without exhausting memory
 - 💾 **Smart Caching** - Avoid redundant API calls
 - 🔑 **API Key Fallback** - Up to 6 keys with automatic rotation
-- 🎯 **Modular Architecture** - Clean, testable code
-- 🔒 **Security Focused** - 8-layer false positive filtering (70% auto-filtered)
+- 🎯 **Modular Architecture** - CLI, core engine, server, and web UI components
+- 🔒 **Security Focused** - Built for vulnerability triage, reporting, and SARIF-based code scanning
 - 🚀 **High Performance** - Built with Rust for speed
 - 🔧 **Extensible** - Easy to add custom patterns
-- 🎯 **100% Precision** - 0 false exploitable contracts
+- 🌐 **Optional Web UI** - `scpf-server` and `frontend/` provide a dashboard-driven workflow
 
 ---
 
@@ -138,7 +138,7 @@ scpf init
 
 ```bash
 # Scan blockchain contract
-scpf scan 0x1234567890abcdef --chain ethereum
+scpf scan 0x1234567890abcdef --chains ethereum
 
 # Scan local project (auto-detects .sol files)
 scpf scan
@@ -150,11 +150,14 @@ scpf scan --diff main..HEAD
 scpf scan --templates ./my-templates
 
 # Scan multiple contracts
-scpf scan 0xabc... 0xdef... 0x123... --chain bsc
+scpf scan 0xabc... 0xdef... 0x123... --chains bsc
 
 # Export to JSON/SARIF
 scpf scan --output json > results.json
 scpf scan --output sarif > results.sarif
+
+# Restrict results to critical findings
+scpf scan --min-severity critical
 ```
 
 ---
@@ -194,20 +197,25 @@ patterns:
 smartcontractpatternfinder/
 ├── crates/
 │   ├── scpf-types/     # Core types and data structures
-│   ├── scpf-core/      # Scanning, fetching, caching logic
-│   └── scpf-cli/       # Command-line interface
+│   ├── scpf-core/      # Scanning, semantic analysis, caching
+│   ├── scpf-cli/       # Command-line interface
+│   └── scpf-server/    # Web server and scan orchestration
+├── frontend/           # Optional web dashboard
 ├── templates/          # Pattern detection templates
+├── benchmarks/         # Accuracy and SARIF benchmark tooling
 ├── scripts/            # Utility scripts (.sh, .py)
 ├── docs/               # Project documentation
 ├── sol/                # Solidity test files
-└── .amazonq/rules/     # Code quality rules
+└── action.yml          # GitHub Marketplace action definition
 ```
 
 ### Module Overview
 
 - **scpf-types**: Core data structures (Template, Pattern, Match, ScanResult)
-- **scpf-core**: Business logic (Scanner, TemplateLoader, ContractFetcher, Cache)
+- **scpf-core**: Business logic (Scanner, TemplateLoader, ContractFetcher, Cache, AST and semantic validation)
 - **scpf-cli**: User interface (CLI commands, output formatting)
+- **scpf-server**: HTTP server for orchestrating scans and streaming progress
+- **frontend**: Browser UI for starting scans and reviewing results
 
 ---
 
@@ -221,12 +229,20 @@ Scan smart contracts for patterns.
 scpf scan [OPTIONS] [ADDRESSES]...
 
 Options:
-  -n, --chain <CHAIN>              Chain to scan [default: ethereum]
+  -n, --chains <CHAINS>            Comma-separated chain list
   -t, --templates <TEMPLATES>      Templates directory
   -o, --output <OUTPUT>            Output format [default: console]
-      --concurrency <CONCURRENCY>  Concurrent requests [default: 10]
+      --concurrency <CONCURRENCY>  Concurrent requests [default: 2]
+      --pages <PAGES>              Number of explorer pages to fetch [default: 5]
       --diff <DIFF>                Only scan changed files (e.g., main..HEAD)
-  -v, --verbose                    Increase verbosity (-v, -vv, -vvv)
+      --min-severity <LEVEL>       Minimum severity to report [default: high]
+      --only-templates <IDS>       Restrict scan to specific template IDs
+      --exclude-templates <IDS>    Exclude specific template IDs
+      --contract-type <TYPE>       Filter by contract type (erc20, erc721, erc1155, proxy, defi)
+      --fast                       Skip semantic analysis for speed
+      --fetch-zero-day <DAYS>      Pull recent exploit patterns before scanning
+      --extract-sources <N>        Save the top N riskiest sources into the report directory
+  -v, --verbose...                 Increase verbosity (-v, -vv, -vvv)
   -h, --help                       Print help
 ```
 
@@ -237,7 +253,7 @@ Options:
 scpf scan
 
 # Scan blockchain contract
-scpf scan 0x1234567890abcdef --chain ethereum
+scpf scan 0x1234567890abcdef --chains ethereum
 
 # Scan only changed files
 scpf scan --diff main..HEAD
@@ -245,9 +261,22 @@ scpf scan --diff main..HEAD
 # Scan with custom templates
 scpf scan --templates ./custom-templates
 
+# Scan multiple chains at once
+scpf scan --chains ethereum,polygon,arbitrum --pages 10
+
+# Restrict findings to selected templates
+scpf scan --only-templates reentrancy,delegatecall-user-input
+
 # Export to SARIF for CI/CD
 scpf scan --output sarif > results.sarif
 ```
+
+### Other Commands
+
+- `scpf audit` runs the broader audit workflow using the same scan arguments
+- `scpf templates` lists, shows, installs, updates, and browses template collections
+- `scpf fetch-zero-day` imports recent exploit intelligence into templates
+- `scpf pattern-builder` launches the interactive pattern helper
 
 ### `scpf init`
 
@@ -281,8 +310,15 @@ scpf init --yes
 | Chain | Network | API Provider | Status |
 |-------|---------|--------------|--------|
 | **Ethereum** | Mainnet | Etherscan V2 API | ✅ Active |
+| **BSC** | BNB Smart Chain | Etherscan V2 API | ✅ Active |
 | **Polygon** | Polygon PoS | Etherscan V2 API | ✅ Active |
 | **Arbitrum** | Arbitrum One | Etherscan V2 API | ✅ Active |
+| **Optimism** | OP Mainnet | Etherscan V2 API | ✅ Active |
+| **Base** | Base Mainnet | Etherscan V2 API | ✅ Active |
+| **Avalanche** | Avalanche C-Chain | Etherscan V2 API | ✅ Active |
+| **Fantom** | Fantom Opera | Etherscan V2 API | ✅ Active |
+| **Linea** | Linea Mainnet | Etherscan V2 API | ✅ Active |
+| **Scroll** | Scroll Mainnet | Etherscan V2 API | ✅ Active |
 
 **Note**: All chains use Etherscan's unified V2 API. Set `ETHERSCAN_API_KEY` (supports up to 6 keys for fallback).
 
@@ -308,7 +344,7 @@ export ETHERSCAN_API_KEY_6="your-key-6"
 
 - **Etherscan**: https://etherscan.io/apis (free tier: 5 calls/sec)
 
-**Tip**: The same Etherscan API key works for Ethereum, Polygon, and Arbitrum via Etherscan's V2 unified API.
+**Tip**: The same Etherscan API key works across all supported chains via the unified V2 API.
 
 ---
 
@@ -335,12 +371,14 @@ jobs:
   scpf:
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       security-events: write
     steps:
       - uses: actions/checkout@v4
       - uses: teycir/smartcontractpatternfinder@v1
         with:
           severity: high
+          output-format: sarif
           fail-on-findings: true
 ```
 
@@ -348,7 +386,7 @@ jobs:
 - ✅ Zero configuration
 - ✅ SARIF integration (results in Security tab)
 - ✅ Cached installation
-- ✅ Customizable severity thresholds
+- ✅ Customizable severity threshold via `--min-severity`
 
 [📖 Full GitHub Action Documentation](docs/GITHUB_ACTION.md)
 

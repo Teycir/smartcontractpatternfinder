@@ -4,7 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Added (v1.4) - 2025-01-25
+No unreleased changes.
+
+## [v1.0.0] - 2026-03-05
+
+### Added
+- Initial GitHub Marketplace release draft in `docs/ACTION_MARKETPLACE_RELEASE_DRAFT.md`
+- Marketplace-ready release metadata for the composite GitHub Action in `action.yml`
+- Stable action version tags `v1.0.0` and `v1` for GitHub Actions consumers
+
+### Changed
+- Standardized the repository on the MIT license across the root license file, README, Cargo workspace metadata, and frontend package metadata
+- Updated README badges, tags, and license text to match Marketplace publication requirements
+- Upgraded frontend `axios` from `1.13.3` to `1.13.6`
+
+### Fixed
+- Resolved workspace Rust formatting issues so `cargo fmt --all -- --check` passes
+- Resolved Clippy failures across crates, benches, tests, and workflow targets
+- Verified local CI-equivalent commands for `check`, `test`, `clippy`, release builds, and frontend production builds
+
+## [v1.4] - 2025-01-25
+
+### Added
 - **Filtered Findings System**
   - Added `filtered` field to Match struct
   - Filtered findings excluded from risk scoring (return 0)
@@ -33,7 +54,7 @@ All notable changes to this project will be documented in this file.
   - signature_unchecked: simplified
   - integer_overflow: 2→1 pattern
 
-### Changed (v1.4)
+### Changed
 - **Risk Scoring Formula**: CRITICAL×30 + HIGH×1 (was 10×1)
   - CRITICAL findings now properly dominate ranking
   - Balanced weighting prevents HIGH dilution
@@ -47,7 +68,7 @@ All notable changes to this project will be documented in this file.
   - 24→20 flagged contracts
   - 94 obvious patterns filtered out
 
-### Fixed (v1.4)
+### Fixed
 - **Critical**: API key fallback not rotating through keys
 - **Critical**: Regex patterns compiled on every scan (1000× slowdown)
 - **Critical**: Templates too broad causing 90% false positives
@@ -56,13 +77,13 @@ All notable changes to this project will be documented in this file.
 - Small contracts with many findings ranking too high
 - Filtered findings still counted in risk score
 
-### Performance (v1.4)
+### Performance
 - **Scanner**: 0.33s per contract (was 3-5s) - 10× faster
 - **API Fallback**: Immediate rotation (was 3× retry delay)
 - **False Positives**: 32% reduction (294→200 findings)
 - **Template Precision**: Significantly improved with stricter patterns
 
-### Status (v1.4)
+### Status
 - **Production Ready**: Major improvements to accuracy and performance
 - Real vulnerabilities now rank in top 3 consistently
 - API key fallback working correctly with 6-key rotation

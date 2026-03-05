@@ -61,7 +61,7 @@ runs:
       shell: bash
       run: |
         set +e
-        scpf scan --output ${{ inputs.output-format }} --templates ${{ inputs.templates }} > scpf-results.sarif 2>&1
+        scpf scan --min-severity ${{ inputs.severity }} --output ${{ inputs.output-format }} --templates ${{ inputs.templates }} > scpf-results.sarif 2>&1
         EXIT_CODE=$?
         
         if [ $EXIT_CODE -ne 0 ]; then

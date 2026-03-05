@@ -25,16 +25,16 @@ jobs:
 
 ## Features
 
-✅ **Zero Configuration** - Works out of the box  
-✅ **SARIF Integration** - Results appear in GitHub Security tab  
-✅ **Fast** - Cached installation, parallel scanning  
-✅ **Customizable** - Control severity thresholds and templates  
+✅ **Zero Configuration** - Works out of the box
+✅ **SARIF Integration** - Results appear in GitHub Security tab
+✅ **Fast** - Cached installation, parallel scanning
+✅ **Customizable** - Control the minimum reported severity and template path
 
 ## Inputs
 
 | Input | Description | Default |
 |-------|-------------|---------|
-| `severity` | Minimum severity to fail build | `high` |
+| `severity` | Minimum severity passed to `scpf scan --min-severity` | `high` |
 | `templates` | Path to custom templates | `templates` |
 | `output-format` | Output format (console, json, sarif) | `sarif` |
 | `fail-on-findings` | Fail build on vulnerabilities | `true` |
@@ -53,6 +53,7 @@ jobs:
 - uses: teycir/smartcontractpatternfinder@v1
   with:
     severity: medium
+    output-format: sarif
     fail-on-findings: true
 ```
 
@@ -75,6 +76,9 @@ on:
 jobs:
   scan:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -88,7 +92,7 @@ jobs:
 - uses: teycir/smartcontractpatternfinder@v1
   id: scpf
   
-- uses: actions/upload-artifact@v3
+- uses: actions/upload-artifact@v4
   if: always()
   with:
     name: security-results
@@ -155,7 +159,7 @@ jobs:
 Ensure `templates/` directory exists with `.yaml` files. Run `scpf init` to create default templates.
 
 ### Permission denied
-Add `permissions: { security-events: write }` to your workflow.
+Add `permissions: { contents: read, security-events: write }` to your workflow.
 
 ### Scan takes too long
 Use `--diff` flag to scan only changed files in PRs.
