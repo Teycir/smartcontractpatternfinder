@@ -42,7 +42,7 @@ jobs:
           echo "✅ F1 score $F1% meets threshold"
           
       - name: Upload Accuracy Report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: accuracy-report
           path: accuracy_report.txt
