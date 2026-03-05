@@ -47,26 +47,24 @@ impl InvariantGenerator {
             Regex::new(r"mapping\s*\([^)]+\)\s+(?:public|private|internal)?\s*(\w*[Bb]alance\w*)")
                 .unwrap();
 
-        for cap in balance_re.captures_iter(&self.source_code) {
-            if let Ok(captures) = cap {
-                if let Some(var_name) = captures.get(1) {
-                    invariants.push(GeneratedInvariant {
-                        name: format!("sum_{}_conservation", var_name.as_str()),
-                        description: format!(
-                            "Sum of all {} should remain constant or match total",
-                            var_name.as_str()
-                        ),
-                        solidity_code: format!(
-                            r#"function invariant_{}Conservation() public view returns (bool) {{
+        for captures in balance_re.captures_iter(&self.source_code).flatten() {
+            if let Some(var_name) = captures.get(1) {
+                invariants.push(GeneratedInvariant {
+                    name: format!("sum_{}_conservation", var_name.as_str()),
+                    description: format!(
+                        "Sum of all {} should remain constant or match total",
+                        var_name.as_str()
+                    ),
+                    solidity_code: format!(
+                        r#"function invariant_{}Conservation() public view returns (bool) {{
     // Sum of individual balances should equal total supply
     return true; // Implement balance tracking
 }}"#,
-                            var_name.as_str()
-                        ),
-                        confidence: 0.7,
-                        category: InvariantCategory::BalanceConservation,
-                    });
-                }
+                        var_name.as_str()
+                    ),
+                    confidence: 0.7,
+                    category: InvariantCategory::BalanceConservation,
+                });
             }
         }
         invariants

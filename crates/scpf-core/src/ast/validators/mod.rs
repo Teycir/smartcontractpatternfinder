@@ -107,11 +107,11 @@ impl AstValidator {
         ValidationResult::NotApplicable
     }
 
-    fn is_target_function(&self, func: &Box<FunctionDefinition>, target_line: usize) -> bool {
+    fn is_target_function(&self, func: &FunctionDefinition, target_line: usize) -> bool {
         func.loc.start() <= target_line && func.loc.end() >= target_line
     }
 
-    fn check_initialize_protection(&self, func: &Box<FunctionDefinition>) -> ValidationResult {
+    fn check_initialize_protection(&self, func: &FunctionDefinition) -> ValidationResult {
         for attr in &func.attributes {
             if let FunctionAttribute::BaseOrModifier(_, base) = attr {
                 let modifier_name = base.name.identifiers.iter()
@@ -127,7 +127,7 @@ impl AstValidator {
         ValidationResult::Vulnerable
     }
 
-    fn check_access_control(&self, func: &Box<FunctionDefinition>) -> ValidationResult {
+    fn check_access_control(&self, func: &FunctionDefinition) -> ValidationResult {
         // Check modifiers
         for attr in &func.attributes {
             if let FunctionAttribute::BaseOrModifier(_, base) = attr {

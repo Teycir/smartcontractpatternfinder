@@ -358,13 +358,12 @@ impl Scanner {
             }
         }
         if let Some(ref regex) = self.safe_nft_pattern_regex {
-            if regex.is_match(context).unwrap_or(false) {
-                if context.contains("_mint")
+            if regex.is_match(context).unwrap_or(false)
+                && (context.contains("_mint")
                     || context.contains("_burn")
-                    || context.contains("_transfer")
-                {
-                    return true;
-                }
+                    || context.contains("_transfer"))
+            {
+                return true;
             }
         }
         if let Some(ref regex) = self.timestamp_pattern_regex {
