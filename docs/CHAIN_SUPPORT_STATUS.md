@@ -1,44 +1,66 @@
 # Chain Support Status
 
-## Current Implementation Issue
+## Current Implementation
 
-The codebase claims to support 10 chains, but the implementation is **incorrect**.
+### Ethereum Mainnet Only
 
-### Problem
+SCPF currently supports **Ethereum mainnet only** via Etherscan API.
 
-In `crates/scpf-types/src/chain.rs`, all chains return the same API endpoint:
+**API Endpoint:** `https://api.etherscan.io/api`
 
-```rust
-pub fn api_base_url(&self) -> &'static str {
-    // Etherscan V2 Unified API - single endpoint for all supported chains
-    "https://api.etherscan.io/v2/api"
-}
+### Cascade API Key System
+
+SCPF implements a **rolling cascade fallback system** for handling multiple Etherscan API keys:
+
+**How it works:**
+1. Tries `ETHERSCAN_API_KEY` first
+2. If rate limited or failed, automatically rotates to `ETHERSCAN_API_KEY_2`
+3. Continues through up to `ETHERSCAN_API_KEY_6`
+4. 50ms delay between key rotation attempts
+5. Built-in rate limiting (5 concurrent requests via semaphore)
+
+**Configuration:**
+```bash
+export ETHERSCAN_API_KEY="key-1"
+export ETHERSCAN_API_KEY_2="key-2"
+export ETHERSCAN_API_KEY_3="key-3"
+export ETHERSCAN_API_KEY_4="key-4"
+export ETHERSCAN_API_KEY_5="key-5"
+export ETHERSCAN_API_KEY_6="key-6"
 ```
 
-The fetcher then uses: `https://api.etherscan.io/v2/api?chainid={chain_id}&...`
+**Benefits:**
+- ✅ Automatic failover on rate limits
+- ✅ Increased throughput (5 calls/sec per key = 30 calls/sec total)
+- ✅ Zero downtime during API failures
+- ✅ Simple configuration - just add more keys
 
-**This is incorrect.** Etherscan does NOT have a unified V2 API with `chainid` parameter.
+**Implementation:** See `crates/scpf-core/src/fetcher.rs` - `fetch_source()` method
 
-### Reality
+---
+
+## Planned Multi-Chain Support
+
+### Future Implementation
 
 Each chain has its own separate API endpoint:
 
 | Chain | Actual API Endpoint | Status |
 |-------|-------------------|--------|
-| Ethereum | `https://api.etherscan.io/api` | ✅ Works |
-| BSC | `https://api.bscscan.com/api` | ❌ Not implemented |
-| Polygon | `https://api.polygonscan.com/api` | ❌ Not implemented |
-| Arbitrum | `https://api.arbiscan.io/api` | ❌ Not implemented |
-| Optimism | `https://api-optimistic.etherscan.io/api` | ❌ Not implemented |
-| Base | `https://api.basescan.org/api` | ❌ Not implemented |
-| Avalanche | `https://api.snowtrace.io/api` | ❌ Not implemented |
-| Fantom | `https://api.ftmscan.com/api` | ❌ Not implemented |
-| Linea | `https://api.lineascan.build/api` | ❌ Not implemented |
-| Scroll | `https://api.scrollscan.com/api` | ❌ Not implemented |
+| Ethereum | `https://api.etherscan.io/api` | ✅ Active |
+| BSC | `https://api.bscscan.com/api` | 🚧 Planned |
+| Polygon | `https://api.polygonscan.com/api` | 🚧 Planned |
+| Arbitrum | `https://api.arbiscan.io/api` | 🚧 Planned |
+| Optimism | `https://api-optimistic.etherscan.io/api` | 🚧 Planned |
+| Base | `https://api.basescan.org/api` | 🚧 Planned |
+| Avalanche | `https://api.snowtrace.io/api` | 🚧 Planned |
+| Fantom | `https://api.ftmscan.com/api` | 🚧 Planned |
+| Linea | `https://api.lineascan.build/api` | 🚧 Planned |
+| Scroll | `https://api.scrollscan.com/api` | 🚧 Planned |
 
-### Fix Required
+### Required Changes for Multi-Chain
 
-Update `chain.rs`:
+Update `chain.rs` to return chain-specific API endpoints:
 
 ```rust
 pub fn api_base_url(&self) -> &'static str {
@@ -57,7 +79,7 @@ pub fn api_base_url(&self) -> &'static str {
 }
 ```
 
-Remove `chainid` parameter from `fetcher.rs`:
+Remove `chainid` parameter and use chain-specific endpoints:
 
 ```rust
 fn build_url_with_key(&self, address: &str, chain: Chain, key: &str) -> Result<String> {
@@ -70,23 +92,35 @@ fn build_url_with_key(&self, address: &str, chain: Chain, key: &str) -> Result<S
 }
 ```
 
-### API Key Configuration
+### Multi-Chain API Key Configuration
 
-Each chain needs its own API key environment variable:
+Each chain will need its own set of API keys with cascade support:
 
 ```bash
-export ETHERSCAN_API_KEY="your-ethereum-key"
+# Ethereum (current)
+export ETHERSCAN_API_KEY="ethereum-key-1"
+export ETHERSCAN_API_KEY_2="ethereum-key-2"
+# ... up to ETHERSCAN_API_KEY_6
 
+# BSC (planned)
+export BSCSCAN_API_KEY="bsc-key-1"
+export BSCSCAN_API_KEY_2="bsc-key-2"
+# ... up to BSCSCAN_API_KEY_6
+
+# Polygon (planned)
+export POLYGONSCAN_API_KEY="polygon-key-1"
+export POLYGONSCAN_API_KEY_2="polygon-key-2"
+# ... up to POLYGONSCAN_API_KEY_6
+
+# And so on for each chain...
 ```
 
-### Documentation Updates Needed
+**Each chain will support up to 6 keys with the same cascade fallback system.**
 
-1. **README.md** - Update "Supported Chains" table to show only Ethereum as active
-2. **Configuration section** - Document chain-specific API keys
-3. **Examples** - Remove multi-chain examples until fixed
+---
 
-### Current Status
+## Summary
 
-**Only Ethereum mainnet is properly supported.**
+**Current Status:** ✅ Ethereum mainnet fully supported with cascade API key system (up to 6 keys)
 
-All other chains will fail because they're hitting the wrong API endpoint.
+**Planned:** Multi-chain support with chain-specific API endpoints and per-chain cascade fallback

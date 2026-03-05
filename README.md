@@ -72,7 +72,7 @@
 - 🧠 **Context-Aware Filtering** - Reduce obvious false positives with semantic and contextual filters
 - ⚡ **Chunked Scanning** - Handle larger sources without exhausting memory
 - 💾 **Smart Caching** - Avoid redundant API calls
-- 🔑 **API Key Fallback** - Up to 6 keys with automatic rotation
+- 🔑 **Cascade API Key System** - Up to 6 keys with automatic rolling fallback
 - 🎯 **Modular Architecture** - CLI, core engine, server, and web UI components
 - 🔒 **Security Focused** - Built for vulnerability triage, reporting, and SARIF-based code scanning
 - 🚀 **High Performance** - Built with Rust for speed
@@ -326,13 +326,15 @@ scpf init --yes
 
 ## 🔧 Configuration
 
-Set API keys via environment variables:
+### API Key Setup
+
+SCPF uses Etherscan API for fetching contract source code. Configure API keys via environment variables:
 
 ```bash
 # Single key (required)
 export ETHERSCAN_API_KEY="your-key"
 
-# Optional: Add up to 6 keys for automatic fallback
+# Optional: Add up to 6 keys for automatic cascade fallback
 export ETHERSCAN_API_KEY_2="your-key-2"
 export ETHERSCAN_API_KEY_3="your-key-3"
 export ETHERSCAN_API_KEY_4="your-key-4"
@@ -340,9 +342,27 @@ export ETHERSCAN_API_KEY_5="your-key-5"
 export ETHERSCAN_API_KEY_6="your-key-6"
 ```
 
+### Cascade API Key System
+
+SCPF implements a **rolling cascade fallback system** for API keys:
+
+1. **Primary Key** - Tries `ETHERSCAN_API_KEY` first
+2. **Automatic Rotation** - If rate limited or failed, automatically tries next key
+3. **Up to 6 Keys** - Supports `ETHERSCAN_API_KEY` through `ETHERSCAN_API_KEY_6`
+4. **Smart Retry** - 50ms delay between key attempts
+5. **Rate Limiting** - Built-in semaphore (5 concurrent requests)
+
+**Benefits:**
+- ✅ Avoid rate limit errors (Etherscan free tier: 5 calls/sec)
+- ✅ Increased throughput with multiple keys
+- ✅ Automatic failover if one key fails
+- ✅ Zero configuration - just add more keys
+
 ### Getting API Keys
 
 - **Etherscan**: https://etherscan.io/apis (free tier: 5 calls/sec)
+
+**Tip**: Create multiple free Etherscan accounts to get 6 API keys for maximum throughput (30 calls/sec).
 
 ---
 
