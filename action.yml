@@ -39,7 +39,7 @@ runs:
       uses: dtolnay/rust-toolchain@stable
       
     - name: Cache SCPF
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ~/.cargo/bin/scpf
         key: ${{ runner.os }}-scpf-${{ hashFiles('**/Cargo.lock') }}
@@ -98,7 +98,7 @@ runs:
     - name: Upload SARIF
       if: inputs.output-format == 'sarif'
       id: upload-sarif
-      uses: github/codeql-action/upload-sarif@v2
+      uses: github/codeql-action/upload-sarif@v4
       continue-on-error: true
       with:
         sarif_file: ${{ github.workspace }}/scpf-results.sarif

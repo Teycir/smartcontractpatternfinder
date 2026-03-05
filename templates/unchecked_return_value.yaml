@@ -27,5 +27,5 @@ patterns:
 
   - id: arbitrary-call-with-data
     kind: fancy-regex
-    pattern: '^\s*(?!\/\/|\/\*|\*)\.call\{value:\s*\w+\}\s*\(\s*\w*data\w*\s*\)'
+    pattern: '^\s*(?!\/\/|\/\*|\*).*\b[\w.\[\]()]+\s*\.call\{value:\s*[^}]+\}\s*\(\s*\w*data\w*\s*\)'
     message: Low-level call with arbitrary data parameter - implement whitelist validation for target address

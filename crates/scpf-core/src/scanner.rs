@@ -498,7 +498,8 @@ fn compile_pattern_optimized(
                 )
             })?;
 
-            let re = regex::Regex::new(&pattern.pattern).map_err(|e| {
+            let multiline_pattern = format!("(?m){}", pattern.pattern);
+            let re = regex::Regex::new(&multiline_pattern).map_err(|e| {
                 warn!(
                     "Invalid regex in template '{}', pattern '{}': {}",
                     template_id, pattern.id, e
@@ -526,7 +527,8 @@ fn compile_pattern_optimized(
                 )
             })?;
 
-            let re = RegexBuilder::new(&pattern.pattern).build().map_err(|e| {
+            let multiline_pattern = format!("(?m){}", pattern.pattern);
+            let re = RegexBuilder::new(&multiline_pattern).build().map_err(|e| {
                 warn!(
                     "Invalid fancy-regex in template '{}', pattern '{}': {}",
                     template_id, pattern.id, e

@@ -10,6 +10,14 @@ license.workspace = true
 name = "scpf"
 path = "src/main.rs"
 
+[[bin]]
+name = "accuracy_report"
+path = "../../benchmarks/accuracy_report.rs"
+
+[[bin]]
+name = "benchmark_sarif"
+path = "../../benchmarks/benchmark_sarif.rs"
+
 [dependencies]
 scpf-core = { workspace = true }
 scpf-types = { workspace = true }
