@@ -5,7 +5,7 @@
 }
 
 .app-version {
-  position: fixed;
+  position: absolute;
   top: 16px;
   left: 16px;
   font-size: 13px;
@@ -17,6 +17,8 @@
   border: 1px solid rgba(212, 175, 55, 0.3);
   z-index: 1000;
   font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+  pointer-events: none;
+  will-change: transform;
 }
 
 .app-main {

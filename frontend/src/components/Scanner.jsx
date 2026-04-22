@@ -79,6 +79,32 @@ function stripTemplateExtension(templateName) {
   return templateName.replace(/\.(yaml|yml)$/i, '')
 }
 
+function areProgressEqual(previousProgress, nextProgress) {
+  return (
+    previousProgress.contracts_scanned === (nextProgress.contracts_scanned ?? 0) &&
+    previousProgress.contracts_total === (nextProgress.contracts_total ?? null) &&
+    previousProgress.current_contract === (nextProgress.current_contract ?? null) &&
+    previousProgress.current_contract_name === (nextProgress.current_contract_name ?? null) &&
+    previousProgress.contracts_extracted === (nextProgress.contracts_extracted ?? 0) &&
+    previousProgress.eta_seconds === (nextProgress.eta_seconds ?? 0) &&
+    previousProgress.rate === (nextProgress.rate ?? null) &&
+    previousProgress.critical_findings === (nextProgress.critical_findings ?? 0)
+  )
+}
+
+function areScannerConfigsEqual(previousConfig, nextConfig) {
+  return (
+    previousConfig.addresses === nextConfig.addresses &&
+    previousConfig.chain === nextConfig.chain &&
+    previousConfig.pages === nextConfig.pages &&
+    previousConfig.concurrency === nextConfig.concurrency &&
+    previousConfig.tags === nextConfig.tags &&
+    previousConfig.contract_type === nextConfig.contract_type &&
+    previousConfig.extract_sources === nextConfig.extract_sources &&
+    previousConfig.fetch_zero_day === nextConfig.fetch_zero_day
+  )
+}
+
 const Scanner = ({ apiBaseUrl }) => {
   const [status, setStatus] = useState(SCAN_STATUS.IDLE)
   const [error, setError] = useState('')
@@ -120,24 +146,44 @@ const Scanner = ({ apiBaseUrl }) => {
       setStatus(currentStatus)
 
       if (data.progress) {
-        setProgress(data.progress)
+        setProgress((previousProgress) => {
+          if (areProgressEqual(previousProgress, data.progress)) {
+            return previousProgress
+          }
+
+          return {
+            ...previousProgress,
+            ...data.progress,
+          }
+        })
       }
 
       if (data.config && currentStatus !== SCAN_STATUS.IDLE) {
         const cfg = data.config
-        setConfig((prev) => ({
-          ...prev,
-          addresses: cfg.addresses?.join(',\n') || prev.addresses,
-          chain: cfg.chain === 'ethereum,polygon,arbitrum' ? 'all' : cfg.chain || prev.chain,
-          pages: cfg.pages ?? prev.pages,
-          concurrency: cfg.concurrency ?? prev.concurrency,
-          tags: cfg.tags || '',
-          contract_type: cfg.contract_type || '',
-          extract_sources:
-            cfg.extract_sources != null ? cfg.extract_sources.toString() : prev.extract_sources,
-          fetch_zero_day:
-            cfg.fetch_zero_day != null ? Boolean(cfg.fetch_zero_day) : prev.fetch_zero_day,
-        }))
+        setConfig((previousConfig) => {
+          const nextConfig = {
+            ...previousConfig,
+            addresses: cfg.addresses?.join(',\n') || previousConfig.addresses,
+            chain:
+              cfg.chain === 'ethereum,polygon,arbitrum' ? 'all' : cfg.chain || previousConfig.chain,
+            pages: cfg.pages ?? previousConfig.pages,
+            concurrency: cfg.concurrency ?? previousConfig.concurrency,
+            tags: cfg.tags || '',
+            contract_type: cfg.contract_type || '',
+            extract_sources:
+              cfg.extract_sources != null
+                ? cfg.extract_sources.toString()
+                : previousConfig.extract_sources,
+            fetch_zero_day:
+              cfg.fetch_zero_day != null
+                ? Boolean(cfg.fetch_zero_day)
+                : previousConfig.fetch_zero_day,
+          }
+
+          return areScannerConfigsEqual(previousConfig, nextConfig)
+            ? previousConfig
+            : nextConfig
+        })
       }
     } catch (err) {
       setServerOnline(false)

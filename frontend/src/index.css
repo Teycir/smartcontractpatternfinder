@@ -27,6 +27,12 @@
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 }
 
+:root[data-runtime='tauri'] {
+  --bg-elevated: rgba(16, 20, 31, 0.96);
+  --surface: rgba(18, 24, 35, 0.94);
+  --surface-strong: rgba(20, 27, 39, 0.98);
+}
+
 * {
   box-sizing: border-box;
   margin: 0;

@@ -720,6 +720,16 @@
   }
 }
 
+:root[data-runtime='tauri'] .workspace-sidebar,
+:root[data-runtime='tauri'] .panel {
+  backdrop-filter: none;
+}
+
+:root[data-runtime='tauri'] .progress-fill::after,
+:root[data-runtime='tauri'] .sidebar-status-running .sidebar-status-dot {
+  animation: none;
+}
+
 @media (max-width: 1180px) {
   .workspace-shell {
     grid-template-columns: 1fr;

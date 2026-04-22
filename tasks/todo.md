@@ -210,3 +210,42 @@
 - Residual caveat:
   - the desktop `/api/export` route still returned `No report available` for the 0-day-only flow even though the report file was created and the SSE logs showed the final `0-Day summary` line.
   - I hardened the parser for `0day_summary.md` and ANSI-stripped log lines, but the live desktop export path still needs one more pass if we want `/api/export` to surface 0-day-only summaries reliably.
+
+---
+
+# Desktop Black Screen Stability Repair - 2026-04-23
+
+## Checklist
+
+- [completed] Inspect the desktop frontend/server code paths plus prior desktop repair notes
+- [completed] Document the likely failure modes and the intended repair approach here before editing
+- [completed] Reduce backend SSE/log-stream leak pressure during long desktop runs
+- [completed] Reduce frontend console render churn during long-running scans
+- [completed] Add crash containment so desktop runtime failures surface as a recoverable screen instead of a black window
+- [completed] Verify with frontend build plus Rust checks/tests and capture the outcome
+
+## Notes
+
+- User report: "scpf becomes unstable on desktop, we become dark screen after some time"
+- Working hypothesis from code inspection:
+  - the desktop console keeps rendering a growing live log list while scans stream frequent output
+  - the server keeps every historical SSE sender in memory and never prunes disconnected clients
+  - a frontend runtime exception currently has no error boundary, so a fatal render/effect failure can collapse into an empty dark shell
+- Repair goal: keep the desktop UI responsive during long scans and make any remaining failure recoverable and diagnosable instead of presenting a black screen.
+- `secretscout` was used as a stability reference for the console path, especially its tighter log-pressure expectations for desktop UX.
+
+## Review
+
+- Backend hardening:
+  - updated `crates/scpf-server/src/main.rs` so the SSE sender list prunes disconnected clients instead of retaining stale channels forever
+- Frontend hardening:
+  - updated `frontend/src/components/Console.jsx` to batch log commits, defer rendered log updates, cap the rendered viewport to the latest 250 lines, and isolate the console from parent rerenders with `React.memo`
+  - reduced avoidable parent churn in `frontend/src/components/Scanner.jsx` by skipping config/progress state updates when polled values are unchanged
+  - added Tauri-only CSS fallbacks in the frontend so desktop uses more stable non-blurred surfaces and fewer infinite animations
+- Crash containment:
+  - added `frontend/src/components/DesktopCrashBoundary.jsx` plus matching CSS and wrapped the app in `frontend/src/main.jsx` so unexpected frontend/runtime failures surface as a recoverable error screen instead of a blank dark window
+- Verification:
+  - `npm run build` in `frontend/` succeeded
+  - `cargo check -p scpf-server` succeeded
+  - `cargo check --manifest-path frontend/src-tauri/Cargo.toml` succeeded
+  - `cargo test -p scpf-server` succeeded outside sandbox

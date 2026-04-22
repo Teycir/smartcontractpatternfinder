@@ -909,8 +909,7 @@ fn strip_ansi_sequences(line: &str) -> String {
 }
 
 async fn send_log(state: &AppState, message: &str) {
-    let log_tx = state.log_tx.read().await;
-    for tx in log_tx.iter() {
-        let _ = tx.send(message.to_string());
-    }
+    let mut log_tx = state.log_tx.write().await;
+    let message = message.to_string();
+    log_tx.retain(|tx| tx.send(message.clone()).is_ok());
 }

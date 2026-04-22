@@ -142,6 +142,16 @@
   padding: 16px 18px 18px;
 }
 
+.console-trimmed-banner {
+  background: rgba(79, 135, 201, 0.12);
+  border: 1px solid rgba(79, 135, 201, 0.2);
+  border-radius: 12px;
+  color: #cbe1ff;
+  font-size: 0.82rem;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+}
+
 .console-output::-webkit-scrollbar {
   width: 8px;
 }
@@ -222,6 +232,10 @@
   50% {
     opacity: 0.6;
   }
+}
+
+:root[data-runtime='tauri'] .connection-pill.connecting {
+  animation: none;
 }
 
 @media (max-width: 860px) {
