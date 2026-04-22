@@ -4,6 +4,21 @@
   position: relative;
 }
 
+.app-version {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #d4af37;
+  background: rgba(212, 175, 55, 0.1);
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  z-index: 1000;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+}
+
 .app-main {
   margin: 0 auto;
   max-width: 1580px;

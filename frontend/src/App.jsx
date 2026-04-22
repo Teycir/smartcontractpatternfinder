@@ -64,6 +64,7 @@ function App() {
 
   return (
     <div className="app-shell">
+      <div className="app-version">v0.2.0</div>
       <main className="app-main">
         <Scanner apiBaseUrl={runtimeConfig.apiBaseUrl} />
       </main>
