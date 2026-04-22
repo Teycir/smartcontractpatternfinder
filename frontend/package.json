@@ -17,6 +17,10 @@
     "dev": "node scripts/start-with-server.js",
     "dev:frontend-only": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:desktop:backend": "cd .. && cargo build --release -p scpf-server -p scpf-cli",
+    "desktop:dev": "cargo tauri dev",
+    "desktop:build": "cargo tauri build",
+    "desktop:install-shortcut": "sh ../scripts/install_desktop_shortcut.sh"
   }
 }

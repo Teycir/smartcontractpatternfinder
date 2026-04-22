@@ -12,6 +12,10 @@ impl ApiKeyConfig {
         Self::default()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.keys.values().all(Vec::is_empty)
+    }
+
     pub fn with_key(mut self, chain: Chain, key: String) -> Self {
         self.keys.entry(chain).or_default().push(key);
         self

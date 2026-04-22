@@ -1,0 +1,18 @@
+[package]
+name = "scpf-config"
+description = "Shared runtime configuration and environment loading for Smart Contract Pattern Finder"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+scpf-types = { workspace = true }
+
+serde = { workspace = true }
+dirs = { workspace = true }
+dotenvy = { workspace = true }
+rand = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3.9"

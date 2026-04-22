@@ -1,18 +1,17 @@
 use anyhow::Result;
 use clap::Parser;
+use scpf_config::load_process_env;
 
 mod cli;
 mod commands;
 mod error_helper;
-pub mod keys;
 mod pattern_builder;
 
 use cli::{Cli, Commands};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Load .env file if it exists, ignore if missing
-    dotenvy::dotenv().ok();
+    load_process_env();
 
     let cli = Cli::parse();
 

@@ -69,6 +69,7 @@ _Scan the QR code or copy the wallet address above._
     - [Getting API Keys](#getting-api-keys)
   - [📊 Output Formats](#-output-formats)
   - [🧪 Development](#-development)
+    - [Desktop Build](#desktop-build)
   - [📝 Creating Templates](#-creating-templates)
     - [How Templates Work](#how-templates-work)
     - [Creating a Template](#creating-a-template)
@@ -362,6 +363,20 @@ export ETHERSCAN_API_KEY_5="your-key-5"
 export ETHERSCAN_API_KEY_6="your-key-6"
 ```
 
+For the packaged desktop app on Linux, you can also create:
+
+```bash
+~/.local/share/com.teycir.scpf.desktop/.env
+```
+
+with:
+
+```bash
+ETHERSCAN_API_KEY=your-key
+```
+
+If explorer keys are missing, recent-contract discovery will fail and the desktop app will fall back to generating only the 0-day summary.
+
 ### Cascade API Key System
 
 SCPF implements a **rolling cascade fallback system** for API keys:
@@ -471,6 +486,28 @@ cargo clippy
 # Build release
 cargo build --release
 ```
+
+### Desktop Build
+
+The desktop app lives under `frontend/` and is packaged with Tauri.
+
+```bash
+cd frontend
+npm install
+cargo install tauri-cli --version '^2'
+npm run desktop:build
+npm run desktop:install-shortcut
+```
+
+Build artifacts are written to `frontend/src-tauri/target/release/bundle/`.
+
+On Linux, `npm run desktop:build` produces `.deb`, `.rpm`, and `.AppImage` bundles. The AppImage step runs through `linuxdeploy`, so it can fail inside restricted sandboxes even when the project itself is healthy. If that happens, rerun the desktop build from a normal host shell instead of a locked-down sandbox.
+
+`npm run desktop:install-shortcut` installs a local launcher in `~/.local/share/applications/scpf-desktop.desktop`, copies the icon set into `~/.local/share/icons/hicolor`, and creates a `~/Desktop/SCPF Desktop.desktop` shortcut when a Desktop folder exists.
+
+The desktop shell now targets a dedicated local backend address, `http://127.0.0.1:32145`, to avoid collisions with unrelated services that may already be using `8080`.
+
+On first launch, the desktop app also seeds `~/.local/share/com.teycir.scpf.desktop/.env.example` so the expected API key format is easy to discover.
 
 ---
 

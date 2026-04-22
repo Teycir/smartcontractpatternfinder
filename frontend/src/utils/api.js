@@ -4,11 +4,41 @@
  */
 
 import axios from 'axios'
-import { API_ENDPOINTS, API_BASE_URL, TIMEOUTS } from '../constants'
+import { API_ENDPOINTS, TIMEOUTS } from '../constants'
+import { loadRuntimeConfig } from './runtimeConfig'
 
-const api = axios.create({
-  baseURL: API_BASE_URL,
-})
+let apiPromise = null
+
+const getApiClient = async () => {
+  if (!apiPromise) {
+    apiPromise = loadRuntimeConfig()
+      .then(({ apiBaseUrl }) =>
+        axios.create({
+          baseURL: apiBaseUrl,
+        })
+      )
+      .catch((error) => {
+        apiPromise = null
+        throw error
+      })
+  }
+
+  return apiPromise
+}
+
+const apiRequest = async (config) => {
+  const api = await getApiClient()
+  return api.request(config)
+}
+
+const SCPF_SERVICE_ID = 'scpf-server'
+
+const assertScpfService = (data, fallbackMessage) => {
+  if (data?.service !== SCPF_SERVICE_ID) {
+    throw new Error(fallbackMessage)
+  }
+  return data
+}
 
 /**
  * Extract error message from axios error
@@ -17,6 +47,9 @@ const api = axios.create({
  * @returns {string}
  */
 export const getErrorMessage = (error, fallback = 'An error occurred') => {
+  if (typeof error.response?.data === 'string' && error.response.data.trim().length > 0) {
+    return error.response.data
+  }
   return error.response?.data?.error || error.message || fallback
 }
 
@@ -25,10 +58,15 @@ export const getErrorMessage = (error, fallback = 'An error occurred') => {
  * @returns {Promise<object>}
  */
 export const fetchScanStatus = async () => {
-  const response = await api.get(API_ENDPOINTS.STATUS, { 
+  const response = await apiRequest({
+    method: 'get',
+    url: API_ENDPOINTS.STATUS,
     timeout: TIMEOUTS.API_STATUS 
   })
-  return response.data
+  return assertScpfService(
+    response.data,
+    'Unexpected backend response. Another local service may be bound to the configured SCPF port.'
+  )
 }
 
 /**
@@ -37,7 +75,10 @@ export const fetchScanStatus = async () => {
  * @returns {Promise<object>}
  */
 export const startScan = async (payload) => {
-  const response = await api.post(API_ENDPOINTS.START, payload, { 
+  const response = await apiRequest({
+    method: 'post',
+    url: API_ENDPOINTS.START,
+    data: payload,
     timeout: TIMEOUTS.API_START 
   })
   return response.data
@@ -48,7 +89,10 @@ export const startScan = async (payload) => {
  * @returns {Promise<object>}
  */
 export const pauseScan = async () => {
-  const response = await api.post(API_ENDPOINTS.PAUSE, {}, { 
+  const response = await apiRequest({
+    method: 'post',
+    url: API_ENDPOINTS.PAUSE,
+    data: {},
     timeout: TIMEOUTS.API_ACTION 
   })
   return response.data
@@ -59,7 +103,10 @@ export const pauseScan = async () => {
  * @returns {Promise<object>}
  */
 export const resumeScan = async () => {
-  const response = await api.post(API_ENDPOINTS.RESUME, {}, { 
+  const response = await apiRequest({
+    method: 'post',
+    url: API_ENDPOINTS.RESUME,
+    data: {},
     timeout: TIMEOUTS.API_ACTION 
   })
   return response.data
@@ -70,7 +117,10 @@ export const resumeScan = async () => {
  * @returns {Promise<object>}
  */
 export const stopScan = async () => {
-  const response = await api.post(API_ENDPOINTS.STOP, {}, { 
+  const response = await apiRequest({
+    method: 'post',
+    url: API_ENDPOINTS.STOP,
+    data: {},
     timeout: TIMEOUTS.API_ACTION 
   })
   return response.data
@@ -81,15 +131,48 @@ export const stopScan = async () => {
  * @returns {Promise<object>}
  */
 export const checkHealth = async () => {
-  const response = await api.get(API_ENDPOINTS.HEALTH, { 
+  const response = await apiRequest({
+    method: 'get',
+    url: API_ENDPOINTS.HEALTH,
     timeout: TIMEOUTS.API_STATUS 
+  })
+  return assertScpfService(
+    response.data,
+    'Unexpected backend health response. Another local service may be bound to the configured SCPF port.'
+  )
+}
+
+export const fetchTemplates = async () => {
+  const response = await apiRequest({
+    method: 'get',
+    url: API_ENDPOINTS.TEMPLATES,
+    timeout: TIMEOUTS.API_STATUS 
+  })
+  const data = assertScpfService(
+    response.data,
+    'Unexpected template response. Another local service may be bound to the configured SCPF port.'
+  )
+
+  if (!Array.isArray(data.templates)) {
+    throw new Error('Template inventory response was malformed.')
+  }
+
+  return data
+}
+
+export const exportLogs = async (logs) => {
+  const response = await apiRequest({
+    method: 'post',
+    url: API_ENDPOINTS.EXPORT_LOGS,
+    data: { logs },
+    timeout: TIMEOUTS.API_ACTION,
   })
   return response.data
 }
 
-export const fetchTemplates = async () => {
-  const response = await api.get(API_ENDPOINTS.TEMPLATES, { 
-    timeout: TIMEOUTS.API_STATUS 
-  })
-  return response.data
+export const getApiUrl = async (path = '') => {
+  const { apiBaseUrl } = await loadRuntimeConfig()
+  const base = apiBaseUrl.endsWith('/') ? apiBaseUrl : `${apiBaseUrl}/`
+  const normalizedPath = path.startsWith('/') ? path.slice(1) : path
+  return new URL(normalizedPath, base).toString()
 }

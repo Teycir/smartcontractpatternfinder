@@ -4,105 +4,161 @@
 }
 
 .template-dropdown-btn {
-  width: 100%;
-  padding: 10px 15px;
-  background: #2a2a2a;
-  border: 1px solid #444;
-  border-radius: 6px;
-  color: #fff;
-  cursor: pointer;
+  align-items: center;
+  background: rgba(11, 16, 25, 0.9);
+  border: 1px solid rgba(126, 150, 186, 0.16);
+  border-radius: 18px;
+  color: var(--foreground);
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  font-size: 14px;
-  transition: all 0.2s;
+  min-height: 68px;
+  padding: 16px 18px;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+  width: 100%;
 }
 
 .template-dropdown-btn:hover:not(:disabled) {
-  background: #333;
-  border-color: #555;
+  border-color: rgba(108, 165, 235, 0.28);
+  box-shadow: 0 18px 34px rgba(8, 12, 19, 0.2);
+  transform: translateY(-1px);
 }
 
 .template-dropdown-btn:disabled {
-  opacity: 0.5;
   cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.template-button-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  text-align: left;
+}
+
+.template-button-copy strong {
+  font-size: 0.96rem;
+}
+
+.template-button-copy small,
+.dropdown-arrow {
+  color: var(--muted-foreground);
+  font-size: 0.8rem;
 }
 
 .dropdown-arrow {
-  margin-left: 8px;
-  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .template-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  margin-top: 4px;
-  background: #2a2a2a;
-  border: 1px solid #444;
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  z-index: 1000;
-  max-height: 300px;
+  background: linear-gradient(180deg, rgba(18, 24, 35, 0.96) 0%, rgba(10, 14, 22, 0.98) 100%);
+  border: 1px solid rgba(126, 150, 186, 0.16);
+  border-radius: 20px;
+  box-shadow: 0 28px 60px rgba(8, 12, 19, 0.36);
+  margin-top: 12px;
+  max-height: 420px;
   overflow: hidden;
+  position: absolute;
+  width: 100%;
+  z-index: 12;
+}
+
+.template-toolbar {
   display: flex;
   flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+}
+
+.template-search {
+  background: rgba(7, 10, 16, 0.92);
+  border: 1px solid rgba(126, 150, 186, 0.16);
+  border-radius: 14px;
+  color: var(--foreground);
+  min-height: 46px;
+  padding: 0 14px;
+}
+
+.template-search:focus {
+  border-color: rgba(108, 165, 235, 0.36);
+  box-shadow: 0 0 0 4px rgba(79, 135, 201, 0.1);
+  outline: none;
 }
 
 .template-actions {
   display: flex;
-  gap: 8px;
-  padding: 8px;
-  border-bottom: 1px solid #444;
+  gap: 10px;
 }
 
 .btn-action {
+  background: rgba(79, 135, 201, 0.1);
+  border: 1px solid rgba(79, 135, 201, 0.18);
+  border-radius: 999px;
+  color: #d4e6ff;
   flex: 1;
-  padding: 6px 12px;
-  background: #3a3a3a;
-  border: 1px solid #555;
-  border-radius: 4px;
-  color: #fff;
-  cursor: pointer;
-  font-size: 12px;
-  transition: all 0.2s;
-}
-
-.btn-action:hover {
-  background: #444;
+  font-size: 0.82rem;
+  font-weight: 600;
+  min-height: 38px;
+  padding: 0 12px;
 }
 
 .template-list {
+  border-top: 1px solid rgba(126, 150, 186, 0.12);
+  max-height: 280px;
   overflow-y: auto;
-  max-height: 250px;
+}
+
+.template-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.template-list::-webkit-scrollbar-thumb {
+  background: rgba(126, 150, 186, 0.24);
+  border-radius: 999px;
 }
 
 .template-item {
-  display: flex;
   align-items: center;
-  padding: 10px 12px;
+  border-bottom: 1px solid rgba(126, 150, 186, 0.08);
   cursor: pointer;
-  transition: background 0.2s;
-  border-bottom: 1px solid #333;
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+  transition: background 0.2s ease;
 }
 
 .template-item:hover {
-  background: #333;
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .template-item:last-child {
   border-bottom: none;
 }
 
-.template-item input[type="checkbox"] {
-  margin-right: 10px;
-  cursor: pointer;
-  width: 16px;
+.template-item input[type='checkbox'] {
+  accent-color: var(--accent);
+  flex-shrink: 0;
   height: 16px;
+  width: 16px;
 }
 
-.template-item span {
-  font-size: 13px;
-  color: #ddd;
+.template-name {
+  color: var(--foreground);
+  font-size: 0.88rem;
+  overflow-wrap: anywhere;
+}
+
+.template-empty {
+  color: var(--muted-foreground);
+  padding: 18px 16px 22px;
+}
+
+@media (max-width: 640px) {
+  .template-actions {
+    flex-direction: column;
+  }
 }

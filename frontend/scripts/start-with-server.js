@@ -1,18 +1,24 @@
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { SCPF_SERVER_ADDR, SCPF_SERVER_ORIGIN } from '../server-config.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = join(__dirname, '..', '..');
 const frontendRoot = join(__dirname, '..');
 
-const SERVER_URL = 'http://127.0.0.1:8080/api/health';
+const SERVER_URL = `${SCPF_SERVER_ORIGIN}/api/health`;
 const MAX_WAIT_SECONDS = 60;
 
 async function checkServer() {
   try {
     const response = await fetch(SERVER_URL);
-    return response.ok;
+    if (!response.ok) {
+      return false;
+    }
+
+    const payload = await response.json();
+    return payload?.service === 'scpf-server';
   } catch {
     return false;
   }
@@ -30,20 +36,15 @@ async function waitForServer(maxSeconds) {
 
 async function startServer() {
   console.log('🚀 Starting backend server...');
-  
-  // Kill any existing server on port 8080
-  try {
-    const { execSync } = await import('child_process');
-    execSync('lsof -ti:8080 | xargs kill -9 2>/dev/null || true', { stdio: 'ignore' });
-    await new Promise(resolve => setTimeout(resolve, 500));
-  } catch {
-    // Ignore errors
-  }
-  
+
   const serverProcess = spawn('cargo', ['run', '--release', '--bin', 'scpf-server'], {
     cwd: projectRoot,
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: process.platform !== 'win32',
+    env: {
+      ...process.env,
+      SCPF_SERVER_ADDR,
+    },
   });
 
   serverProcess.stdout.on('data', (data) => {
@@ -96,7 +97,7 @@ async function main() {
     const ready = await waitForServer(MAX_WAIT_SECONDS);
     
     if (!ready) {
-      console.error(`❌ Server failed to start within ${MAX_WAIT_SECONDS} seconds`);
+      console.error(`❌ Server failed to start within ${MAX_WAIT_SECONDS} seconds on ${SCPF_SERVER_ORIGIN}`);
       process.exit(1);
     }
     

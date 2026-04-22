@@ -1,3 +1,5 @@
+mod runtime_paths;
+
 use axum::{
     extract::State,
     http::StatusCode,
@@ -6,11 +8,16 @@ use axum::{
     Json, Router,
 };
 use futures::stream::Stream;
+use scpf_config::{frontend_runtime_config, load_process_env, server_config};
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex, RwLock};
 use tower_http::cors::CorsLayer;
+
+use crate::runtime_paths::{
+    desktop_cli_binary_path, find_project_root, next_report_dir, templates_root,
+};
 
 #[derive(Clone)]
 struct AppState {
@@ -134,6 +141,7 @@ impl Default for ScanConfig {
 
 #[tokio::main]
 async fn main() {
+    load_process_env();
     tracing_subscriber::fmt::init();
 
     let state = AppState {
@@ -150,6 +158,7 @@ async fn main() {
         .route("/api/health", get(health_check))
         .route("/api/status", get(get_status))
         .route("/api/templates", get(get_templates))
+        .route("/api/runtime-config", get(get_runtime_config))
         .route("/api/start", post(start_scan))
         .route("/api/pause", post(pause_scan))
         .route("/api/resume", post(resume_scan))
@@ -161,16 +170,16 @@ async fn main() {
         .layer(CorsLayer::permissive())
         .with_state(state);
 
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:8080")
-        .await
-        .unwrap();
+    let server = server_config();
+    let listener = tokio::net::TcpListener::bind(&server.addr).await.unwrap();
 
-    tracing::info!("Server listening on http://127.0.0.1:8080");
+    tracing::info!("Server listening on {}", server.origin);
     axum::serve(listener, app).await.unwrap();
 }
 
 async fn health_check() -> impl IntoResponse {
     Json(serde_json::json!({
+        "service": "scpf-server",
         "status": "ok",
         "message": "Server is running"
     }))
@@ -180,6 +189,7 @@ async fn get_status(State(state): State<AppState>) -> impl IntoResponse {
     let status = state.scan_status.read().await.clone();
     let config = state.scan_config.read().await.clone();
     Json(serde_json::json!({
+        "service": "scpf-server",
         "status": status,
         "config": config,
         "progress": state.progress.to_json()
@@ -187,9 +197,7 @@ async fn get_status(State(state): State<AppState>) -> impl IntoResponse {
 }
 
 async fn get_templates() -> impl IntoResponse {
-    let templates_dir = find_project_root()
-        .unwrap_or_else(|| std::env::current_dir().unwrap())
-        .join("templates");
+    let templates_dir = templates_root();
 
     let mut templates = Vec::new();
     if let Ok(entries) = std::fs::read_dir(&templates_dir) {
@@ -202,7 +210,14 @@ async fn get_templates() -> impl IntoResponse {
         }
     }
     templates.sort();
-    Json(serde_json::json!({ "templates": templates }))
+    Json(serde_json::json!({
+        "service": "scpf-server",
+        "templates": templates
+    }))
+}
+
+async fn get_runtime_config() -> impl IntoResponse {
+    Json(frontend_runtime_config())
 }
 
 async fn start_scan(
@@ -443,15 +458,7 @@ async fn export_logs(
     let log_path = if let Some(path) = report_path.as_ref() {
         path.parent().map(|p| p.join("console.log"))
     } else {
-        let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-        let default_dir = std::path::PathBuf::from(format!(
-            "/home/teycir/smartcontractpatternfinderReports/report_{}",
-            timestamp
-        ));
-        Some(default_dir.join("console.log"))
+        Some(next_report_dir().join("console.log"))
     };
 
     if let Some(path) = log_path {
@@ -523,17 +530,35 @@ async fn run_scan(state: AppState, config: ScanConfig) {
     send_log(&state, &format!("Concurrency: {}", config.concurrency)).await;
 
     let project_root = find_project_root().unwrap_or_else(|| std::env::current_dir().unwrap());
+    let templates_dir = templates_root();
+    let report_dir = next_report_dir();
 
-    let mut cmd = tokio::process::Command::new("cargo");
-    cmd.current_dir(&project_root);
-    cmd.arg("run")
-        .arg("--release")
-        .arg("-p")
-        .arg("scpf-cli")
-        .arg("--bin")
-        .arg("scpf")
-        .arg("--")
-        .arg("scan")
+    {
+        let mut report_path = state.report_path.write().await;
+        *report_path = Some(report_dir.join("vuln_summary.md"));
+    }
+
+    let mut cmd = if let Some(cli_binary) = desktop_cli_binary_path() {
+        let mut command = tokio::process::Command::new(cli_binary);
+        command.current_dir(&project_root);
+        command
+    } else {
+        let mut command = tokio::process::Command::new("cargo");
+        command
+            .current_dir(&project_root)
+            .arg("run")
+            .arg("--release")
+            .arg("-p")
+            .arg("scpf-cli")
+            .arg("--bin")
+            .arg("scpf")
+            .arg("--");
+        command
+    };
+
+    cmd.arg("scan")
+        .arg("--templates")
+        .arg(&templates_dir)
         .arg("--chains")
         .arg(&config.chain)
         .arg("--pages")
@@ -597,6 +622,7 @@ async fn run_scan(state: AppState, config: ScanConfig) {
         }
     }
 
+    cmd.env("SCPF_REPORT_DIR", &report_dir);
     cmd.stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
 
@@ -690,6 +716,9 @@ async fn run_scan(state: AppState, config: ScanConfig) {
 
 /// Parse log lines to extract progress information (non-async, uses atomics)
 fn parse_and_update_progress(state: &AppState, line: &str) {
+    let normalized_line = strip_ansi_sequences(line);
+    let line = normalized_line.as_str();
+
     // Store findings incrementally
     if line.contains("findings") || line.contains("Exploitable") || line.contains("✓") {
         if let Ok(mut results) = state.results.try_write() {
@@ -697,18 +726,17 @@ fn parse_and_update_progress(state: &AppState, line: &str) {
         }
     }
 
-    // Capture report path
-    if line.contains("Vulnerability summary:") || line.contains("vuln_summary.md") {
-        if let Some(path_start) = line.rfind('/') {
-            if let Some(path_end) = line[path_start..].find(char::is_whitespace) {
-                let path_str = &line[..path_start + path_end];
+    // Capture report path from log lines
+    if line.contains("Vulnerability summary:") || line.contains("0-Day summary:") {
+        // Extract path after the colon: "✅  0-Day summary: /path/to/file.md"
+        if let Some(colon_pos) = line.rfind(':') {
+            let after_colon = line[colon_pos + 1..].trim();
+            // Take first whitespace-delimited token as the path
+            let path_str = after_colon.split_whitespace().next().unwrap_or("");
+            if !path_str.is_empty() && path_str.starts_with('/') {
                 if let Ok(mut report_path) = state.report_path.try_write() {
                     *report_path = Some(std::path::PathBuf::from(path_str));
-                }
-            } else {
-                let path_str = line[..].trim();
-                if let Ok(mut report_path) = state.report_path.try_write() {
-                    *report_path = Some(std::path::PathBuf::from(path_str));
+                    tracing::debug!("Report path captured: {}", path_str);
                 }
             }
         }
@@ -857,22 +885,32 @@ fn parse_and_update_progress(state: &AppState, line: &str) {
     }
 }
 
+fn strip_ansi_sequences(line: &str) -> String {
+    let mut cleaned = String::with_capacity(line.len());
+    let mut chars = line.chars().peekable();
+
+    while let Some(ch) = chars.next() {
+        if ch == '\u{1b}' {
+            if matches!(chars.peek(), Some('[')) {
+                chars.next();
+                while let Some(next) = chars.next() {
+                    if ('@'..='~').contains(&next) {
+                        break;
+                    }
+                }
+            }
+            continue;
+        }
+
+        cleaned.push(ch);
+    }
+
+    cleaned
+}
+
 async fn send_log(state: &AppState, message: &str) {
     let log_tx = state.log_tx.read().await;
     for tx in log_tx.iter() {
         let _ = tx.send(message.to_string());
     }
-}
-
-fn find_project_root() -> Option<std::path::PathBuf> {
-    let mut current = std::env::current_dir().ok()?;
-
-    for _ in 0..5 {
-        if current.join("templates").is_dir() && current.join("Cargo.toml").is_file() {
-            return Some(current);
-        }
-        current = current.parent()?.to_path_buf();
-    }
-
-    None
 }

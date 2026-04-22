@@ -1,0 +1,16 @@
+[package]
+name = "scpf-desktop"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "scpf_desktop"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[dependencies]
+scpf-config = { path = "../../crates/scpf-config" }
+tauri = { version = "2.1", features = [] }
+tokio = { version = "1", features = ["full"] }
+
+[build-dependencies]
+tauri-build = { version = "2.0", features = [] }

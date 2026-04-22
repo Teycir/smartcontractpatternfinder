@@ -6,6 +6,60 @@ All notable changes to this project will be documented in this file.
 
 No unreleased changes.
 
+## [v0.2.0] - 2026-04-22
+
+### Added
+- **Desktop Application**
+  - Full Tauri-based desktop app with native packaging (.deb, .rpm, .AppImage)
+  - Dedicated local backend server on port 32145
+  - Desktop launcher and icon integration
+  - Automatic .env.example seeding on first launch
+- **scpf-config Crate**
+  - Centralized configuration management
+  - Runtime environment detection and .env file discovery
+  - API key loading with cascade fallback support
+  - Server configuration for both web and desktop modes
+- **Enhanced Frontend**
+  - Real-time SSE log streaming
+  - Progress tracking with ETA and rate display
+  - Template selector with multi-select support
+  - Export functionality for reports and logs
+  - Connection state management with auto-reconnect
+  - Responsive UI with improved styling
+
+### Changed
+- **Modular Architecture**
+  - Extracted configuration logic into scpf-config crate
+  - Moved API key management from CLI to shared config
+  - Unified .env file loading across CLI, server, and desktop
+- **Server Improvements**
+  - Fixed report path parser for 0-day-only flow
+  - Enhanced progress tracking with atomic operations
+  - Better error handling and logging
+  - Support for both web (8080) and desktop (32145) modes
+
+### Fixed
+- **Critical**: Export endpoint returning "No report available" for 0-day reports
+  - Parser now correctly extracts full absolute path from log lines
+  - Handles both "Vulnerability summary:" and "0-Day summary:" patterns
+- **Critical**: .env file loading mechanism
+  - Searches multiple locations (project root, config dirs, data dirs)
+  - Supports explicit path via SCPF_ENV_FILE
+  - Desktop app uses ~/.local/share/com.teycir.scpf.desktop/.env
+- Report path extraction from SSE logs
+- Progress tracking for contract scanning and extraction
+- Desktop app server port conflicts
+
+### Performance
+- Atomic operations for progress tracking (reduced lock contention)
+- Efficient SSE streaming with keep-alive
+- Optimized frontend rendering with React hooks
+
+### Status
+- **Desktop Ready**: Full desktop application with native packaging
+- **Production Ready**: Stable server and frontend with comprehensive error handling
+- **Modular**: Clean separation of concerns with scpf-config crate
+
 ## [v1.0.0] - 2026-03-05
 
 ### Added

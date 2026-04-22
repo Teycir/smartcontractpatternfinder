@@ -2,6 +2,7 @@ use crate::cli::ScanArgs;
 use anyhow::Result;
 use chrono;
 use futures::stream::{self, StreamExt};
+use scpf_config::{api_key_help_message, load_api_keys_from_env};
 use scpf_core::{Cache, ContractFetcher, HoneypotFilter, Scanner, TemplateLoader};
 use scpf_types::{Chain, ScanResult, Severity, Template};
 use std::io::IsTerminal;
@@ -397,7 +398,8 @@ fn extract_solidity_version(source: &str) -> Option<String> {
 }
 
 pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
-    let api_keys = crate::keys::load_api_keys_from_env();
+    let api_keys = load_api_keys_from_env();
+    let api_keys_missing = api_keys.is_empty();
     let fetcher = Arc::new(ContractFetcher::new(api_keys)?);
     let chains = if args.chains.is_empty() {
         get_supported_chains()
@@ -429,6 +431,13 @@ pub async fn scan_vulnerabilities(args: ScanArgs) -> Result<()> {
     let _total_contracts_fetched = all_contracts.len();
     if all_contracts.is_empty() {
         eprintln!("⚠️  No recent contracts found");
+
+        if api_keys_missing {
+            eprintln!(
+                "   ℹ️  Explorer API keys are not configured. {}",
+                api_key_help_message()
+            );
+        }
 
         // If 0-day fetch is enabled, continue to generate 0-day report even without contract scanning
         if args.fetch_zero_day.is_some() {

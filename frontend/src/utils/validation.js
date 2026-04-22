@@ -41,7 +41,7 @@ export const validateConcurrency = (value) => {
  */
 export const parseAddresses = (addressString) => {
   return addressString
-    .split(',')
+    .split(/[\n,]/)
     .map(a => a.trim())
     .filter(a => a.length > 0)
 }

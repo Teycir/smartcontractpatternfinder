@@ -1,0 +1,6 @@
+/target
+/gen
+/resources/bin/*
+!/resources/bin/.gitignore
+/resources/templates/*
+!/resources/templates/.gitignore

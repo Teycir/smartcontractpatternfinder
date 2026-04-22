@@ -3,9 +3,6 @@
  * Centralized configuration for timeouts, API endpoints, and default values
  */
 
-// API Configuration
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8080'
-
 export const API_ENDPOINTS = {
   STATUS: '/api/status',
   START: '/api/start',
@@ -16,6 +13,7 @@ export const API_ENDPOINTS = {
   HEALTH: '/api/health',
   EXPORT_LOGS: '/api/export-logs',
   TEMPLATES: '/api/templates',
+  RUNTIME_CONFIG: '/api/runtime-config',
 }
 
 // Timeout Configuration (in milliseconds)
@@ -56,6 +54,8 @@ export const INITIAL_CONFIG = {
   chain: 'all',
   pages: 5,
   concurrency: 2,
+  tags: '',
+  contract_type: '',
   extract_sources: '50',
   fetch_zero_day: true,
 }

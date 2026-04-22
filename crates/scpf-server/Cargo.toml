@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+scpf-config = { workspace = true }
 scpf-types = { workspace = true }
 scpf-core = { workspace = true }
 
@@ -19,6 +20,7 @@ tower-http = { version = "0.5", features = ["cors", "fs"] }
 futures = { workspace = true }
 async-stream = "0.3"
 regex-lite = "0.1"
+dirs = { workspace = true }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
